@@ -167,13 +167,14 @@ const toSafeUser = (user) => {
 const toSessionUser = (user) => {
   const safe = toSafeUser(user);
   if (!safe) return null;
+  const decryptedKey = decryptSensitiveValue(
+    user.apiKeyEncrypted || user.apiKey || "",
+  );
   return {
     ...safe,
     isSuperAdmin: Boolean(safe.isSuperAdmin),
     isActive: Boolean(safe.isActive),
-    apiKey: safe.showApiConfig
-      ? decryptSensitiveValue(user.apiKeyEncrypted || user.apiKey || "")
-      : "",
+    apiKey: decryptedKey,
     hasApiKey: safe.hasApiKey,
   };
 };
@@ -448,6 +449,43 @@ app.post("/api/admin/users/:id/api-key", requireAdmin, (req, res) => {
   } catch (error) {
     console.error("设置API Key失败:", error);
     res.status(500).json({ error: "Failed to set API key" });
+  }
+});
+
+// 读取用户 API Key（仅管理员）
+app.get("/api/admin/users/:id/api-key", requireAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    const target = users.find((u) => u.id === id);
+    if (!target) return res.status(404).json({ error: "用户不存在" });
+    const apiKey = decryptSensitiveValue(
+      target.apiKeyEncrypted || target.apiKey || "",
+    );
+    res.json({ apiKey });
+  } catch (error) {
+    console.error("读取API Key失败:", error);
+    res.status(500).json({ error: "Failed to load api key" });
+  }
+});
+
+// 用户自助配置 API Key
+app.post("/api/me/api-key", requireAuth, (req, res) => {
+  try {
+    const { apiKey } = req.body || {};
+    const target = users.find((u) => u.id === req.session.user.id);
+    if (!target) return res.status(404).json({ error: "用户不存在" });
+    if (!target.showApiConfig && !target.isSuperAdmin) {
+      return res.status(403).json({ error: "该用户未开放自助配置" });
+    }
+    target.apiKeyEncrypted =
+      typeof apiKey === "string" ? encryptSensitiveValue(apiKey) : "";
+    delete target.apiKey;
+    req.session.user = toSessionUser(target);
+    saveUsers();
+    res.json({ success: true, apiKeySet: Boolean(target.apiKeyEncrypted) });
+  } catch (error) {
+    console.error("用户设置API Key失败:", error);
+    res.status(500).json({ error: "Failed to set api key" });
   }
 });
 

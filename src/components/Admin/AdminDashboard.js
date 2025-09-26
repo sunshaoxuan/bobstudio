@@ -1,7 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { Users, Home, BarChart3, LogOut, Eye, EyeOff } from "lucide-react";
+import {
+  Users,
+  Home,
+  BarChart3,
+  LogOut,
+  Eye,
+  EyeOff,
+  Key,
+  X,
+  Loader2,
+} from "lucide-react";
 
 const AdminDashboard = () => {
   const { currentUser, logout } = useAuth();
@@ -15,6 +25,13 @@ const AdminDashboard = () => {
     isActive: true,
     isSuperAdmin: false,
     showApiConfig: false,
+  });
+  const [apiKeyModal, setApiKeyModal] = useState({
+    visible: false,
+    userId: null,
+    username: "",
+    value: "",
+    loading: false,
   });
 
   const API_BASE =
@@ -36,35 +53,69 @@ const AdminDashboard = () => {
     }
   };
 
-  const createUser = async () => {
-    if (!createForm.username || !createForm.email || !createForm.password)
-      return;
+  const openApiKeyModal = async (userId, username) => {
     try {
-      setCreating(true);
-      const res = await fetch(`${API_BASE}/api/admin/users`, {
+      setApiKeyModal({
+        visible: true,
+        userId,
+        username,
+        value: "",
+        loading: true,
+      });
+      const res = await fetch(`${API_BASE}/api/admin/users/${userId}/api-key`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error("加载API Key失败");
+      }
+      const data = await res.json().catch(() => ({ apiKey: "" }));
+      setApiKeyModal({
+        visible: true,
+        userId,
+        username,
+        value: data.apiKey || "",
+        loading: false,
+      });
+    } catch (error) {
+      console.error(error);
+      setApiKeyModal({
+        visible: true,
+        userId,
+        username,
+        value: "",
+        loading: false,
+      });
+      alert("加载API Key失败");
+    }
+  };
+
+  const closeApiKeyModal = () => {
+    setApiKeyModal({
+      visible: false,
+      userId: null,
+      username: "",
+      value: "",
+      loading: false,
+    });
+  };
+
+  const saveApiKeyModalValue = async () => {
+    if (!apiKeyModal.userId) return;
+    try {
+      setApiKeyModal((prev) => ({ ...prev, loading: true }));
+      const res = await fetch(`${API_BASE}/api/admin/users/${apiKeyModal.userId}/api-key`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(createForm),
+        body: JSON.stringify({ apiKey: apiKeyModal.value }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "创建失败");
-      }
-      setCreateForm({
-        username: "",
-        email: "",
-        password: "",
-        isActive: true,
-        isSuperAdmin: false,
-        showApiConfig: false,
-      });
+      if (!res.ok) throw new Error("保存失败");
       await fetchUsers();
-    } catch (e) {
-      console.error(e);
-      alert(e.message || "创建失败");
-    } finally {
-      setCreating(false);
+      closeApiKeyModal();
+    } catch (error) {
+      console.error(error);
+      setApiKeyModal((prev) => ({ ...prev, loading: false }));
+      alert("保存失败");
     }
   };
 
@@ -84,53 +135,16 @@ const AdminDashboard = () => {
     }
   };
 
-  const setApiKey = async (id) => {
-    const key = window.prompt("请输入该用户的 API Key（留空清除）", "");
-    if (key === null) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${id}/api-key`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ apiKey: key }),
-      });
-      if (!res.ok) throw new Error("设置失败");
-      await fetchUsers();
-    } catch (e) {
-      console.error(e);
-      alert("设置失败");
-    }
-  };
-
   const resetPassword = async (id) => {
-    const toggleShowApiConfig = async (id, showApiConfig) => {
-      try {
-        const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ showApiConfig: !showApiConfig }),
-        });
-        if (!res.ok) throw new Error("更新失败");
-        await fetchUsers();
-      } catch (e) {
-        console.error(e);
-        alert("更新失败");
-      }
-    };
-
     const newPwd = window.prompt("请输入新密码");
     if (!newPwd) return;
     try {
-      const res = await fetch(
-        `${API_BASE}/api/admin/users/${id}/reset-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ newPassword: newPwd }),
-        },
-      );
+      const res = await fetch(`${API_BASE}/api/admin/users/${id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ newPassword: newPwd }),
+      });
       if (!res.ok) throw new Error("重置失败");
       alert("已重置");
     } catch (e) {
@@ -139,17 +153,14 @@ const AdminDashboard = () => {
     }
   };
 
-  const toggleShowApiConfig = async (id, currentValue) => {
+  const toggleShowApiConfig = async (id, showApiConfig) => {
     try {
-      const res = await fetch(
-        `${API_BASE}/api/admin/users/${id}/show-api-config`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ showApiConfig: !currentValue }),
-        },
-      );
+      const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ showApiConfig: !showApiConfig }),
+      });
       if (!res.ok) throw new Error("更新失败");
       await fetchUsers();
     } catch (e) {
@@ -452,7 +463,9 @@ const AdminDashboard = () => {
                               {u.isActive ? "禁用" : "激活"}
                             </button>
                             <button
-                              onClick={() => setApiKey(u.id)}
+                              onClick={() =>
+                                openApiKeyModal(u.id, u.username)
+                              }
                               className="text-teal-600 hover:underline"
                             >
                               设置API Key
@@ -490,6 +503,68 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+      {apiKeyModal.visible && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white w-full max-w-lg rounded-xl shadow-xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-purple-600" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">配置 API Key</h3>
+                  <p className="text-sm text-gray-500">
+                    用户：{apiKeyModal.username || ""}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closeApiKeyModal}
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
+                disabled={apiKeyModal.loading}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-600 mb-2">API Key</label>
+              <textarea
+                rows={3}
+                value={apiKeyModal.value}
+                onChange={(e) =>
+                  setApiKeyModal((prev) => ({ ...prev, value: e.target.value }))
+                }
+                className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="请输入或粘贴 API Key"
+                disabled={apiKeyModal.loading}
+              />
+              <p className="text-xs text-gray-400 mt-2">
+                Tips：留空后点击保存即可清除该用户的 API Key。
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeApiKeyModal}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100"
+                disabled={apiKeyModal.loading}
+              >
+                取消
+              </button>
+              <button
+                onClick={saveApiKeyModalValue}
+                className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-60"
+                disabled={apiKeyModal.loading}
+              >
+                {apiKeyModal.loading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> 保存中…
+                  </span>
+                ) : (
+                  "保存"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,9 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+} from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -729,8 +734,18 @@ const Studio = () => {
 
   // 文本生成图像
   const generateImage = async () => {
-    if (!apiKey || !prompt) {
-      showError("参数缺失", "请输入API密钥和提示词");
+    if (!currentUser?.showApiConfig && !apiKey) {
+      showError("权限受限", "请联系管理员为该账号配置 API Key");
+      return;
+    }
+
+    if (!apiKey) {
+      showError("参数缺失", "请输入API密钥");
+      return;
+    }
+
+    if (!prompt) {
+      showError("参数缺失", "请输入提示词");
       return;
     }
 
@@ -768,8 +783,18 @@ const Studio = () => {
 
   // 图像编辑/合成
   const processImages = async () => {
-    if (!apiKey || !prompt || uploadedImages.length === 0) {
-      showError("参数缺失", "请输入API密钥、提示词并上传图像");
+    if (!currentUser?.showApiConfig && !apiKey) {
+      showError("权限受限", "请联系管理员为该账号配置 API Key");
+      return;
+    }
+
+    if (!apiKey) {
+      showError("参数缺失", "请输入API密钥");
+      return;
+    }
+
+    if (!prompt || uploadedImages.length === 0) {
+      showError("参数缺失", "请输入提示词并上传图像");
       return;
     }
 
@@ -830,10 +855,44 @@ const Studio = () => {
   };
 
   // 保存API设置（暂时只是本地状态，后续可以添加后端API）
-  const saveApiSettings = () => {
-    // TODO: 调用后端API保存用户设置
-    showError("保存成功", "API密钥已保存到本地", "");
-  };
+  const [saveApiLoading, setSaveApiLoading] = useState(false);
+
+  const saveApiSettings = useCallback(async () => {
+    try {
+      if (!currentUser || !currentUser.showApiConfig) {
+        showError("操作受限", "当前账号不支持自助配置 API Key", "");
+        return;
+      }
+      setSaveApiLoading(true);
+      const response = await fetch(
+        `${
+          process.env.NODE_ENV === "development"
+            ? "http://localhost:8080"
+            : ""
+        }/api/me/api-key`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ apiKey }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "保存失败");
+      }
+
+      showError("保存成功", "API 密钥已更新", "");
+    } catch (error) {
+      console.error("保存 API Key 失败:", error);
+      showError("保存失败", error.message || "API 密钥保存失败，请稍后重试");
+    } finally {
+      setSaveApiLoading(false);
+    }
+  }, [apiKey, currentUser, showError]);
 
   // 切换API配置展开状态（仅前端控制）
   const [apiConfigExpanded, setApiConfigExpanded] = useState(true);
@@ -906,6 +965,8 @@ const Studio = () => {
       return '上传图片后，你可以用编号引用：如"将图片1的人物放到图片2的背景中"';
     }
   };
+
+  const hasApiKeyConfigured = Boolean(currentUser?.hasApiKey || apiKey);
 
   if (!currentUser) {
     return null; // 避免在重定向前显示内容
@@ -1006,9 +1067,17 @@ const Studio = () => {
                   </div>
                   <button
                     onClick={saveApiSettings}
-                    className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    disabled={!apiKey || saveApiLoading}
+                    className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    保存
+                    {saveApiLoading ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        保存中…
+                      </span>
+                    ) : (
+                      "保存"
+                    )}
                   </button>
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
@@ -1042,6 +1111,15 @@ const Studio = () => {
                   <div className="text-sm text-gray-500">总计</div>
                 </div>
               </div>
+              {!hasApiKeyConfigured && (
+                <div className="mt-4 p-3 rounded-lg bg-orange-50 text-orange-700 text-sm">
+                  当前账户尚未配置 API Key，生成图像功能不可用。{"
+                  "}
+                  {currentUser?.showApiConfig
+                    ? "请先在上方配置后保存。"
+                    : "请联系管理员为你配置后再使用。"}
+                </div>
+              )}
             </div>
 
             {/* 模式选择 */}
@@ -1191,6 +1269,11 @@ const Studio = () => {
                 onChange={(e) => setPrompt(e.target.value)}
                 className="w-full p-4 border border-gray-300 rounded-lg h-32 resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
+              {!hasApiKeyConfigured && (
+                <p className="mt-3 text-sm text-orange-600">
+                  尚未配置 API Key，生成按钮已禁用。
+                </p>
+              )}
               {uploadedImages.length > 0 && (
                 <div className="mt-2 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-700 font-medium">
