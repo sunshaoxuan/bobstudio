@@ -1,22 +1,32 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { Users, Home, BarChart3, LogOut, Eye, EyeOff } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
+import { Users, Home, BarChart3, LogOut, Eye, EyeOff } from "lucide-react";
 
 const AdminDashboard = () => {
   const { currentUser, logout } = useAuth();
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [createForm, setCreateForm] = useState({ username: '', email: '', password: '', isActive: true, isSuperAdmin: false, showApiConfig: false });
+  const [createForm, setCreateForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    isActive: true,
+    isSuperAdmin: false,
+    showApiConfig: false,
+  });
 
-  const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:8080' : '';
+  const API_BASE =
+    process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
 
   const fetchUsers = async () => {
     try {
       setLoadingUsers(true);
-      const res = await fetch(`${API_BASE}/api/admin/users`, { credentials: 'include' });
-      if (!res.ok) throw new Error('加载用户失败');
+      const res = await fetch(`${API_BASE}/api/admin/users`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("加载用户失败");
       const data = await res.json();
       setUsers(Array.isArray(data.users) ? data.users : []);
     } catch (e) {
@@ -27,24 +37,32 @@ const AdminDashboard = () => {
   };
 
   const createUser = async () => {
-    if (!createForm.username || !createForm.email || !createForm.password) return;
+    if (!createForm.username || !createForm.email || !createForm.password)
+      return;
     try {
       setCreating(true);
       const res = await fetch(`${API_BASE}/api/admin/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(createForm)
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(createForm),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || '创建失败');
+        throw new Error(err.error || "创建失败");
       }
-      setCreateForm({ username: '', email: '', password: '', isActive: true, isSuperAdmin: false, showApiConfig: false });
+      setCreateForm({
+        username: "",
+        email: "",
+        password: "",
+        isActive: true,
+        isSuperAdmin: false,
+        showApiConfig: false,
+      });
       await fetchUsers();
     } catch (e) {
       console.error(e);
-      alert(e.message || '创建失败');
+      alert(e.message || "创建失败");
     } finally {
       setCreating(false);
     }
@@ -53,109 +71,115 @@ const AdminDashboard = () => {
   const toggleActive = async (id, isActive) => {
     try {
       const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ isActive: !isActive })
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ isActive: !isActive }),
       });
-      if (!res.ok) throw new Error('更新失败');
+      if (!res.ok) throw new Error("更新失败");
       await fetchUsers();
     } catch (e) {
       console.error(e);
-      alert('更新失败');
+      alert("更新失败");
     }
   };
 
   const setApiKey = async (id) => {
-    const key = window.prompt('请输入该用户的 API Key（留空清除）', '');
+    const key = window.prompt("请输入该用户的 API Key（留空清除）", "");
     if (key === null) return;
     try {
       const res = await fetch(`${API_BASE}/api/admin/users/${id}/api-key`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ apiKey: key })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ apiKey: key }),
       });
-      if (!res.ok) throw new Error('设置失败');
+      if (!res.ok) throw new Error("设置失败");
       await fetchUsers();
     } catch (e) {
       console.error(e);
-      alert('设置失败');
+      alert("设置失败");
     }
   };
 
   const resetPassword = async (id) => {
-  const toggleShowApiConfig = async (id, showApiConfig) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ showApiConfig: !showApiConfig })
-      });
-      if (!res.ok) throw new Error('更新失败');
-      await fetchUsers();
-    } catch (e) {
-      console.error(e);
-      alert('更新失败');
-    }
-  };
+    const toggleShowApiConfig = async (id, showApiConfig) => {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ showApiConfig: !showApiConfig }),
+        });
+        if (!res.ok) throw new Error("更新失败");
+        await fetchUsers();
+      } catch (e) {
+        console.error(e);
+        alert("更新失败");
+      }
+    };
 
-    const newPwd = window.prompt('请输入新密码');
+    const newPwd = window.prompt("请输入新密码");
     if (!newPwd) return;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${id}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ newPassword: newPwd })
-      });
-      if (!res.ok) throw new Error('重置失败');
-      alert('已重置');
+      const res = await fetch(
+        `${API_BASE}/api/admin/users/${id}/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ newPassword: newPwd }),
+        },
+      );
+      if (!res.ok) throw new Error("重置失败");
+      alert("已重置");
     } catch (e) {
       console.error(e);
-      alert('重置失败');
+      alert("重置失败");
     }
   };
 
   const toggleShowApiConfig = async (id, currentValue) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${id}/show-api-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ showApiConfig: !currentValue })
-      });
-      if (!res.ok) throw new Error('更新失败');
+      const res = await fetch(
+        `${API_BASE}/api/admin/users/${id}/show-api-config`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ showApiConfig: !currentValue }),
+        },
+      );
+      if (!res.ok) throw new Error("更新失败");
       await fetchUsers();
     } catch (e) {
       console.error(e);
-      alert('更新失败');
+      alert("更新失败");
     }
   };
 
   const deleteUser = async (id) => {
-    if (!window.confirm('确认删除该用户？')) return;
+    if (!window.confirm("确认删除该用户？")) return;
     try {
       const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
-        method: 'DELETE',
-        credentials: 'include'
+        method: "DELETE",
+        credentials: "include",
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || '删除失败');
+        throw new Error(err.error || "删除失败");
       }
       await fetchUsers();
     } catch (e) {
       console.error(e);
-      alert(e.message || '删除失败');
+      alert(e.message || "删除失败");
     }
   };
 
   // 检查管理员权限
   useEffect(() => {
     if (!currentUser || !currentUser.isSuperAdmin) {
-      console.log('管理端权限检查：用户权限不足或已退出');
+      console.log("管理端权限检查：用户权限不足或已退出");
     }
     if (currentUser && currentUser.isSuperAdmin) {
       fetchUsers();
@@ -215,7 +239,7 @@ const AdminDashboard = () => {
               </span>
               <button
                 onClick={() => {
-                  console.log('管理端退出登录按钮被点击');
+                  console.log("管理端退出登录按钮被点击");
                   logout();
                 }}
                 className="flex items-center gap-2 text-red-600 hover:text-red-800 transition-colors"
@@ -291,26 +315,37 @@ const AdminDashboard = () => {
                   className="w-full border rounded px-3 py-2"
                   placeholder="用户名"
                   value={createForm.username}
-                  onChange={e=>setCreateForm(v=>({...v, username:e.target.value}))}
+                  onChange={(e) =>
+                    setCreateForm((v) => ({ ...v, username: e.target.value }))
+                  }
                 />
                 <input
                   className="w-full border rounded px-3 py-2"
                   placeholder="邮箱"
                   value={createForm.email}
-                  onChange={e=>setCreateForm(v=>({...v, email:e.target.value}))}
+                  onChange={(e) =>
+                    setCreateForm((v) => ({ ...v, email: e.target.value }))
+                  }
                 />
                 <input
                   className="w-full border rounded px-3 py-2"
                   placeholder="初始密码"
                   value={createForm.password}
-                  onChange={e=>setCreateForm(v=>({...v, password:e.target.value}))}
+                  onChange={(e) =>
+                    setCreateForm((v) => ({ ...v, password: e.target.value }))
+                  }
                 />
                 <div className="flex flex-col gap-3 text-sm text-gray-700">
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={createForm.isActive}
-                      onChange={e=>setCreateForm(v=>({...v, isActive:e.target.checked}))}
+                      onChange={(e) =>
+                        setCreateForm((v) => ({
+                          ...v,
+                          isActive: e.target.checked,
+                        }))
+                      }
                     />
                     激活
                   </label>
@@ -318,7 +353,12 @@ const AdminDashboard = () => {
                     <input
                       type="checkbox"
                       checked={createForm.isSuperAdmin}
-                      onChange={e=>setCreateForm(v=>({...v, isSuperAdmin:e.target.checked}))}
+                      onChange={(e) =>
+                        setCreateForm((v) => ({
+                          ...v,
+                          isSuperAdmin: e.target.checked,
+                        }))
+                      }
                     />
                     超级管理员
                   </label>
@@ -326,7 +366,12 @@ const AdminDashboard = () => {
                     <input
                       type="checkbox"
                       checked={createForm.showApiConfig}
-                      onChange={e=>setCreateForm(v=>({...v, showApiConfig:e.target.checked}))}
+                      onChange={(e) =>
+                        setCreateForm((v) => ({
+                          ...v,
+                          showApiConfig: e.target.checked,
+                        }))
+                      }
                     />
                     允许用户自行配置 API Key
                   </label>
@@ -336,70 +381,112 @@ const AdminDashboard = () => {
                   onClick={createUser}
                   className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2 px-4 rounded hover:from-purple-700 hover:to-blue-700 transition-all"
                 >
-                  {creating ? '创建中...' : '创建'}
+                  {creating ? "创建中..." : "创建"}
                 </button>
               </div>
             </div>
             <div>
-              <h3 className="font-medium mb-2">用户列表 {loadingUsers && <span className="text-sm text-gray-500">(加载中...)</span>}</h3>
+              <h3 className="font-medium mb-2">
+                用户列表{" "}
+                {loadingUsers && (
+                  <span className="text-sm text-gray-500">(加载中...)</span>
+                )}
+              </h3>
               <div className="overflow-x-auto border rounded">
                 <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
+                  <thead className="bg-gray-50">
+                    <tr>
                       <th className="text-left px-3 py-2">用户名</th>
                       <th className="text-left px-3 py-2">邮箱</th>
                       <th className="text-left px-3 py-2">状态</th>
                       <th className="text-left px-3 py-2">角色</th>
-                      <th className="text-left px-3 py-2">API Key</th>
-                      <th className="text-left px-3 py-2">允许自配置</th>
+                      <th className="text-left px-3 py-2">API Key 状态</th>
                       <th className="text-left px-3 py-2">操作</th>
-                </tr>
-              </thead>
+                    </tr>
+                  </thead>
                   <tbody>
                     {users.length === 0 && (
-                      <tr><td className="px-3 py-3 text-gray-500" colSpan={5}>暂无用户</td></tr>
+                      <tr>
+                        <td className="px-3 py-3 text-gray-500" colSpan={5}>
+                          暂无用户
+                        </td>
+                      </tr>
                     )}
-                    {users.map(u => (
+                    {users.map((u) => (
                       <tr key={u.id} className="border-t">
                         <td className="px-3 py-2">{u.username}</td>
                         <td className="px-3 py-2">{u.email}</td>
-                        <td className="px-3 py-2">{u.isActive ? '已激活' : '未激活'}</td>
-                        <td className="px-3 py-2">{u.isSuperAdmin ? '超级管理员' : '普通用户'}</td>
+                        <td className="px-3 py-2">
+                          {u.isActive ? "已激活" : "未激活"}
+                        </td>
+                        <td className="px-3 py-2">
+                          {u.isSuperAdmin ? "超级管理员" : "普通用户"}
+                        </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col gap-1">
-                            <span className={u.apiKey ? 'text-green-600' : 'text-gray-500'}>
-                              {u.apiKey ? '已设置' : '未设置'}
+                            <span
+                              className={
+                                u.hasApiKey ? "text-green-600" : "text-gray-500"
+                              }
+                            >
+                              {u.hasApiKey ? "已设置" : "未设置"}
                             </span>
                             <span className="text-xs text-gray-400 flex items-center gap-1">
-                              {u.showApiConfig ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                              {u.showApiConfig ? '用户可自行配置' : '仅管理员可配置'}
+                              {u.showApiConfig ? (
+                                <Eye className="w-3 h-3" />
+                              ) : (
+                                <EyeOff className="w-3 h-3" />
+                              )}
+                              {u.showApiConfig
+                                ? "用户可自行配置"
+                                : "仅管理员可配置"}
                             </span>
                           </div>
                         </td>
                         <td className="px-3 py-2">
                           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
-                            <button onClick={()=>toggleActive(u.id, u.isActive)} className="text-blue-600 hover:underline">
-                              {u.isActive ? '禁用' : '激活'}
-                            </button>
-                            <button onClick={()=>setApiKey(u.id)} className="text-teal-600 hover:underline">设置API Key</button>
-                            <button onClick={()=>resetPassword(u.id)} className="text-purple-600 hover:underline">重置密码</button>
                             <button
-                              onClick={() => toggleShowApiConfig(u.id, u.showApiConfig)}
+                              onClick={() => toggleActive(u.id, u.isActive)}
+                              className="text-blue-600 hover:underline"
+                            >
+                              {u.isActive ? "禁用" : "激活"}
+                            </button>
+                            <button
+                              onClick={() => setApiKey(u.id)}
+                              className="text-teal-600 hover:underline"
+                            >
+                              设置API Key
+                            </button>
+                            <button
+                              onClick={() => resetPassword(u.id)}
+                              className="text-purple-600 hover:underline"
+                            >
+                              重置密码
+                            </button>
+                            <button
+                              onClick={() =>
+                                toggleShowApiConfig(u.id, u.showApiConfig)
+                              }
                               className="text-yellow-600 hover:underline"
                             >
-                              {u.showApiConfig ? '关闭自配置' : '允许自配置'}
+                              {u.showApiConfig ? "关闭自配置" : "允许自配置"}
                             </button>
                             {!u.isSuperAdmin && (
-                              <button onClick={()=>deleteUser(u.id)} className="text-red-600 hover:underline">删除</button>
+                              <button
+                                onClick={() => deleteUser(u.id)}
+                                className="text-red-600 hover:underline"
+                              >
+                                删除
+                              </button>
                             )}
                           </div>
                         </td>
                       </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
