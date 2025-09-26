@@ -1506,15 +1506,31 @@ const Studio = () => {
                       },
                     ];
 
-                    const hasFourActions = actions.length === 4;
-                    const overlayLayoutClass = hasFourActions
-                      ? "grid grid-cols-2 gap-3"
+                    const shouldUseGrid = actions.length >= 3;
+                    const overlayLayoutClass = shouldUseGrid
+                      ? "grid grid-cols-2 gap-3 justify-items-center"
                       : "flex items-center gap-3";
-                    const mobileLayoutClass = hasFourActions
+                    const mobileLayoutClass = shouldUseGrid
                       ? "grid grid-cols-2 gap-2 md:hidden justify-items-center"
                       : "flex md:hidden items-center justify-center gap-2";
 
+                    const preparedActions = [...actions];
+                    const needsPlaceholder = shouldUseGrid && preparedActions.length % 2 !== 0;
+                    if (needsPlaceholder) {
+                      preparedActions.push({ key: "placeholder", placeholder: true });
+                    }
+
                     const renderActionButton = (action, layout) => {
+                      if (action.placeholder) {
+                        return (
+                          <div
+                            key={`${action.key}-${layout}`}
+                            className="w-10 h-10"
+                            aria-hidden="true"
+                          ></div>
+                        );
+                      }
+
                       const baseClass = "w-10 h-10 flex items-center justify-center rounded-full transition-all";
                       const variantClass =
                         action.variant === "danger"
@@ -1554,11 +1570,11 @@ const Studio = () => {
                         </div>
                         <div className="absolute inset-0 rounded-lg hidden md:flex items-end justify-center pb-6 px-4 transition-opacity md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40">
                           <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${overlayLayoutClass}`}>
-                            {actions.map((action) => renderActionButton(action, "overlay"))}
+                            {preparedActions.map((action) => renderActionButton(action, "overlay"))}
                           </div>
                         </div>
                         <div className={`mt-2 ${mobileLayoutClass}`}>
-                          {actions.map((action) => renderActionButton(action, "mobile"))}
+                          {preparedActions.map((action) => renderActionButton(action, "mobile"))}
                         </div>
                         <div className="mt-2 text-xs text-gray-600 text-center">
                           <div className="font-medium text-blue-600">
