@@ -1468,105 +1468,114 @@ const Studio = () => {
                   历史记录自动保存到服务器，登录后会自动加载。也可以手动导入/导出进行备份
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
-                  {imageHistory.map((record) => (
-                    <div key={record.id} className="relative group">
-                      <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                        <img
-                          src={record.imageUrl}
-                          alt={`Generated ${record.mode}`}
-                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
-                          onClick={() => setGeneratedImage(record.imageUrl)}
-                        />
-                      </div>
-                      <div className="absolute inset-0 rounded-lg transition-opacity hidden md:flex items-center justify-center md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40">
-                        <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity space-x-2">
-                          <button
-                            onClick={() => setGeneratedImage(record.imageUrl)}
-                            className="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all"
-                            title="查看大图"
-                          >
-                            <Eye className="w-4 h-4 text-gray-700" />
-                          </button>
-                          {mode !== "generate" && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addHistoryImageToUploads(record);
-                              }}
-                              className="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all"
-                              title="添加到参考图片"
-                            >
-                              <Plus className="w-4 h-4 text-gray-700" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() =>
-                              downloadImage(record.imageUrl, record.fileName)
+                  {imageHistory.map((record) => {
+                    const actions = [
+                      {
+                        key: "view",
+                        icon: Eye,
+                        title: "查看大图",
+                        variant: "default",
+                        onPress: () => setGeneratedImage(record.imageUrl),
+                      },
+                      ...(mode !== "generate"
+                        ? [
+                            {
+                              key: "add",
+                              icon: Plus,
+                              title: "添加到参考图片",
+                              variant: "default",
+                              onPress: () => addHistoryImageToUploads(record),
+                              stopPropagation: true,
+                            },
+                          ]
+                        : []),
+                      {
+                        key: "download",
+                        icon: Download,
+                        title: "下载图片",
+                        variant: "default",
+                        onPress: () => downloadImage(record.imageUrl, record.fileName),
+                      },
+                      {
+                        key: "delete",
+                        icon: X,
+                        title: "删除图片",
+                        variant: "danger",
+                        onPress: () => deleteHistoryImage(record.id),
+                        stopPropagation: true,
+                      },
+                    ];
+
+                    const hasFourActions = actions.length === 4;
+                    const overlayLayoutClass = hasFourActions
+                      ? "grid grid-cols-2 gap-3"
+                      : "flex items-center gap-3";
+                    const mobileLayoutClass = hasFourActions
+                      ? "grid grid-cols-2 gap-2 md:hidden justify-items-center"
+                      : "flex md:hidden items-center justify-center gap-2";
+
+                    const renderActionButton = (action, layout) => {
+                      const baseClass = "w-10 h-10 flex items-center justify-center rounded-full transition-all";
+                      const variantClass =
+                        action.variant === "danger"
+                          ? layout === "overlay"
+                            ? "bg-red-500 text-white hover:bg-red-600"
+                            : "bg-red-500 text-white shadow"
+                          : layout === "overlay"
+                            ? "bg-white bg-opacity-90 text-gray-700 hover:bg-opacity-100"
+                            : "bg-white text-gray-700 shadow";
+
+                      return (
+                        <button
+                          key={`${action.key}-${layout}`}
+                          onClick={(event) => {
+                            if (layout === "overlay" || action.stopPropagation) {
+                              event.stopPropagation();
                             }
-                            className="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all"
-                            title="下载图片"
-                          >
-                            <Download className="w-4 h-4 text-gray-700" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteHistoryImage(record.id);
-                            }}
-                            className="bg-red-500 bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all"
-                            title="删除图片"
-                          >
-                            <X className="w-4 h-4 text-white" />
-                          </button>
+                            action.onPress();
+                          }}
+                          className={`${baseClass} ${variantClass}`}
+                          title={action.title}
+                        >
+                          <action.icon className="w-4 h-4" />
+                        </button>
+                      );
+                    };
+
+                    return (
+                      <div key={record.id} className="relative group">
+                        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                          <img
+                            src={record.imageUrl}
+                            alt={`Generated ${record.mode}`}
+                            className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                            onClick={() => setGeneratedImage(record.imageUrl)}
+                          />
+                        </div>
+                        <div className="absolute inset-0 rounded-lg hidden md:flex items-end justify-center pb-6 px-4 transition-opacity md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40">
+                          <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${overlayLayoutClass}`}>
+                            {actions.map((action) => renderActionButton(action, "overlay"))}
+                          </div>
+                        </div>
+                        <div className={`mt-2 ${mobileLayoutClass}`}>
+                          {actions.map((action) => renderActionButton(action, "mobile"))}
+                        </div>
+                        <div className="mt-2 text-xs text-gray-600 text-center">
+                          <div className="font-medium text-blue-600">
+                            #{imageHistory.length - imageHistory.indexOf(record)}
+                          </div>
+                          <div className="text-gray-500">
+                            {new Date(record.createdAt).toLocaleString("zh-CN", {
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
                         </div>
                       </div>
-                      <div className="mt-2 flex items-center justify-center gap-2 md:hidden">
-                        <button
-                          onClick={() => setGeneratedImage(record.imageUrl)}
-                          className="bg-white shadow p-2 rounded-full"
-                          title="查看大图"
-                        >
-                          <Eye className="w-4 h-4 text-gray-700" />
-                        </button>
-                        {mode !== "generate" && (
-                          <button
-                            onClick={() => addHistoryImageToUploads(record)}
-                            className="bg-white shadow p-2 rounded-full"
-                            title="添加到参考图片"
-                          >
-                            <Plus className="w-4 h-4 text-gray-700" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => downloadImage(record.imageUrl, record.fileName)}
-                          className="bg-white shadow p-2 rounded-full"
-                          title="下载图片"
-                        >
-                          <Download className="w-4 h-4 text-gray-700" />
-                        </button>
-                        <button
-                          onClick={() => deleteHistoryImage(record.id)}
-                          className="bg-red-500 text-white shadow p-2 rounded-full"
-                          title="删除图片"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-600 text-center">
-                        <div className="font-medium text-blue-600">
-                          #{imageHistory.length - imageHistory.indexOf(record)}
-                        </div>
-                        <div className="text-gray-500">
-                          {new Date(record.createdAt).toLocaleString("zh-CN", {
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -1601,7 +1610,7 @@ const Studio = () => {
               <ul className="mt-2 space-y-1 text-xs">
                 <li>• 上传后自动标号（图片1、图片2...）</li>
                 <li>• 提示词中可精确引用特定图片</li>
-                <li>• 例如："用图片1的人物，图片2的背景"</li>
+                <li>• 例如："用图片1中的人物，图片2的背景"</li>
               </ul>
             </div>
             <div>
