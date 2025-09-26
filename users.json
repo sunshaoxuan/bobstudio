@@ -1,0 +1,22 @@
+[
+  {
+    "id": "super-admin-001",
+    "username": "admin",
+    "email": "sunsx@briconbric.com",
+    "password": "142042067a0d2ae418d2c025bdc5260542e5036b07febab292b6b303531ef6de",
+    "isActive": true,
+    "isSuperAdmin": true,
+    "createdAt": "2025-09-25T11:00:43.090Z",
+    "apiKey": "AIzaSyDAnVvztluq7c8a8EtKrC0DWhdCEYZolpk"
+  },
+  {
+    "id": "user_1758847265595",
+    "username": "sunjr",
+    "email": "sunjr@cndrp.com",
+    "password": "7b68ea98dc7cc66a2f356bd6504f4246e004f99829cc38361f04015ad7453957",
+    "apiKey": "AIzaSyDAnVvztluq7c8a8EtKrC0DWhdCEYZolpk",
+    "isActive": true,
+    "isSuperAdmin": false,
+    "createdAt": "2025-09-26T00:41:05.596Z"
+  }
+]
