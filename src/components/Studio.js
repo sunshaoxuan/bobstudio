@@ -14,6 +14,7 @@ import {
   Download,
   Settings,
   Sparkles,
+  Plus,
   X,
   Home,
   LogOut,
@@ -650,7 +651,10 @@ const Studio = () => {
 
   // 移除指定图片
   const removeImage = (index) => {
-    URL.revokeObjectURL(imageUrls[index]);
+    const targetUrl = imageUrls[index];
+    if (typeof targetUrl === "string" && targetUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(targetUrl);
+    }
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
     setImageUrls((prev) => prev.filter((_, i) => i !== index));
     console.log(`移除了第${index + 1}号图片`);
@@ -658,11 +662,85 @@ const Studio = () => {
 
   // 清空所有图片
   const clearAllImages = () => {
-    imageUrls.forEach((url) => URL.revokeObjectURL(url));
+    imageUrls.forEach((url) => {
+      if (typeof url === "string" && url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    });
     setUploadedImages([]);
     setImageUrls([]);
     console.log("已清空所有图片");
   };
+
+  const addHistoryImageToUploads = useCallback(
+    async (record) => {
+      try {
+        if (!record?.imageUrl) {
+          showError("数据缺失", "未找到历史图片的数据源");
+          return;
+        }
+
+        if (mode === "generate") {
+          showError("模式限制", "请先切换到图像编辑或图像合成模式");
+          return;
+        }
+
+        const response = await fetch(record.imageUrl);
+        if (!response.ok) {
+          throw new Error(`获取历史图片失败: ${response.status}`);
+        }
+        const blob = await response.blob();
+        let mimeType = blob.type;
+        if (!mimeType) {
+          const match = record.imageUrl.match(/^data:(.*?);/);
+          mimeType = match ? match[1] : "image/png";
+        }
+
+        const normalizedName = (() => {
+          if (typeof record.fileName === "string" && record.fileName.trim()) {
+            return record.fileName.trim();
+          }
+          const extension = mimeType.includes("jpeg")
+            ? "jpg"
+            : mimeType.includes("png")
+              ? "png"
+              : "png";
+          return `history-reference-${Date.now()}.${extension}`;
+        })();
+
+        const file = new File([blob], normalizedName, { type: mimeType });
+        file.__source = "history";
+        file.__historyId = record.id;
+
+        if (uploadedImages.some((img) => img?.__historyId === record.id)) {
+          showError("已存在", "这张历史图片已经在参考列表中");
+          return;
+        }
+
+        const previewUrl = URL.createObjectURL(file);
+
+        setUploadedImages((prev) => (mode === "edit" ? [file] : [...prev, file]));
+
+        setImageUrls((prev) => {
+          if (mode === "edit") {
+            prev.forEach((url) => {
+              if (typeof url === "string" && url.startsWith("blob:")) {
+                URL.revokeObjectURL(url);
+              }
+            });
+            return [previewUrl];
+          }
+          return [...prev, previewUrl];
+        });
+
+        console.log("已将历史图片添加为参考图像:", record.id);
+      } catch (error) {
+        console.error("将历史图片添加为参考失败:", error);
+        showError("添加失败", "无法将历史图片添加为参考，请稍后再试");
+      }
+    },
+    [mode, uploadedImages, showError],
+  );
 
   // 调用API
   const callAPI = async (requestBody) => {
@@ -1409,6 +1487,18 @@ const Studio = () => {
                           >
                             <Eye className="w-4 h-4 text-gray-700" />
                           </button>
+                          {mode !== "generate" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addHistoryImageToUploads(record);
+                              }}
+                              className="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all"
+                              title="添加到参考图片"
+                            >
+                              <Plus className="w-4 h-4 text-gray-700" />
+                            </button>
+                          )}
                           <button
                             onClick={() =>
                               downloadImage(record.imageUrl, record.fileName)
@@ -1471,6 +1561,7 @@ const Studio = () => {
                 <li>• 点击按钮选择文件</li>
                 <li>• 直接拖拽图片到上传区域</li>
                 <li>• 复制图片后按 Ctrl+V 粘贴</li>
+                <li>• 在历史记录中点击 ➕ 按钮快速添加参考</li>
               </ul>
             </div>
             <div>
