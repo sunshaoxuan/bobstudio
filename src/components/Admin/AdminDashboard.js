@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -37,7 +37,7 @@ const AdminDashboard = () => {
   const API_BASE =
     process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
       const res = await fetch(`${API_BASE}/api/admin/users`, {
@@ -50,6 +50,43 @@ const AdminDashboard = () => {
       console.error(e);
     } finally {
       setLoadingUsers(false);
+    }
+  }, [API_BASE]);
+
+  const createUser = async () => {
+    if (!createForm.username || !createForm.email || !createForm.password) {
+      alert("请完整填写用户信息");
+      return;
+    }
+
+    try {
+      setCreating(true);
+      const res = await fetch(`${API_BASE}/api/admin/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(createForm),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "创建失败");
+      }
+
+      setCreateForm({
+        username: "",
+        email: "",
+        password: "",
+        isActive: true,
+        isSuperAdmin: false,
+        showApiConfig: false,
+      });
+      await fetchUsers();
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "创建失败");
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -191,11 +228,10 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (!currentUser || !currentUser.isSuperAdmin) {
       console.log("管理端权限检查：用户权限不足或已退出");
+      return;
     }
-    if (currentUser && currentUser.isSuperAdmin) {
-      fetchUsers();
-    }
-  }, [currentUser]);
+    fetchUsers();
+  }, [currentUser, fetchUsers]);
 
   // 如果不是超级管理员，显示权限不足页面
   if (!currentUser || !currentUser.isSuperAdmin) {

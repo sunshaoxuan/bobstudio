@@ -11,10 +11,6 @@ export const useAuth = () => {
 };
 
 // 规范化邮箱：去首尾空格并转小写
-const normalizeEmail = (email) => {
-  return typeof email === 'string' ? email.trim().toLowerCase() : '';
-};
-
 const defaultStats = {
   today: 0,
   thisMonth: 0,
@@ -49,7 +45,7 @@ export const AuthProvider = ({ children }) => {
 
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:8080' : '';
 
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/auth/me`, {
         credentials: 'include' // 包含cookies
@@ -70,12 +66,12 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   // 检查当前登录状态
   useEffect(() => {
     checkAuthStatus();
-  }, []);
+  }, [checkAuthStatus]);
 
   // 用户登录
   const login = async (identifier, password) => {
