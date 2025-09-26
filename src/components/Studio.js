@@ -1478,8 +1478,8 @@ const Studio = () => {
                           onClick={() => setGeneratedImage(record.imageUrl)}
                         />
                       </div>
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-opacity rounded-lg flex items-center justify-center">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity space-x-2">
+                      <div className="absolute inset-0 rounded-lg transition-opacity hidden md:flex items-center justify-center md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40">
+                        <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity space-x-2">
                           <button
                             onClick={() => setGeneratedImage(record.imageUrl)}
                             className="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all"
@@ -1519,6 +1519,38 @@ const Studio = () => {
                             <X className="w-4 h-4 text-white" />
                           </button>
                         </div>
+                      </div>
+                      <div className="mt-2 flex items-center justify-center gap-2 md:hidden">
+                        <button
+                          onClick={() => setGeneratedImage(record.imageUrl)}
+                          className="bg-white shadow p-2 rounded-full"
+                          title="查看大图"
+                        >
+                          <Eye className="w-4 h-4 text-gray-700" />
+                        </button>
+                        {mode !== "generate" && (
+                          <button
+                            onClick={() => addHistoryImageToUploads(record)}
+                            className="bg-white shadow p-2 rounded-full"
+                            title="添加到参考图片"
+                          >
+                            <Plus className="w-4 h-4 text-gray-700" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => downloadImage(record.imageUrl, record.fileName)}
+                          className="bg-white shadow p-2 rounded-full"
+                          title="下载图片"
+                        >
+                          <Download className="w-4 h-4 text-gray-700" />
+                        </button>
+                        <button
+                          onClick={() => deleteHistoryImage(record.id)}
+                          className="bg-red-500 text-white shadow p-2 rounded-full"
+                          title="删除图片"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                       <div className="mt-2 text-xs text-gray-600 text-center">
                         <div className="font-medium text-blue-600">
