@@ -969,8 +969,8 @@ const Studio = () => {
       </nav>
 
       <div className="max-w-7xl mx-auto p-6">
-        {/* API配置 */}
-        {currentUser?.showApiConfig ? (
+        {/* API配置（仅允许自助配置时显示） */}
+        {currentUser?.showApiConfig && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -982,20 +982,15 @@ const Studio = () => {
                 className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
                 title={apiConfigExpanded ? "折叠配置" : "展开配置"}
               >
-                {apiConfigExpanded ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
+                {apiConfigExpanded ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-
             {apiConfigExpanded && (
               <>
                 <div className="flex gap-3">
                   <div className="flex-1 relative">
                     <input
-                      type={showApiKey ? "text" : "password"}
+                      type={showApiKey ? 'text' : 'password'}
                       placeholder="请输入Gemini API密钥"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
@@ -1006,11 +1001,7 @@ const Studio = () => {
                       onClick={() => setShowApiKey(!showApiKey)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showApiKey ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
+                      {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                   <button
@@ -1021,46 +1012,15 @@ const Studio = () => {
                   </button>
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
-                  前往{" "}
-                  <a
-                    href="https://aistudio.google.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    Google AI Studio
-                  </a>{" "}
-                  获取免费API密钥
+                  前往 <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Google AI Studio</a> 获取免费API密钥
                 </p>
               </>
             )}
-
             {!apiConfigExpanded && (
-              <p className="text-sm text-gray-500 mt-2">
-                点击展开按钮查看API配置选项
-              </p>
+              <p className="text-sm text-gray-500 mt-2">点击展开按钮查看API配置选项</p>
             )}
           </div>
-        ) : (
-          currentUser && (
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <div className="flex items-center gap-3">
-                <Settings className="w-5 h-5 text-gray-400" />
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-700">
-                    API配置
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    当前账号由管理员统一维护 API Key，无法自行修改。
-                    如需调整，请联系管理员。
-                  </p>
-                </div>
-              </div>
-            </div>
-          )
         )}
-
-        {/* API配置被管理端隐藏时，不显示任何内容 */}
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* 左侧控制面板 */}
