@@ -1113,8 +1113,7 @@ const Studio = () => {
               </div>
               {!hasApiKeyConfigured && (
                 <div className="mt-4 p-3 rounded-lg bg-orange-50 text-orange-700 text-sm">
-                  当前账户尚未配置 API Key，生成图像功能不可用。{"
-                  "}
+                  当前账户尚未配置 API Key，生成图像功能不可用。
                   {currentUser?.showApiConfig
                     ? "请先在上方配置后保存。"
                     : "请联系管理员为你配置后再使用。"}
