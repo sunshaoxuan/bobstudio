@@ -68,11 +68,11 @@ const SERVER_STARTED_AT = new Date().toISOString();
 // Session配置
 app.use(
   session({
-    secret: "bob-studio-secret-key-" + Math.random(),
+    secret: process.env.SESSION_SECRET || "bob-studio-secret-key-" + Math.random(),
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // 开发环境设为false，生产环境应该是true
+      secure: process.env.NODE_ENV === "production" && process.env.USE_HTTPS === "true", // 生产环境且使用HTTPS时设为true
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24小时
     },
@@ -851,7 +851,7 @@ async function startServer() {
   function isPortAvailable(port) {
     return new Promise((resolve) => {
       const server = net.createServer();
-      server.listen(port, "127.0.0.1", () => {
+      server.listen(port, "0.0.0.0", () => {
         server.once("close", () => {
           resolve(true);
         });
@@ -872,10 +872,12 @@ async function startServer() {
     }
 
     return new Promise((resolve, reject) => {
-      const server = app.listen(port, "127.0.0.1", () => {
+      const server = app.listen(port, "0.0.0.0", () => {
         console.log(`🚀 服务器运行在端口 ${port}`);
         console.log(`📁 历史记录存储在: ${HISTORY_DIR}`);
-        console.log(`🌐 访问地址: http://localhost:${port}`);
+        console.log(`🌐 本地访问地址: http://localhost:${port}`);
+        console.log(`🌐 网络访问地址: http://0.0.0.0:${port}`);
+        console.log(`✅ 服务器已绑定所有网络接口，可从外部访问`);
         resolve(true);
       });
 
