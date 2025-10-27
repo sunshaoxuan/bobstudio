@@ -1709,11 +1709,11 @@ const Studio = () => {
                         <div className={`mt-2 ${mobileLayoutClass}`}>
                           {preparedActions.map((action) => renderActionButton(action, "mobile"))}
                         </div>
-                        <div className="mt-2 text-xs text-gray-600 text-center">
-                          <div className="font-medium text-blue-600">
+                        <div className="mt-2 text-xs text-gray-600">
+                          <div className="font-medium text-blue-600 text-center">
                             #{imageHistory.length - imageHistory.indexOf(record)}
                           </div>
-                          <div className="text-gray-500">
+                          <div className="text-gray-500 text-center mb-1">
                             {new Date(record.createdAt).toLocaleString("zh-CN", {
                               month: "2-digit",
                               day: "2-digit",
@@ -1721,6 +1721,26 @@ const Studio = () => {
                               minute: "2-digit",
                             })}
                           </div>
+                          {record.prompt && (
+                            <div className="mt-2 bg-gray-50 rounded p-2 border border-gray-200">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <span className="font-medium text-gray-700 flex-shrink-0">提示词:</span>
+                                <button
+                                  onClick={() => {
+                                    setPrompt(record.prompt);
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  className="flex-shrink-0 text-blue-600 hover:text-blue-800 text-xs px-2 py-0.5 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                                  title="点击复用此提示词"
+                                >
+                                  📋 复用
+                                </button>
+                              </div>
+                              <p className="text-gray-600 line-clamp-2 text-left">
+                                {record.prompt}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
