@@ -47,7 +47,7 @@ const Studio = () => {
     try {
       // 从服务器API加载历史记录
       const baseURL =
-        process.env.NODE_ENV === "development" ? "http://localhost:3001" : "";
+        process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
       const response = await fetch(`${baseURL}/api/history/${currentUser.id}`, {
         method: "GET",
         headers: {
@@ -92,7 +92,7 @@ const Studio = () => {
       );
 
       const baseURL =
-        process.env.NODE_ENV === "development" ? "http://localhost:3001" : "";
+        process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
       const response = await fetch(`${baseURL}/api/history/${userId}`, {
         method: "POST",
         headers: {
