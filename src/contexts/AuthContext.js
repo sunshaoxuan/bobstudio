@@ -76,7 +76,10 @@ export const AuthProvider = ({ children }) => {
   // 用户登录
   const login = async (identifier, password) => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login?ts=${Date.now()}`, {
+      const loginUrl = `${API_BASE}/api/auth/login?ts=${Date.now()}`;
+      console.log('🔗 尝试登录，API 地址:', loginUrl);
+      
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -88,6 +91,8 @@ export const AuthProvider = ({ children }) => {
         }),
       });
 
+      console.log('📡 登录响应状态:', response.status);
+      
       const data = await response.json();
       
       if (response.ok) {
@@ -96,11 +101,20 @@ export const AuthProvider = ({ children }) => {
         console.log('✅ 登录成功:', data.user.username);
         return { success: true, message: data.message };
       } else {
-        return { success: false, message: data.error };
+        return { success: false, message: data.error || '登录失败' };
       }
     } catch (error) {
-      console.error('登录失败:', error);
-      return { success: false, message: '网络连接失败，请重试' };
+      console.error('❌ 登录异常:', error);
+      // 更详细的错误信息
+      let errorMessage = '网络连接失败，请重试';
+      
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        errorMessage = '无法连接到服务器。请确保后端服务已启动（运行 npm run server）';
+      } else if (error.message) {
+        errorMessage = `连接失败: ${error.message}`;
+      }
+      
+      return { success: false, message: errorMessage };
     }
   };
 
