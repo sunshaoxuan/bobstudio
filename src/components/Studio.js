@@ -142,10 +142,9 @@ const Studio = () => {
 
     try {
       // 从服务器API加载历史记录
-      const baseURL =
-        process.env.NODE_ENV === "development" 
-          ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
-          : "";
+      const baseURL = import.meta.env.DEV
+        ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
+        : "";
       const response = await fetch(`${baseURL}/api/history/${currentUser.id}`, {
         method: "GET",
         headers: {
@@ -206,10 +205,9 @@ const Studio = () => {
       console.log("数据大小:", (dataSize / 1024).toFixed(2), "KB");
       console.log("清理后的记录数:", cleanedHistory.length);
 
-      const baseURL =
-        process.env.NODE_ENV === "development" 
-          ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
-          : "";
+      const baseURL = import.meta.env.DEV
+        ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
+        : "";
       const url = `${baseURL}/api/history/${userId}`;
       console.log("请求URL:", url);
       
@@ -627,10 +625,9 @@ const Studio = () => {
         throw new Error(`图片过大 (${requestSizeMB} MB)，请生成较小的图片或降低分辨率`);
       }
       
-      const baseURL =
-        process.env.NODE_ENV === "development" 
-          ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
-          : "";
+      const baseURL = import.meta.env.DEV
+        ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
+        : "";
       
       const response = await fetch(`${baseURL}/api/images/upload`, {
         method: "POST",
@@ -1357,8 +1354,8 @@ const Studio = () => {
       setSaveApiLoading(true);
       const response = await fetch(
         `${
-          process.env.NODE_ENV === "development"
-            ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
+          import.meta.env.DEV
+            ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
             : ""
         }/api/me/api-key`,
         {

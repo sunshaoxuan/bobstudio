@@ -45,8 +45,7 @@ const AdminDashboard = () => {
   const [filterMode, setFilterMode] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
 
-  const API_BASE =
-    process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
+  const API_BASE = import.meta.env.DEV ? "http://localhost:8080" : "";
 
   const fetchUsers = useCallback(async () => {
     try {
