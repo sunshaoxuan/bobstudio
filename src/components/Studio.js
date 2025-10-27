@@ -1752,7 +1752,9 @@ const Studio = () => {
                 <img
                   src={generatedImage}
                   alt="Generated"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => setFullscreenImage(generatedImage)}
+                  title="点击查看全屏"
                 />
               ) : (
                 <div className="text-center text-gray-500">
