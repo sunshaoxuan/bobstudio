@@ -3,6 +3,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const cors = require("cors");
 const session = require("express-session");
+const FileStore = require("session-file-store")(session);
 const crypto = require("crypto");
 
 const API_KEY_SECRET =
@@ -13,6 +14,7 @@ const API_KEY_IV_LENGTH = 12;
 // 目录定义
 const HISTORY_DIR = path.join(__dirname, "history");
 const IMAGES_DIR = path.join(__dirname, "images");
+const SESSIONS_DIR = path.join(__dirname, "sessions");
 
 let users = [];
 
@@ -69,10 +71,16 @@ const PORT = process.env.PORT || 8080;
 const SERVER_INSTANCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const SERVER_STARTED_AT = new Date().toISOString();
 
-// Session配置
+// Session配置（使用文件存储实现持久化）
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "bob-studio-secret-key-" + Math.random(),
+    store: new FileStore({
+      path: SESSIONS_DIR,
+      ttl: 24 * 60 * 60, // 24小时（秒）
+      retries: 0,
+      reapInterval: 3600, // 每小时清理过期session
+    }),
+    secret: process.env.SESSION_SECRET || "bob-studio-secret-key-change-in-production",
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -763,6 +771,16 @@ async function ensureImagesDir() {
   }
 }
 
+// 确保Session存储目录存在
+async function ensureSessionsDir() {
+  try {
+    await fs.access(SESSIONS_DIR);
+  } catch {
+    await fs.mkdir(SESSIONS_DIR, { recursive: true });
+    console.log("📁 创建Session存储目录:", SESSIONS_DIR);
+  }
+}
+
 // 将 BASE64 图片保存到文件系统
 async function saveBase64Image(base64Data, userId, fileName) {
   try {
@@ -970,6 +988,50 @@ app.get("/api/stats", requireAuth, async (req, res) => {
   }
 });
 
+// 管理端获取所有用户的历史记录
+app.get("/api/admin/all-history", requireAdmin, async (req, res) => {
+  try {
+    console.log("📖 管理员请求获取所有用户的历史记录");
+    
+    const allHistory = [];
+    
+    // 遍历所有用户
+    for (const user of users) {
+      try {
+        const history = await loadUserHistory(user.id);
+        
+        // 为每条记录添加用户信息
+        const historyWithUser = history.map(record => ({
+          ...record,
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email
+          }
+        }));
+        
+        allHistory.push(...historyWithUser);
+      } catch (error) {
+        console.error(`加载用户 ${user.id} 的历史记录失败:`, error);
+        // 继续处理其他用户
+      }
+    }
+    
+    // 按创建时间倒序排序
+    allHistory.sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0);
+      const dateB = new Date(b.createdAt || 0);
+      return dateB - dateA;
+    });
+    
+    console.log(`✅ 成功加载所有用户的历史记录: ${allHistory.length} 条`);
+    res.json({ history: allHistory, total: allHistory.length });
+  } catch (error) {
+    console.error("❌ 获取所有用户历史记录失败:", error);
+    res.status(500).json({ error: "Failed to fetch all history" });
+  }
+});
+
 // 健康检查
 app.get("/api/health", (req, res) => {
   res.json({
@@ -989,6 +1051,7 @@ app.get("*", (req, res) => {
 async function startServer() {
   await ensureHistoryDir();
   await ensureImagesDir();
+  await ensureSessionsDir();
 
   const net = require("net");
 

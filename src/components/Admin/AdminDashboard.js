@@ -9,10 +9,15 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Image as ImageIcon,
+  Search,
+  Filter,
+  Calendar,
 } from "lucide-react";
 
 const AdminDashboard = () => {
   const { currentUser, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState("users");
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -31,6 +36,14 @@ const AdminDashboard = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [loadingApiKey, setLoadingApiKey] = useState(false);
   const [originalApiKey, setOriginalApiKey] = useState("");
+  
+  // 图片历史相关状态
+  const [allHistory, setAllHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterUser, setFilterUser] = useState("");
+  const [filterMode, setFilterMode] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const API_BASE =
     process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
@@ -194,6 +207,24 @@ const AdminDashboard = () => {
     }
   };
 
+  // 获取所有用户的历史记录
+  const fetchAllHistory = useCallback(async () => {
+    try {
+      setLoadingHistory(true);
+      const res = await fetch(`${API_BASE}/api/admin/all-history`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("加载历史记录失败");
+      const data = await res.json();
+      setAllHistory(data.history || []);
+    } catch (e) {
+      console.error(e);
+      alert("加载历史记录失败");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [API_BASE]);
+
   // 检查管理员权限
   useEffect(() => {
     if (!currentUser || !currentUser.isSuperAdmin) {
@@ -202,6 +233,13 @@ const AdminDashboard = () => {
     }
     fetchUsers();
   }, [currentUser, fetchUsers]);
+
+  // 当切换到图片记录Tab时加载数据
+  useEffect(() => {
+    if (activeTab === "history" && allHistory.length === 0) {
+      fetchAllHistory();
+    }
+  }, [activeTab, allHistory.length, fetchAllHistory]);
 
   // 如果不是超级管理员，显示权限不足页面
   if (!currentUser || !currentUser.isSuperAdmin) {
@@ -281,6 +319,32 @@ const AdminDashboard = () => {
           </div>
         </div>
 
+        {/* Tab导航 */}
+        <div className="mb-6 bg-white rounded-lg shadow-lg p-2 flex gap-2">
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+              activeTab === "users"
+                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            用户管理
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+              activeTab === "history"
+                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <ImageIcon className="w-5 h-5" />
+            图片记录
+          </button>
+        </div>
+
         {/* 统计概览 */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-lg p-6">
@@ -323,7 +387,8 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* 用户管理 */}
+        {/* 用户管理Tab */}
+        {activeTab === "users" && (
         <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">👥 用户管理</h2>
@@ -647,6 +712,254 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+        )}
+
+        {/* 图片记录Tab */}
+        {activeTab === "history" && (
+          <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <ImageIcon className="w-5 h-5" />
+                所有用户图片记录
+              </h2>
+              <button
+                onClick={fetchAllHistory}
+                disabled={loadingHistory}
+                className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2"
+              >
+                {loadingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                刷新
+              </button>
+            </div>
+
+            {/* 搜索和过滤 */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Search className="w-4 h-4 inline mr-1" />
+                    搜索Prompt
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="输入关键词搜索prompt..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Filter className="w-4 h-4 inline mr-1" />
+                    筛选用户
+                  </label>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={filterUser}
+                    onChange={(e) => setFilterUser(e.target.value)}
+                  >
+                    <option value="">所有用户</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.username}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Filter className="w-4 h-4 inline mr-1" />
+                    筛选模式
+                  </label>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={filterMode}
+                    onChange={(e) => setFilterMode(e.target.value)}
+                  >
+                    <option value="">所有模式</option>
+                    <option value="generate">文本生图</option>
+                    <option value="edit">图像编辑</option>
+                    <option value="compose">图像合成</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* 加载中 */}
+            {loadingHistory ? (
+              <div className="flex justify-center items-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">加载中...</span>
+              </div>
+            ) : (
+              <>
+                {/* 统计信息 */}
+                <div className="text-sm text-gray-600">
+                  共 {allHistory.filter(record => {
+                    const matchesSearch = !searchTerm || (record.prompt && record.prompt.toLowerCase().includes(searchTerm.toLowerCase()));
+                    const matchesUser = !filterUser || record.user?.id === filterUser;
+                    const matchesMode = !filterMode || record.mode === filterMode;
+                    return matchesSearch && matchesUser && matchesMode;
+                  }).length} 条记录
+                </div>
+
+                {/* 图片网格 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {allHistory
+                    .filter(record => {
+                      const matchesSearch = !searchTerm || (record.prompt && record.prompt.toLowerCase().includes(searchTerm.toLowerCase()));
+                      const matchesUser = !filterUser || record.user?.id === filterUser;
+                      const matchesMode = !filterMode || record.mode === filterMode;
+                      return matchesSearch && matchesUser && matchesMode;
+                    })
+                    .map(record => (
+                      <div
+                        key={record.id}
+                        className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                        onClick={() => setSelectedImage(record)}
+                      >
+                        {/* 图片 */}
+                        <div className="relative bg-gray-200 h-48">
+                          {record.imageUrl ? (
+                            <img
+                              src={`${API_BASE}${record.imageUrl}`}
+                              alt={record.fileName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3E图片加载失败%3C/text%3E%3C/svg%3E';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                              <ImageIcon className="w-16 h-16" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 信息 */}
+                        <div className="p-4 space-y-2">
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {record.user?.username || '未知用户'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(record.createdAt).toLocaleDateString('zh-CN')}
+                            </span>
+                          </div>
+                          
+                          <div className="text-xs">
+                            <span className={`inline-block px-2 py-1 rounded ${
+                              record.mode === 'generate' ? 'bg-purple-100 text-purple-700' :
+                              record.mode === 'edit' ? 'bg-blue-100 text-blue-700' :
+                              record.mode === 'compose' ? 'bg-green-100 text-green-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {record.mode === 'generate' ? '文本生图' :
+                               record.mode === 'edit' ? '图像编辑' :
+                               record.mode === 'compose' ? '图像合成' : '其他'}
+                            </span>
+                          </div>
+
+                          <p className="text-sm text-gray-700 line-clamp-3">
+                            {record.prompt || '无Prompt'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                {/* 无数据提示 */}
+                {allHistory.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p>暂无图片记录</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 图片详情弹窗 */}
+        {selectedImage && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedImage(null)}
+          >
+            <div
+              className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold">图片详情</h3>
+                  <button
+                    onClick={() => setSelectedImage(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* 图片 */}
+                <div className="bg-gray-100 rounded-lg overflow-hidden">
+                  {selectedImage.imageUrl ? (
+                    <img
+                      src={`${API_BASE}${selectedImage.imageUrl}`}
+                      alt={selectedImage.fileName}
+                      className="w-full h-auto"
+                    />
+                  ) : (
+                    <div className="w-full h-64 flex items-center justify-center text-gray-400">
+                      <ImageIcon className="w-32 h-32" />
+                    </div>
+                  )}
+                </div>
+
+                {/* 详细信息 */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">用户</label>
+                    <p className="text-gray-600">{selectedImage.user?.username || '未知'} ({selectedImage.user?.email || ''})</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">文件名</label>
+                    <p className="text-gray-600">{selectedImage.fileName}</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">模式</label>
+                    <p className="text-gray-600">
+                      {selectedImage.mode === 'generate' ? '文本生图' :
+                       selectedImage.mode === 'edit' ? '图像编辑' :
+                       selectedImage.mode === 'compose' ? '图像合成' : '其他'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">创建时间</label>
+                    <p className="text-gray-600">{new Date(selectedImage.createdAt).toLocaleString('zh-CN')}</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700">Prompt</label>
+                    <p className="text-gray-600 whitespace-pre-wrap">{selectedImage.prompt || '无'}</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setSelectedImage(null)}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                  >
+                    关闭
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {/* Removed apiKeyModal as it's not used in this component */}
     </div>

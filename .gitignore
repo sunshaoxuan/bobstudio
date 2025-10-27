@@ -22,6 +22,8 @@
 # user data
 users.json
 /history
+/sessions
+/images
 
 npm-debug.log*
 yarn-debug.log*
