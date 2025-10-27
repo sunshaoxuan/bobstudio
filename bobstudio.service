@@ -7,12 +7,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/root/bobstudio
-Environment="NODE_ENV=production"
-Environment="PATH=/root/bobstudio/node_modules/.bin:/usr/local/bin:/usr/bin:/bin"
-ExecStartPre=/bin/bash -c 'cd /root/bobstudio && /usr/bin/git pull origin main'
-ExecStartPre=/bin/bash -c 'cd /root/bobstudio && /usr/bin/npm install'
-ExecStartPre=/bin/bash -c 'cd /root/bobstudio && /usr/bin/npm run build'
-ExecStart=/bin/bash -c 'cd /root/bobstudio && /usr/bin/npm run server'
+ExecStart=/root/bobstudio/start.sh
 Restart=on-failure
 RestartSec=10
 StandardOutput=append:/var/log/bobstudio/output.log
