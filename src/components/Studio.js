@@ -210,6 +210,20 @@ const Studio = () => {
     details: "",
   });
   const [showApiKey, setShowApiKey] = useState(false);
+  
+  // 全屏图片查看器状态
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+  
+  // ESC键关闭全屏查看器
+  useEffect(() => {
+    const handleEsc = (event) => {
+      if (event.key === 'Escape' && fullscreenImage) {
+        setFullscreenImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [fullscreenImage]);
 
   // 如果用户未登录，重定向到登录页面
   useEffect(() => {
@@ -542,16 +556,22 @@ const Studio = () => {
         const fileName = `${year}${month}${day}_${hours}${minutes}${seconds}_${randomId}`;
         const fullFileName = `bob-studio_${fileName}.png`;
 
-        // 如果是 BASE64 数据且用户已登录，先上传到服务器
+        // 如果是 BASE64 数据且用户已登录，必须上传到服务器
         let finalImageUrl = imageUrl;
         if (imageUrl.startsWith('data:image/') && currentUser) {
-          console.log("🔄 检测到 BASE64 图片，先上传到服务器...");
+          console.log("🔄 检测到 BASE64 图片，上传到服务器...");
           try {
             finalImageUrl = await uploadImageToServer(imageUrl, fullFileName, currentUser.id);
             console.log("✅ 图片已转换为服务器URL:", finalImageUrl);
           } catch (error) {
-            console.warn("⚠️ 图片上传失败，将使用 BASE64 保存:", error.message);
-            // 上传失败时仍使用 BASE64，至少本地会话可以看到
+            console.error("❌ 图片上传失败！", error);
+            // 上传失败就直接报错，不要继续
+            showError(
+              "图片保存失败", 
+              `无法上传图片到服务器: ${error.message}。请检查：\n1. 图片是否过大\n2. 服务器配置是否正确\n3. 网络连接是否正常`,
+              ""
+            );
+            return; // 停止保存
           }
         }
 
@@ -1165,39 +1185,42 @@ const Studio = () => {
       {/* 顶部导航栏 */}
       <nav className="bg-white shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <h1 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                 🎨 BOB Studio
               </h1>
-              <span className="text-gray-600">工作室</span>
+              <span className="text-sm sm:text-base text-gray-600">工作室</span>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
               <Link
                 to="/stats"
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-800 transition-colors text-sm sm:text-base"
+                title="统计"
               >
                 <BarChart3 className="w-4 h-4" />
-                统计
+                <span className="hidden sm:inline">统计</span>
               </Link>
               {currentUser.isSuperAdmin && (
                 <Link
                   to="/admin"
-                  className="flex items-center gap-2 text-yellow-600 hover:text-yellow-800 transition-colors"
+                  className="flex items-center gap-1 sm:gap-2 text-yellow-600 hover:text-yellow-800 transition-colors text-sm sm:text-base"
+                  title="管理端"
                 >
                   <Shield className="w-4 h-4" />
-                  管理端
+                  <span className="hidden sm:inline">管理端</span>
                 </Link>
               )}
               <Link
                 to="/"
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-800 transition-colors text-sm sm:text-base"
+                title="首页"
               >
                 <Home className="w-4 h-4" />
-                首页
+                <span className="hidden sm:inline">首页</span>
               </Link>
-              <span className="text-gray-600">
-                欢迎，{currentUser.username}
+              <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[100px] sm:max-w-none">
+                {currentUser.username}
                 {currentUser.isSuperAdmin && (
                   <span className="ml-1 text-yellow-600">👑</span>
                 )}
@@ -1585,7 +1608,7 @@ const Studio = () => {
                         icon: Eye,
                         title: "查看大图",
                         variant: "default",
-                        onPress: () => setGeneratedImage(record.imageUrl),
+                        onPress: () => setFullscreenImage(record.imageUrl),
                       },
                       ...(mode !== "generate"
                         ? [
@@ -1675,7 +1698,7 @@ const Studio = () => {
                             src={record.imageUrl}
                             alt={`Generated ${record.mode}`}
                             className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
-                            onClick={() => setGeneratedImage(record.imageUrl)}
+                            onClick={() => setFullscreenImage(record.imageUrl)}
                           />
                         </div>
                         <div className="absolute inset-0 rounded-lg hidden md:flex items-end justify-center pb-6 px-4 transition-opacity md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40">
@@ -1802,6 +1825,33 @@ const Studio = () => {
                   关闭
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 全屏图片查看器 */}
+        {fullscreenImage && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-95 z-50 flex items-center justify-center p-4"
+            onClick={() => setFullscreenImage(null)}
+          >
+            <button
+              onClick={() => setFullscreenImage(null)}
+              className="absolute top-4 right-4 z-10 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-full p-3 transition-all"
+              title="关闭 (ESC)"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            <img
+              src={fullscreenImage}
+              alt="全屏查看"
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white text-sm bg-black bg-opacity-50 px-4 py-2 rounded">
+              点击背景或按 ESC 关闭
             </div>
           </div>
         )}
