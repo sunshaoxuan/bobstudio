@@ -100,6 +100,35 @@ app.use(express.static("build")); // 服务React构建文件
 // 服务图片文件
 app.use("/images", express.static(IMAGES_DIR));
 
+// 上传图片API
+app.post("/api/images/upload", async (req, res) => {
+  console.log("📸 收到图片上传请求");
+  
+  try {
+    const { imageData, fileName, userId } = req.body;
+    
+    if (!imageData || !userId) {
+      console.error("❌ 缺少必要参数");
+      return res.status(400).json({ error: "Missing required parameters" });
+    }
+    
+    console.log(`用户: ${userId}, 文件名: ${fileName || '未指定'}`);
+    console.log(`图片数据大小: ${(imageData.length / 1024).toFixed(2)} KB`);
+    
+    // 保存图片并获取URL
+    const imageUrl = await saveBase64Image(imageData, userId, fileName);
+    
+    console.log(`✅ 图片上传成功: ${imageUrl}`);
+    res.json({ 
+      success: true, 
+      imageUrl: imageUrl 
+    });
+  } catch (error) {
+    console.error("❌ 图片上传失败:", error);
+    res.status(500).json({ error: "Failed to upload image", details: error.message });
+  }
+});
+
 // 用户数据存储（实际项目中应该是数据库）
 try {
   const usersData = require("fs").readFileSync(
@@ -837,44 +866,15 @@ app.post("/api/history/:userId", async (req, res) => {
     const filePath = path.join(HISTORY_DIR, `history-${userId}.json`);
     console.log(`📝 目标文件路径: ${filePath}`);
     
-    // 处理历史记录中的图片
-    const processedHistory = [];
-    let imageCount = 0;
-    
+    // 直接保存历史记录（图片已经在前端上传时转换为URL）
+    console.log(`\n📊 历史记录概览:`);
     for (let i = 0; i < historyData.length; i++) {
       const item = historyData[i];
-      const processedItem = { ...item };
-      
-      console.log(`\n处理第 ${i + 1}/${historyData.length} 条记录`);
-      console.log(`- ID: ${item.id}`);
-      console.log(`- 文件名: ${item.fileName}`);
-      console.log(`- imageUrl 类型: ${item.imageUrl ? (item.imageUrl.startsWith('data:image/') ? 'BASE64' : 'URL') : '无'}`);
-      
-      // 如果 imageUrl 是 BASE64 数据，保存为文件
-      if (item.imageUrl && item.imageUrl.startsWith('data:image/')) {
-        try {
-          console.log(`  🖼️  开始保存图片: ${item.fileName || '未命名'}`);
-          const imageUrl = await saveBase64Image(item.imageUrl, userId, item.fileName);
-          processedItem.imageUrl = imageUrl; // 替换为文件 URL
-          imageCount++;
-          console.log(`  ✅ 图片已保存: ${imageUrl}`);
-        } catch (error) {
-          console.error(`  ❌ 保存图片失败:`, error.message);
-          // 如果保存失败，保留原始 BASE64 数据
-        }
-      } else if (item.imageUrl) {
-        console.log(`  ℹ️  已是URL格式，无需处理: ${item.imageUrl}`);
-      } else {
-        console.log(`  ⚠️  没有imageUrl`);
-      }
-      
-      processedHistory.push(processedItem);
+      console.log(`  ${i + 1}. ${item.fileName} - ${item.imageUrl ? (item.imageUrl.startsWith('/images/') ? '服务器图片' : item.imageUrl.startsWith('data:') ? 'BASE64数据' : '其他URL') : '无图片'}`);
     }
-    
-    console.log(`\n📊 处理完成: 共 ${processedHistory.length} 条记录，${imageCount} 张图片已保存为文件`);
 
-    // 将处理后的数据写入文件
-    const jsonData = JSON.stringify(processedHistory, null, 2);
+    // 将数据写入文件
+    const jsonData = JSON.stringify(historyData, null, 2);
     console.log(`💾 开始写入JSON文件...`);
     await fs.writeFile(filePath, jsonData, "utf8");
     console.log(`✅ JSON文件写入成功`);
@@ -886,8 +886,7 @@ app.post("/api/history/:userId", async (req, res) => {
     console.log("=".repeat(60));
     res.json({ 
       message: "History saved successfully",
-      recordCount: processedHistory.length,
-      imageCount: imageCount
+      recordCount: historyData.length
     });
   } catch (error) {
     console.error("❌ 保存历史记录失败:", error);

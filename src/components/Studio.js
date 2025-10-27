@@ -449,12 +449,47 @@ const Studio = () => {
     return `${year}${month}${day}_${hours}${minutes}${seconds}_${nextCount}`;
   }, [currentUser]);
 
-  // 自动保存图片到本地
+  // 上传图片到服务器
+  const uploadImageToServer = useCallback(async (imageData, fileName, userId) => {
+    try {
+      console.log("📤 开始上传图片到服务器...");
+      const baseURL =
+        process.env.NODE_ENV === "development" 
+          ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
+          : "";
+      
+      const response = await fetch(`${baseURL}/api/images/upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          imageData,
+          fileName,
+          userId
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("✅ 图片上传成功:", result.imageUrl);
+        return result.imageUrl;
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || "上传失败");
+      }
+    } catch (error) {
+      console.error("❌ 图片上传失败:", error);
+      throw error;
+    }
+  }, []);
+
   // 保存图片到会话历史记录（内存存储）
   const saveImageToHistory = useCallback(
     async (imageUrl, prompt, mode) => {
       try {
-        // 生成文件名（即使没有currentUser也能生成）
+        // 生成文件名
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -466,10 +501,23 @@ const Studio = () => {
         const fileName = `${year}${month}${day}_${hours}${minutes}${seconds}_${randomId}`;
         const fullFileName = `bob-studio_${fileName}.png`;
 
-        // 创建图片记录（包含图片数据用于当前会话显示）
+        // 如果是 BASE64 数据且用户已登录，先上传到服务器
+        let finalImageUrl = imageUrl;
+        if (imageUrl.startsWith('data:image/') && currentUser) {
+          console.log("🔄 检测到 BASE64 图片，先上传到服务器...");
+          try {
+            finalImageUrl = await uploadImageToServer(imageUrl, fullFileName, currentUser.id);
+            console.log("✅ 图片已转换为服务器URL:", finalImageUrl);
+          } catch (error) {
+            console.warn("⚠️ 图片上传失败，将使用 BASE64 保存:", error.message);
+            // 上传失败时仍使用 BASE64，至少本地会话可以看到
+          }
+        }
+
+        // 创建图片记录
         const imageRecord = {
           id: Date.now().toString(),
-          imageUrl, // 保留图片数据用于当前会话显示
+          imageUrl: finalImageUrl, // 使用服务器URL或BASE64
           fileName: fullFileName,
           prompt,
           mode,
@@ -493,7 +541,7 @@ const Studio = () => {
         showError("保存失败", "保存图片到历史记录时出现错误");
       }
     },
-    [currentUser, showError, saveHistoryToServer],
+    [currentUser, showError, saveHistoryToServer, uploadImageToServer],
   );
 
   // 手动下载图片
