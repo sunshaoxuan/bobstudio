@@ -91,8 +91,9 @@ app.use(
     credentials: true, // 允许发送cookies
   }),
 );
-app.use(express.json({ limit: "200mb" }));
-app.use(express.urlencoded({ limit: "200mb", extended: true }));
+// 大幅增加请求体限制，支持超大图片
+app.use(express.json({ limit: "2gb" }));
+app.use(express.urlencoded({ limit: "2gb", extended: true, parameterLimit: 500000 }));
 
 // 服务静态文件
 app.use(express.static("build")); // 服务React构建文件
@@ -113,7 +114,13 @@ app.post("/api/images/upload", async (req, res) => {
     }
     
     console.log(`用户: ${userId}, 文件名: ${fileName || '未指定'}`);
-    console.log(`图片数据大小: ${(imageData.length / 1024).toFixed(2)} KB`);
+    const sizeInMB = (imageData.length / 1024 / 1024).toFixed(2);
+    console.log(`图片数据大小: ${sizeInMB} MB (${imageData.length} 字节)`);
+    
+    // 警告：如果图片超过 50MB
+    if (imageData.length > 50 * 1024 * 1024) {
+      console.warn(`⚠️  警告：图片非常大 (${sizeInMB} MB)，建议压缩`);
+    }
     
     // 保存图片并获取URL
     const imageUrl = await saveBase64Image(imageData, userId, fileName);
