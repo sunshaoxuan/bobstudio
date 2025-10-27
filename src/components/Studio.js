@@ -1898,18 +1898,18 @@ const Studio = () => {
                     };
 
                     return (
-                      <div key={record.id} className="relative group">
-                        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                      <div key={record.id} className="group">
+                        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative">
                           <img
                             src={record.imageUrl}
                             alt={`Generated ${record.mode}`}
                             className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
                             onClick={() => setFullscreenImage(record.imageUrl)}
                           />
-                        </div>
-                        <div className="absolute inset-0 rounded-lg hidden md:flex items-end justify-center pb-6 px-4 transition-opacity md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40">
-                          <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${overlayLayoutClass}`}>
-                            {preparedActions.map((action) => renderActionButton(action, "overlay"))}
+                          <div className="absolute inset-0 rounded-lg hidden md:flex items-end justify-center pb-6 px-4 transition-opacity md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40">
+                            <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${overlayLayoutClass}`}>
+                              {preparedActions.map((action) => renderActionButton(action, "overlay"))}
+                            </div>
                           </div>
                         </div>
                         <div className={`mt-2 ${mobileLayoutClass}`}>
