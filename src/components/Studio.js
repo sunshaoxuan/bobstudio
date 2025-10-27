@@ -35,6 +35,75 @@ const Studio = () => {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("generate");
   const [imageHistory, setImageHistory] = useState([]);
+  
+  // 统计数据状态
+  const [stats, setStats] = useState({
+    today: 0,
+    thisMonth: 0,
+    total: 0,
+  });
+  
+  // 超时和重试相关状态
+  const [loadingElapsedTime, setLoadingElapsedTime] = useState(0);
+  const [lastRequestBody, setLastRequestBody] = useState(null);
+  const loadingTimerRef = useRef(null);
+
+  // Loading 计时器
+  useEffect(() => {
+    if (loading) {
+      setLoadingElapsedTime(0);
+      loadingTimerRef.current = setInterval(() => {
+        setLoadingElapsedTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+      setLoadingElapsedTime(0);
+    }
+    
+    return () => {
+      if (loadingTimerRef.current) {
+        clearInterval(loadingTimerRef.current);
+      }
+    };
+  }, [loading]);
+
+  // 计算统计数据
+  useEffect(() => {
+    if (!imageHistory || imageHistory.length === 0) {
+      setStats({ today: 0, thisMonth: 0, total: 0 });
+      return;
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    let todayCount = 0;
+    let thisMonthCount = 0;
+
+    imageHistory.forEach((record) => {
+      const recordDate = new Date(record.createdAt);
+      
+      if (recordDate >= todayStart) {
+        todayCount++;
+      }
+      
+      if (recordDate >= monthStart) {
+        thisMonthCount++;
+      }
+    });
+
+    setStats({
+      today: todayCount,
+      thisMonth: thisMonthCount,
+      total: imageHistory.length,
+    });
+
+    console.log(`📊 统计更新: 今日 ${todayCount}, 本月 ${thisMonthCount}, 总计 ${imageHistory.length}`);
+  }, [imageHistory]);
 
   // 从服务器加载用户的历史记录
   const loadImageHistory = useCallback(async () => {
@@ -208,6 +277,7 @@ const Studio = () => {
     title: "",
     message: "",
     details: "",
+    showRetry: false,
   });
   const [showApiKey, setShowApiKey] = useState(false);
   
@@ -239,12 +309,40 @@ const Studio = () => {
       title,
       message,
       details,
+      showRetry: false,
     });
   }, []);
 
+  // 显示带重试按钮的错误
+  const showErrorWithRetry = useCallback((title, message, details = "") => {
+    setErrorModal({
+      show: true,
+      title,
+      message,
+      details,
+      showRetry: true,
+    });
+  }, []);
+
+  // 重试上一次请求
+  const retryLastRequest = useCallback(async () => {
+    closeErrorModal();
+    
+    if (!lastRequestBody) {
+      showError("重试失败", "没有可重试的请求");
+      return;
+    }
+
+    if (lastRequestBody.type === "generate") {
+      await generateImage();
+    } else {
+      await processImages();
+    }
+  }, [lastRequestBody]);
+
   // 关闭错误模态框
   const closeErrorModal = useCallback(() => {
-    setErrorModal({ show: false, title: "", message: "", details: "" });
+    setErrorModal({ show: false, title: "", message: "", details: "", showRetry: false });
   }, []);
 
   // 智能分析API委婉拒绝模式
@@ -542,7 +640,7 @@ const Studio = () => {
 
   // 保存图片到会话历史记录（内存存储）
   const saveImageToHistory = useCallback(
-    async (imageUrl, prompt, mode) => {
+    async (imageUrl, prompt, mode, duration = null) => {
       try {
         // 生成文件名
         const now = new Date();
@@ -584,6 +682,7 @@ const Studio = () => {
           mode,
           createdAt: new Date().toISOString(),
           userId: currentUser?.id || "anonymous",
+          duration, // 生成耗时（秒）
         };
 
         // 添加到当前会话历史记录（内存存储）
@@ -873,11 +972,40 @@ const Studio = () => {
   );
 
   // 调用API
+  // 带超时的 fetch 函数
+  const fetchWithTimeout = async (url, options, timeoutMs = 120000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === "AbortError") {
+        throw new Error("请求超时：Google API 响应时间过长（超过 120 秒）。可能原因：\n1. Google 服务器负载过高\n2. 网络连接不稳定\n3. 生成的图片过于复杂\n\n建议：\n- 简化提示词\n- 稍后重试\n- 检查网络连接", {
+          cause: {
+            title: "请求超时",
+            message: "Google API 响应时间过长（超过 120 秒）",
+            details: "可能原因：\n1. Google 服务器负载过高\n2. 网络连接不稳定\n3. 生成的图片过于复杂\n\n建议：\n- 简化提示词\n- 稍后重试\n- 检查网络连接",
+            isTimeout: true,
+          }
+        });
+      }
+      throw error;
+    }
+  };
+
   const callAPI = async (requestBody) => {
     try {
       console.log("发送API请求:", JSON.stringify(requestBody, null, 2));
+      console.log("⏰ 开始计时...");
 
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent",
         {
           method: "POST",
@@ -887,6 +1015,7 @@ const Studio = () => {
           },
           body: JSON.stringify(requestBody),
         },
+        120000 // 120秒超时
       );
 
       console.log("API响应状态:", response.status);
@@ -958,6 +1087,7 @@ const Studio = () => {
     }
 
     setLoading(true);
+    const startTime = Date.now(); // 记录开始时间
     try {
       const requestBody = {
         contents: [
@@ -970,16 +1100,29 @@ const Studio = () => {
         },
       };
 
+      // 保存请求体以便重试
+      setLastRequestBody({ type: "generate", body: requestBody, prompt });
+
       const imageUrl = await callAPI(requestBody);
       setGeneratedImage(imageUrl);
 
-      // 保存到历史记录
-      await saveImageToHistory(imageUrl, prompt, "generate");
+      // 计算耗时
+      const duration = Math.round((Date.now() - startTime) / 1000); // 转换为秒
+      console.log(`✅ 图像生成成功！耗时: ${duration} 秒`);
+
+      // 保存到历史记录，包含耗时
+      await saveImageToHistory(imageUrl, prompt, "generate", duration);
 
       // 更新统计
       updateStats();
+      
+      // 成功后清除重试数据
+      setLastRequestBody(null);
     } catch (error) {
-      if (error.cause) {
+      if (error.cause?.isTimeout) {
+        // 超时错误，显示重试按钮
+        showErrorWithRetry(error.cause.title, error.cause.message, error.cause.details);
+      } else if (error.cause) {
         showError(error.cause.title, error.cause.message, error.cause.details);
       } else {
         showError("图像生成失败", error.message);
@@ -1007,6 +1150,7 @@ const Studio = () => {
     }
 
     setLoading(true);
+    const startTime = Date.now(); // 记录开始时间
     try {
       const parts = [{ text: prompt }];
 
@@ -1027,16 +1171,29 @@ const Studio = () => {
         },
       };
 
+      // 保存请求体以便重试
+      setLastRequestBody({ type: mode, body: requestBody, prompt, uploadedImages });
+
       const imageUrl = await callAPI(requestBody);
       setGeneratedImage(imageUrl);
 
-      // 保存到历史记录
-      await saveImageToHistory(imageUrl, prompt, mode);
+      // 计算耗时
+      const duration = Math.round((Date.now() - startTime) / 1000); // 转换为秒
+      console.log(`✅ 图像处理成功！耗时: ${duration} 秒`);
+
+      // 保存到历史记录，包含耗时
+      await saveImageToHistory(imageUrl, prompt, mode, duration);
 
       // 更新统计
       updateStats();
+      
+      // 成功后清除重试数据
+      setLastRequestBody(null);
     } catch (error) {
-      if (error.cause) {
+      if (error.cause?.isTimeout) {
+        // 超时错误，显示重试按钮
+        showErrorWithRetry(error.cause.title, error.cause.message, error.cause.details);
+      } else if (error.cause) {
         showError(error.cause.title, error.cause.message, error.cause.details);
       } else {
         showError("图像处理失败", error.message);
@@ -1310,15 +1467,15 @@ const Studio = () => {
               <h2 className="text-lg font-semibold mb-4">今日统计</h2>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-purple-600">0</div>
+                  <div className="text-2xl font-bold text-purple-600">{stats.today}</div>
                   <div className="text-sm text-gray-500">今日</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-blue-600">0</div>
+                  <div className="text-2xl font-bold text-blue-600">{stats.thisMonth}</div>
                   <div className="text-sm text-gray-500">本月</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-green-600">0</div>
+                  <div className="text-2xl font-bold text-green-600">{stats.total}</div>
                   <div className="text-sm text-gray-500">总计</div>
                 </div>
               </div>
@@ -1509,9 +1666,18 @@ const Studio = () => {
               className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  处理中...
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>处理中...</span>
+                  </div>
+                  {loadingElapsedTime > 0 && (
+                    <span className="text-xs opacity-80">
+                      已等待 {loadingElapsedTime} 秒
+                      {loadingElapsedTime > 30 && " (请耐心等待)"}
+                      {loadingElapsedTime > 60 && " (Google 服务器响应较慢)"}
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
@@ -1721,6 +1887,18 @@ const Studio = () => {
                               minute: "2-digit",
                             })}
                           </div>
+                          {record.duration && (
+                            <div className={`text-center text-xs mb-1 ${
+                              record.duration > 60 
+                                ? 'text-red-600 font-semibold' 
+                                : record.duration > 30 
+                                  ? 'text-orange-600 font-medium' 
+                                  : 'text-green-600'
+                            }`}>
+                              ⏱️ 耗时: {record.duration}秒
+                              {record.duration > 60 && ' ⚠️'}
+                            </div>
+                          )}
                           {record.prompt && (
                             <div className="mt-2 bg-gray-50 rounded p-2 border border-gray-200">
                               <div className="flex items-start justify-between gap-2 mb-1">
@@ -1837,10 +2015,19 @@ const Studio = () => {
                 )}
               </div>
 
-              <div className="bg-gray-50 px-6 py-4 flex justify-end">
+              <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+                {errorModal.showRetry && (
+                  <button
+                    onClick={retryLastRequest}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    重试
+                  </button>
+                )}
                 <button
                   onClick={closeErrorModal}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
                 >
                   关闭
                 </button>
