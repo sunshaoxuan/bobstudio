@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 
 const Studio = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
   
   // API 请求超时设置（毫秒）
@@ -894,11 +894,17 @@ const Studio = () => {
     }
   }, [currentUser, saveHistoryToServer]);
 
-  // 更新用户统计（暂时移除，后续可以添加后端API）
-  const updateStats = useCallback(() => {
-    // TODO: 调用后端API更新用户统计
-    console.log("图像生成完成，统计已更新");
-  }, []);
+  // 更新用户统计（刷新用户信息以获取最新统计数据）
+  const updateStats = useCallback(async () => {
+    if (refreshUser) {
+      const result = await refreshUser();
+      if (result.success) {
+        console.log("✅ 图像生成完成，统计已更新:", result.user.generationStats);
+      } else {
+        console.log("⚠️ 统计更新失败:", result.error);
+      }
+    }
+  }, [refreshUser]);
 
   // 处理文件的通用函数
   const processFiles = useCallback(

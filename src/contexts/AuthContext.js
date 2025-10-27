@@ -149,6 +149,33 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // 刷新当前用户信息（包括统计数据）
+  const refreshUser = useCallback(async () => {
+    if (!currentUser) {
+      console.log('⚠️ 未登录，无法刷新用户信息');
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('刷新用户信息失败');
+      }
+
+      const data = await response.json();
+      const normalizedUser = normalizeUser(data.user);
+      setCurrentUser(normalizedUser);
+      console.log('🔄 用户信息已刷新:', normalizedUser.generationStats);
+      return { success: true, user: normalizedUser };
+    } catch (error) {
+      console.error('刷新用户信息失败:', error);
+      return { success: false, error: error.message };
+    }
+  }, [API_BASE, currentUser]);
+
   const fetchStats = useCallback(async (options = {}) => {
     if (!currentUser) {
       setStats({ loading: false, scope: 'self', payload: null });
@@ -186,6 +213,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     checkAuthStatus,
+    refreshUser,
     fetchStats,
     statsState: stats
   };

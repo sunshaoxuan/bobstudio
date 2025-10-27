@@ -25,6 +25,54 @@ const saveUsers = () => {
   );
 };
 
+// 更新用户统计数据
+const updateUserStats = async (userId, historyData) => {
+  try {
+    const user = users.find(u => u.id === userId);
+    if (!user) {
+      console.log(`⚠️ 用户 ${userId} 不存在，跳过统计更新`);
+      return;
+    }
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+
+    // 计算统计
+    let todayCount = 0;
+    let thisMonthCount = 0;
+    const totalCount = historyData.length;
+
+    historyData.forEach(item => {
+      if (item.createdAt) {
+        const itemDate = new Date(item.createdAt);
+        const itemDay = itemDate.toISOString().split('T')[0];
+        const itemMonth = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}`;
+
+        if (itemDay === today) {
+          todayCount++;
+        }
+        if (itemMonth === thisMonth) {
+          thisMonthCount++;
+        }
+      }
+    });
+
+    // 更新用户统计
+    user.generationStats = {
+      today: todayCount,
+      thisMonth: thisMonthCount,
+      total: totalCount
+    };
+
+    // 保存用户数据
+    saveUsers();
+    console.log(`✅ 统计已更新 - 今日: ${todayCount}, 本月: ${thisMonthCount}, 总计: ${totalCount}`);
+  } catch (error) {
+    console.error(`❌ 更新用户统计失败:`, error);
+  }
+};
+
 // 加密工具函数会在 users 初始化之后使用
 const encryptSensitiveValue = (plainText = "") => {
   if (!plainText) return "";
@@ -327,6 +375,28 @@ app.post("/api/auth/login", (req, res) => {
     message: "登录成功",
     user: req.session.user,
   });
+});
+
+// 刷新当前用户信息（更新统计数据）
+app.get("/api/auth/refresh", requireAuth, (req, res) => {
+  try {
+    const user = users.find((u) => u.id === req.session.user.id);
+    if (!user) {
+      return res.status(404).json({ error: "用户不存在" });
+    }
+    
+    // 更新session中的用户信息
+    req.session.user = toSessionUser(user);
+    
+    console.log(`🔄 刷新用户 ${user.username} 的信息`);
+    res.json({
+      success: true,
+      user: req.session.user
+    });
+  } catch (error) {
+    console.error("刷新用户信息失败:", error);
+    res.status(500).json({ error: "刷新失败" });
+  }
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -907,6 +977,10 @@ app.post("/api/history/:userId", async (req, res) => {
     // 验证文件是否创建
     const stats = await fs.stat(filePath);
     console.log(`📁 JSON文件大小: ${(stats.size / 1024).toFixed(2)} KB`);
+    
+    // 更新用户统计
+    console.log(`\n📊 更新用户统计...`);
+    await updateUserStats(userId, historyData);
     
     console.log("=".repeat(60));
     res.json({ 
