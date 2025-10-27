@@ -1618,39 +1618,39 @@ const Studio = () => {
                     setMode("generate");
                     clearAllImages();
                   }}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                     mode === "generate"
                       ? "border-purple-500 bg-purple-50 text-purple-700"
                       : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
                   <Image className="w-6 h-6 mx-auto mb-2" />
-                  <div className="text-sm font-medium">文本生图</div>
+                  <div className="text-xs sm:text-sm font-medium whitespace-nowrap">文本生图</div>
                 </button>
                 <button
                   onClick={() => {
                     setMode("edit");
                     clearAllImages();
                   }}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                     mode === "edit"
                       ? "border-purple-500 bg-purple-50 text-purple-700"
                       : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
                   <Edit3 className="w-6 h-6 mx-auto mb-2" />
-                  <div className="text-sm font-medium">图像编辑</div>
+                  <div className="text-xs sm:text-sm font-medium whitespace-nowrap">图像编辑</div>
                 </button>
                 <button
                   onClick={() => setMode("compose")}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                     mode === "compose"
                       ? "border-purple-500 bg-purple-50 text-purple-700"
                       : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
                   <Layers className="w-6 h-6 mx-auto mb-2" />
-                  <div className="text-sm font-medium">图像合成</div>
+                  <div className="text-xs sm:text-sm font-medium whitespace-nowrap">图像合成</div>
                 </button>
               </div>
             </div>
