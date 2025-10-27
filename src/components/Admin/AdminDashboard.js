@@ -288,7 +288,7 @@ const AdminDashboard = () => {
               <Users className="w-8 h-8 text-blue-600" />
               <div>
                 <p className="text-sm text-gray-600">总用户数</p>
-                <p className="text-2xl font-bold text-gray-800">1</p>
+                <p className="text-2xl font-bold text-gray-800">{users.length}</p>
               </div>
             </div>
           </div>
@@ -297,7 +297,9 @@ const AdminDashboard = () => {
               <div className="w-8 h-8 text-green-600">✅</div>
               <div>
                 <p className="text-sm text-gray-600">已激活用户</p>
-                <p className="text-2xl font-bold text-gray-800">1</p>
+                <p className="text-2xl font-bold text-gray-800">
+                  {users.filter(u => u.isActive).length}
+                </p>
               </div>
             </div>
           </div>
