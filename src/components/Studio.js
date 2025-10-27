@@ -92,10 +92,23 @@ const Studio = () => {
       console.log("用户ID:", userId);
       console.log("图片数量:", historyData.length);
       
+      // 清理历史记录中的 BASE64 数据（保留服务器 URL）
+      const cleanedHistory = historyData.map(item => {
+        if (item.imageUrl && item.imageUrl.startsWith('data:image/')) {
+          console.warn(`⚠️ 发现旧的 BASE64 数据: ${item.fileName}，将被移除`);
+          return {
+            ...item,
+            imageUrl: '' // 清空 BASE64，避免发送大数据
+          };
+        }
+        return item;
+      });
+      
       // 计算数据大小
-      const dataStr = JSON.stringify(historyData);
+      const dataStr = JSON.stringify(cleanedHistory);
       const dataSize = new Blob([dataStr]).size;
       console.log("数据大小:", (dataSize / 1024).toFixed(2), "KB");
+      console.log("清理后的记录数:", cleanedHistory.length);
 
       const baseURL =
         process.env.NODE_ENV === "development" 
@@ -110,7 +123,7 @@ const Studio = () => {
           "Content-Type": "application/json",
         },
         credentials: "include", // 包含cookies
-        body: dataStr,
+        body: dataStr, // 发送清理后的数据
       });
 
       console.log("响应状态:", response.status, response.statusText);
