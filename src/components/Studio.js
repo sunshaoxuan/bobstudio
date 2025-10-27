@@ -27,6 +27,10 @@ import {
 const Studio = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  
+  // API 请求超时设置（毫秒）
+  const API_TIMEOUT = 300000; // 5分钟
+  
   const [apiKey, setApiKey] = useState(currentUser?.apiKey || "");
   const [prompt, setPrompt] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -973,7 +977,7 @@ const Studio = () => {
 
   // 调用API
   // 带超时的 fetch 函数
-  const fetchWithTimeout = async (url, options, timeoutMs = 120000) => {
+  const fetchWithTimeout = async (url, options, timeoutMs = API_TIMEOUT) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -987,10 +991,10 @@ const Studio = () => {
     } catch (error) {
       clearTimeout(timeoutId);
       if (error.name === "AbortError") {
-        throw new Error("请求超时：Google API 响应时间过长（超过 120 秒）。可能原因：\n1. Google 服务器负载过高\n2. 网络连接不稳定\n3. 生成的图片过于复杂\n\n建议：\n- 简化提示词\n- 稍后重试\n- 检查网络连接", {
+        throw new Error("请求超时：Google API 响应时间过长（超过 5 分钟）。可能原因：\n1. Google 服务器负载过高\n2. 网络连接不稳定\n3. 生成的图片过于复杂\n\n建议：\n- 简化提示词\n- 稍后重试\n- 检查网络连接", {
           cause: {
             title: "请求超时",
-            message: "Google API 响应时间过长（超过 120 秒）",
+            message: "Google API 响应时间过长（超过 5 分钟）",
             details: "可能原因：\n1. Google 服务器负载过高\n2. 网络连接不稳定\n3. 生成的图片过于复杂\n\n建议：\n- 简化提示词\n- 稍后重试\n- 检查网络连接",
             isTimeout: true,
           }
@@ -1015,7 +1019,7 @@ const Studio = () => {
           },
           body: JSON.stringify(requestBody),
         },
-        120000 // 120秒超时
+        API_TIMEOUT
       );
 
       console.log("API响应状态:", response.status);
