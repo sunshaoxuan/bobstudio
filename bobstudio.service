@@ -1,0 +1,26 @@
+[Unit]
+Description=BOB Studio Node.js Application
+Documentation=https://github.com/sunshaoxuan/bobstudio
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/nano-banana-studio
+Environment="NODE_ENV=production"
+Environment="PATH=/usr/bin:/usr/local/bin"
+ExecStartPre=/bin/bash -c 'cd /path/to/nano-banana-studio && git pull origin main'
+ExecStartPre=/bin/bash -c 'cd /path/to/nano-banana-studio && npm install'
+ExecStartPre=/bin/bash -c 'cd /path/to/nano-banana-studio && npm run build'
+ExecStart=/usr/bin/npm run server
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/bobstudio/output.log
+StandardError=append:/var/log/bobstudio/error.log
+
+# 资源限制
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
