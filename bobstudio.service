@@ -5,14 +5,14 @@ After=network.target
 
 [Service]
 Type=simple
-User=YOUR_USERNAME
-WorkingDirectory=/path/to/nano-banana-studio
+User=root
+WorkingDirectory=/root/bobstudio
 Environment="NODE_ENV=production"
-Environment="PATH=/usr/bin:/usr/local/bin"
-ExecStartPre=/bin/bash -c 'cd /path/to/nano-banana-studio && git pull origin main'
-ExecStartPre=/bin/bash -c 'cd /path/to/nano-banana-studio && npm install'
-ExecStartPre=/bin/bash -c 'cd /path/to/nano-banana-studio && npm run build'
-ExecStart=/usr/bin/npm run server
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStartPre=/bin/bash -c 'cd /root/bobstudio && /usr/bin/git pull origin main'
+ExecStartPre=/bin/bash -c 'cd /root/bobstudio && /usr/bin/npm install'
+ExecStartPre=/bin/bash -c 'cd /root/bobstudio && /usr/bin/npm run build'
+ExecStart=/bin/bash -c 'cd /root/bobstudio && /usr/bin/npm run server'
 Restart=on-failure
 RestartSec=10
 StandardOutput=append:/var/log/bobstudio/output.log
