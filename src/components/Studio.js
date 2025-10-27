@@ -84,30 +84,45 @@ const Studio = () => {
   // 保存历史记录到服务器
   const saveHistoryToServer = useCallback(async (historyData, userId) => {
     try {
-      console.log(
-        "💾 保存历史记录到服务器，用户:",
-        userId,
-        "图片数量:",
-        historyData.length,
-      );
+      console.log("=".repeat(50));
+      console.log("💾 开始保存历史记录到服务器");
+      console.log("用户ID:", userId);
+      console.log("图片数量:", historyData.length);
+      
+      // 计算数据大小
+      const dataStr = JSON.stringify(historyData);
+      const dataSize = new Blob([dataStr]).size;
+      console.log("数据大小:", (dataSize / 1024).toFixed(2), "KB");
 
       const baseURL =
         process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
-      const response = await fetch(`${baseURL}/api/history/${userId}`, {
+      const url = `${baseURL}/api/history/${userId}`;
+      console.log("请求URL:", url);
+      
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(historyData),
+        body: dataStr,
       });
 
+      console.log("响应状态:", response.status, response.statusText);
+
       if (response.ok) {
-        console.log("✅ 历史记录已保存到服务器");
+        const result = await response.json();
+        console.log("✅ 历史记录已保存到服务器:", result);
       } else {
+        const errorText = await response.text();
+        console.error("响应内容:", errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+      console.log("=".repeat(50));
     } catch (error) {
       console.error("❌ 保存历史记录到服务器失败:", error);
+      console.error("错误类型:", error.name);
+      console.error("错误消息:", error.message);
+      console.log("=".repeat(50));
 
       // 如果是网络错误，显示提示但不阻断用户操作
       if (error.name === "TypeError" || error.message.includes("fetch")) {

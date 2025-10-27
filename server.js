@@ -88,7 +88,12 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "50mb" }));
+
+// 服务静态文件
 app.use(express.static("build")); // 服务React构建文件
+
+// 服务图片文件
+app.use("/images", express.static(IMAGES_DIR));
 
 // 用户数据存储（实际项目中应该是数据库）
 try {
@@ -508,6 +513,7 @@ app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
 
 // 历史记录存储目录
 const HISTORY_DIR = path.join(__dirname, "history");
+const IMAGES_DIR = path.join(__dirname, "images");
 
 const MODE_META = {
   generate: { key: "generate", label: "文本生图", color: "#8B5CF6" },
@@ -710,6 +716,71 @@ async function ensureHistoryDir() {
   }
 }
 
+// 确保图片存储目录存在
+async function ensureImagesDir() {
+  try {
+    await fs.access(IMAGES_DIR);
+  } catch {
+    await fs.mkdir(IMAGES_DIR, { recursive: true });
+    console.log("📁 创建图片存储目录:", IMAGES_DIR);
+  }
+}
+
+// 将 BASE64 图片保存到文件系统
+async function saveBase64Image(base64Data, userId, fileName) {
+  try {
+    // 确保图片目录存在
+    await ensureImagesDir();
+    
+    // 解析 BASE64 数据
+    const base64Regex = /^data:image\/(png|jpeg|jpg|gif|webp);base64,/;
+    const matches = base64Data.match(base64Regex);
+    
+    if (!matches) {
+      throw new Error("Invalid base64 image format");
+    }
+    
+    const imageType = matches[1];
+    const base64String = base64Data.replace(base64Regex, "");
+    
+    // 将 BASE64 转换为 Buffer
+    const imageBuffer = Buffer.from(base64String, "base64");
+    
+    // 创建用户专属的图片目录
+    const userImageDir = path.join(IMAGES_DIR, userId);
+    try {
+      await fs.access(userImageDir);
+    } catch {
+      await fs.mkdir(userImageDir, { recursive: true });
+    }
+    
+    // 保存图片文件
+    let imageFileName = fileName || `${Date.now()}.${imageType}`;
+    
+    // 提取文件名（去除路径）
+    if (imageFileName.includes('/') || imageFileName.includes('\\')) {
+      imageFileName = path.basename(imageFileName);
+    }
+    
+    // 如果没有扩展名，添加图片类型
+    if (!imageFileName.includes('.')) {
+      imageFileName = `${imageFileName}.${imageType}`;
+    }
+    
+    const imageFilePath = path.join(userImageDir, imageFileName);
+    await fs.writeFile(imageFilePath, imageBuffer);
+    
+    // 返回图片的 URL
+    const imageUrl = `/images/${userId}/${imageFileName}`;
+    console.log(`💾 图片已保存: ${imageFilePath} (${(imageBuffer.length / 1024).toFixed(2)} KB)`);
+    
+    return imageUrl;
+  } catch (error) {
+    console.error("保存图片失败:", error);
+    throw error;
+  }
+}
+
 // 获取用户历史记录
 app.get("/api/history/:userId", async (req, res) => {
   try {
@@ -749,14 +820,41 @@ app.post("/api/history/:userId", async (req, res) => {
     console.log(
       `💾 保存用户 ${userId} 的历史记录: ${historyData.length} 张图片`,
     );
+    
+    // 处理历史记录中的图片
+    const processedHistory = [];
+    for (const item of historyData) {
+      const processedItem = { ...item };
+      
+      // 如果 imageUrl 是 BASE64 数据，保存为文件
+      if (item.imageUrl && item.imageUrl.startsWith('data:image/')) {
+        try {
+          console.log(`🖼️ 处理图片: ${item.fileName || '未命名'}`);
+          const imageUrl = await saveBase64Image(item.imageUrl, userId, item.fileName);
+          processedItem.imageUrl = imageUrl; // 替换为文件 URL
+        } catch (error) {
+          console.error("保存图片失败，保留 BASE64 格式:", error);
+          // 如果保存失败，保留原始 BASE64 数据
+        }
+      }
+      
+      processedHistory.push(processedItem);
+    }
 
-    // 将数据写入文件
-    await fs.writeFile(filePath, JSON.stringify(historyData, null, 2), "utf8");
+    // 将处理后的数据写入文件
+    const jsonData = JSON.stringify(processedHistory, null, 2);
+    await fs.writeFile(filePath, jsonData, "utf8");
 
     console.log(`✅ 成功保存用户 ${userId} 的历史记录到文件: ${filePath}`);
+    
+    // 验证文件是否创建
+    const stats = await fs.stat(filePath);
+    console.log(`📁 文件大小: ${(stats.size / 1024).toFixed(2)} KB`);
+    
     res.json({ message: "History saved successfully" });
   } catch (error) {
     console.error("❌ 保存历史记录失败:", error);
+    console.error("错误详情:", error.message, error.stack);
     res.status(500).json({ error: "Failed to save history" });
   }
 });
@@ -844,6 +942,7 @@ app.get("*", (req, res) => {
 // 启动服务器
 async function startServer() {
   await ensureHistoryDir();
+  await ensureImagesDir();
 
   const net = require("net");
 
