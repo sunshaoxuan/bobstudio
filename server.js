@@ -812,50 +812,89 @@ app.get("/api/history/:userId", async (req, res) => {
 
 // 保存用户历史记录
 app.post("/api/history/:userId", async (req, res) => {
+  console.log("=".repeat(60));
+  console.log("📥 收到保存历史记录请求");
+  
   try {
     const { userId } = req.params;
     const historyData = req.body;
+    
+    console.log(`用户ID: ${userId}`);
+    console.log(`历史数据类型: ${Array.isArray(historyData) ? '数组' : typeof historyData}`);
+    console.log(`历史数据长度: ${historyData?.length || 0}`);
+    
+    if (!Array.isArray(historyData)) {
+      console.error("❌ 历史数据不是数组");
+      return res.status(400).json({ error: "Invalid history data format" });
+    }
+    
+    // 确保目录存在
+    await ensureHistoryDir();
+    await ensureImagesDir();
+    console.log("✅ 目录已确认存在");
+    
     const filePath = path.join(HISTORY_DIR, `history-${userId}.json`);
-
-    console.log(
-      `💾 保存用户 ${userId} 的历史记录: ${historyData.length} 张图片`,
-    );
+    console.log(`📝 目标文件路径: ${filePath}`);
     
     // 处理历史记录中的图片
     const processedHistory = [];
-    for (const item of historyData) {
+    let imageCount = 0;
+    
+    for (let i = 0; i < historyData.length; i++) {
+      const item = historyData[i];
       const processedItem = { ...item };
+      
+      console.log(`\n处理第 ${i + 1}/${historyData.length} 条记录`);
+      console.log(`- ID: ${item.id}`);
+      console.log(`- 文件名: ${item.fileName}`);
+      console.log(`- imageUrl 类型: ${item.imageUrl ? (item.imageUrl.startsWith('data:image/') ? 'BASE64' : 'URL') : '无'}`);
       
       // 如果 imageUrl 是 BASE64 数据，保存为文件
       if (item.imageUrl && item.imageUrl.startsWith('data:image/')) {
         try {
-          console.log(`🖼️ 处理图片: ${item.fileName || '未命名'}`);
+          console.log(`  🖼️  开始保存图片: ${item.fileName || '未命名'}`);
           const imageUrl = await saveBase64Image(item.imageUrl, userId, item.fileName);
           processedItem.imageUrl = imageUrl; // 替换为文件 URL
+          imageCount++;
+          console.log(`  ✅ 图片已保存: ${imageUrl}`);
         } catch (error) {
-          console.error("保存图片失败，保留 BASE64 格式:", error);
+          console.error(`  ❌ 保存图片失败:`, error.message);
           // 如果保存失败，保留原始 BASE64 数据
         }
+      } else if (item.imageUrl) {
+        console.log(`  ℹ️  已是URL格式，无需处理: ${item.imageUrl}`);
+      } else {
+        console.log(`  ⚠️  没有imageUrl`);
       }
       
       processedHistory.push(processedItem);
     }
+    
+    console.log(`\n📊 处理完成: 共 ${processedHistory.length} 条记录，${imageCount} 张图片已保存为文件`);
 
     // 将处理后的数据写入文件
     const jsonData = JSON.stringify(processedHistory, null, 2);
+    console.log(`💾 开始写入JSON文件...`);
     await fs.writeFile(filePath, jsonData, "utf8");
-
-    console.log(`✅ 成功保存用户 ${userId} 的历史记录到文件: ${filePath}`);
+    console.log(`✅ JSON文件写入成功`);
     
     // 验证文件是否创建
     const stats = await fs.stat(filePath);
-    console.log(`📁 文件大小: ${(stats.size / 1024).toFixed(2)} KB`);
+    console.log(`📁 JSON文件大小: ${(stats.size / 1024).toFixed(2)} KB`);
     
-    res.json({ message: "History saved successfully" });
+    console.log("=".repeat(60));
+    res.json({ 
+      message: "History saved successfully",
+      recordCount: processedHistory.length,
+      imageCount: imageCount
+    });
   } catch (error) {
     console.error("❌ 保存历史记录失败:", error);
-    console.error("错误详情:", error.message, error.stack);
-    res.status(500).json({ error: "Failed to save history" });
+    console.error("错误类型:", error.name);
+    console.error("错误消息:", error.message);
+    console.error("错误堆栈:", error.stack);
+    console.log("=".repeat(60));
+    res.status(500).json({ error: "Failed to save history", details: error.message });
   }
 });
 

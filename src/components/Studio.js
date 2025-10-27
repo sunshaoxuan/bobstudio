@@ -53,6 +53,7 @@ const Studio = () => {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include", // 包含cookies
       });
 
       if (response.ok) {
@@ -104,6 +105,7 @@ const Studio = () => {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include", // 包含cookies
         body: dataStr,
       });
 
