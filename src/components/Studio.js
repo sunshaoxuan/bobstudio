@@ -466,6 +466,28 @@ const Studio = () => {
   const uploadImageToServer = useCallback(async (imageData, fileName, userId) => {
     try {
       console.log("📤 开始上传图片到服务器...");
+      
+      // 诊断：计算实际大小
+      const imageSizeBytes = imageData.length;
+      const imageSizeMB = (imageSizeBytes / 1024 / 1024).toFixed(2);
+      console.log(`📊 图片BASE64大小: ${imageSizeMB} MB (${imageSizeBytes} 字节)`);
+      
+      // 计算JSON请求体的实际大小
+      const requestBody = {
+        imageData,
+        fileName,
+        userId
+      };
+      const requestBodyStr = JSON.stringify(requestBody);
+      const requestSizeBytes = new Blob([requestBodyStr]).size;
+      const requestSizeMB = (requestSizeBytes / 1024 / 1024).toFixed(2);
+      console.log(`📦 完整请求体大小: ${requestSizeMB} MB (${requestSizeBytes} 字节)`);
+      
+      if (requestSizeBytes > 100 * 1024 * 1024) {
+        console.error(`❌ 请求体过大！${requestSizeMB} MB > 100 MB`);
+        throw new Error(`图片过大 (${requestSizeMB} MB)，请生成较小的图片或降低分辨率`);
+      }
+      
       const baseURL =
         process.env.NODE_ENV === "development" 
           ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
@@ -484,16 +506,22 @@ const Studio = () => {
         }),
       });
 
+      console.log(`🌐 发送请求到: ${baseURL}/api/images/upload`);
+      
       if (response.ok) {
         const result = await response.json();
         console.log("✅ 图片上传成功:", result.imageUrl);
         return result.imageUrl;
       } else {
-        const error = await response.json();
-        throw new Error(error.error || "上传失败");
+        console.error(`❌ 服务器返回错误: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error("错误详情:", errorText);
+        throw new Error(`上传失败 (${response.status}): ${errorText}`);
       }
     } catch (error) {
       console.error("❌ 图片上传失败:", error);
+      console.error("错误类型:", error.name);
+      console.error("错误消息:", error.message);
       throw error;
     }
   }, []);
