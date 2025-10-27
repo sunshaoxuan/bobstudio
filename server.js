@@ -10,6 +10,10 @@ const API_KEY_SECRET =
 const API_KEY_KEY = crypto.createHash("sha256").update(API_KEY_SECRET).digest();
 const API_KEY_IV_LENGTH = 12;
 
+// 目录定义
+const HISTORY_DIR = path.join(__dirname, "history");
+const IMAGES_DIR = path.join(__dirname, "images");
+
 let users = [];
 
 const saveUsers = () => {
@@ -510,10 +514,6 @@ app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
     res.status(500).json({ error: "Failed to delete user" });
   }
 });
-
-// 历史记录存储目录
-const HISTORY_DIR = path.join(__dirname, "history");
-const IMAGES_DIR = path.join(__dirname, "images");
 
 const MODE_META = {
   generate: { key: "generate", label: "文本生图", color: "#8B5CF6" },
