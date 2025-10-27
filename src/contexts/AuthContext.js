@@ -43,7 +43,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ loading: false, scope: 'self', payload: null, requestedScope: 'self' });
 
-  const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:8080' : '';
+  const API_BASE = process.env.NODE_ENV === 'development' 
+    ? (process.env.REACT_APP_API_URL || 'http://localhost:8080')
+    : '';
 
   const checkAuthStatus = useCallback(async () => {
     try {

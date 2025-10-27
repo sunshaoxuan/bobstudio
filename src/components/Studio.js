@@ -47,7 +47,9 @@ const Studio = () => {
     try {
       // 从服务器API加载历史记录
       const baseURL =
-        process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
+        process.env.NODE_ENV === "development" 
+          ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
+          : "";
       const response = await fetch(`${baseURL}/api/history/${currentUser.id}`, {
         method: "GET",
         headers: {
@@ -96,7 +98,9 @@ const Studio = () => {
       console.log("数据大小:", (dataSize / 1024).toFixed(2), "KB");
 
       const baseURL =
-        process.env.NODE_ENV === "development" ? "http://localhost:8080" : "";
+        process.env.NODE_ENV === "development" 
+          ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
+          : "";
       const url = `${baseURL}/api/history/${userId}`;
       console.log("请求URL:", url);
       
@@ -962,7 +966,7 @@ const Studio = () => {
       const response = await fetch(
         `${
           process.env.NODE_ENV === "development"
-            ? "http://localhost:8080"
+            ? (process.env.REACT_APP_API_URL || "http://localhost:8080")
             : ""
         }/api/me/api-key`,
         {
