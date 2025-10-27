@@ -53,6 +53,10 @@ const Studio = () => {
   const loadingTimerRef = useRef(null);
   const abortControllerRef = useRef(null); // 保存 AbortController 引用
   const [showTimeoutDialog, setShowTimeoutDialog] = useState(false); // 超时对话框
+  
+  // 本地缓存和服务器状态
+  const [pendingSync, setPendingSync] = useState([]); // 待同步的历史记录
+  const [serverAvailable, setServerAvailable] = useState(true); // 服务器是否可用
 
   // Loading 计时器
   useEffect(() => {
@@ -110,6 +114,23 @@ const Studio = () => {
 
     console.log(`📊 统计更新: 今日 ${todayCount}, 本月 ${thisMonthCount}, 总计 ${imageHistory.length}`);
   }, [imageHistory]);
+
+  // 从 localStorage 加载待同步数据
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    try {
+      const key = `pending_sync_${currentUser.id}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const pending = JSON.parse(stored);
+        setPendingSync(pending);
+        console.log(`📦 从本地加载了 ${pending.length} 条待同步记录`);
+      }
+    } catch (error) {
+      console.error("加载本地缓存失败:", error);
+    }
+  }, [currentUser]);
 
   // 从服务器加载用户的历史记录
   const loadImageHistory = useCallback(async () => {
@@ -697,7 +718,23 @@ const Studio = () => {
 
           // 同时保存到服务器（如果用户已登录）
           if (currentUser) {
-            saveHistoryToServer(updatedHistory, currentUser.id);
+            saveHistoryToServer(updatedHistory, currentUser.id).catch((error) => {
+              console.warn("⚠️ 服务器暂时不可用，图片已保存到本地缓存");
+              setServerAvailable(false);
+              
+              // 保存到本地缓存
+              const key = `pending_sync_${currentUser.id}`;
+              const newPending = [imageRecord, ...pendingSync];
+              setPendingSync(newPending);
+              localStorage.setItem(key, JSON.stringify(newPending));
+              
+              // 显示友好提示
+              showError(
+                "⚠️ 服务器暂时不可用",
+                "图片已成功生成并保存到本地缓存！\n\n请不要刷新页面或关闭浏览器。\n等服务器恢复后，点击\"同步到服务器\"按钮即可将历史记录保存到云端。",
+                `待同步记录数: ${newPending.length}`
+              );
+            });
           }
 
           return updatedHistory;
@@ -707,7 +744,7 @@ const Studio = () => {
         showError("保存失败", "保存图片到历史记录时出现错误");
       }
     },
-    [currentUser, showError, saveHistoryToServer, uploadImageToServer],
+    [currentUser, showError, saveHistoryToServer, uploadImageToServer, pendingSync],
   );
 
   // 手动下载图片
@@ -753,6 +790,49 @@ const Studio = () => {
       alert("导出失败，请重试");
     }
   }, [currentUser, imageHistory]);
+
+  // 同步待处理记录到服务器
+  const syncPendingToServer = useCallback(async () => {
+    if (!currentUser || pendingSync.length === 0) {
+      return;
+    }
+
+    console.log(`🔄 开始同步 ${pendingSync.length} 条待处理记录到服务器...`);
+
+    try {
+      // 合并待同步记录和当前历史记录
+      const mergedHistory = [...pendingSync, ...imageHistory];
+      
+      // 去重（按 id）
+      const uniqueHistory = Array.from(
+        new Map(mergedHistory.map(item => [item.id, item])).values()
+      ).slice(0, 20);
+
+      // 尝试保存到服务器
+      await saveHistoryToServer(uniqueHistory, currentUser.id);
+
+      // 成功后清除本地缓存
+      const key = `pending_sync_${currentUser.id}`;
+      localStorage.removeItem(key);
+      setPendingSync([]);
+      setServerAvailable(true);
+
+      console.log(`✅ 成功同步 ${pendingSync.length} 条记录到服务器`);
+      showError(
+        "✅ 同步成功", 
+        `已成功将 ${pendingSync.length} 条历史记录同步到服务器！\n现在可以安全地刷新页面了。`,
+        ""
+      );
+    } catch (error) {
+      console.error("❌ 同步失败:", error);
+      setServerAvailable(false);
+      showError(
+        "同步失败",
+        "服务器仍然不可用，请稍后再试。\n您的数据仍安全保存在本地缓存中。",
+        error.message
+      );
+    }
+  }, [currentUser, pendingSync, imageHistory, saveHistoryToServer, showError]);
 
   // 从文件导入历史记录
   const importHistoryFromFile = useCallback(() => {
@@ -1773,8 +1853,22 @@ const Studio = () => {
                 <span className="text-sm text-gray-500">
                   ({imageHistory.length}/20)
                 </span>
+                {pendingSync.length > 0 && (
+                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full animate-pulse">
+                    ⚠️ {pendingSync.length} 条待同步
+                  </span>
+                )}
               </h3>
               <div className="flex gap-2">
+                {pendingSync.length > 0 && (
+                  <button
+                    onClick={syncPendingToServer}
+                    className="px-3 py-1 text-sm text-white bg-orange-600 hover:bg-orange-700 rounded transition-colors flex items-center gap-1"
+                    title="将本地缓存的记录同步到服务器"
+                  >
+                    🔄 同步到服务器
+                  </button>
+                )}
                 <button
                   onClick={importHistoryFromFile}
                   className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
