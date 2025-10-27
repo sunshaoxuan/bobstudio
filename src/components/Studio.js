@@ -51,6 +51,8 @@ const Studio = () => {
   const [loadingElapsedTime, setLoadingElapsedTime] = useState(0);
   const [lastRequestBody, setLastRequestBody] = useState(null);
   const loadingTimerRef = useRef(null);
+  const abortControllerRef = useRef(null); // 保存 AbortController 引用
+  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false); // 超时对话框
 
   // Loading 计时器
   useEffect(() => {
@@ -976,10 +978,39 @@ const Studio = () => {
   );
 
   // 调用API
-  // 带超时的 fetch 函数
+  // 继续等待（延长超时时间）
+  const continueWaiting = useCallback(() => {
+    setShowTimeoutDialog(false);
+    console.log("🔄 用户选择继续等待...");
+    // 不做任何处理，请求会继续执行
+    // 5分钟后会再次触发超时提示
+  }, []);
+
+  // 放弃请求
+  const cancelRequest = useCallback(() => {
+    setShowTimeoutDialog(false);
+    if (abortControllerRef.current) {
+      console.log("❌ 用户选择放弃请求，中断连接...");
+      abortControllerRef.current.abort();
+    }
+  }, []);
+
+  // 带超时的 fetch 函数（改进版：超时时询问用户而不是直接中断）
   const fetchWithTimeout = async (url, options, timeoutMs = API_TIMEOUT) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    abortControllerRef.current = controller;
+
+    const checkTimeout = () => {
+      if (!controller.signal.aborted) {
+        console.log(`⏰ 请求已运行 ${timeoutMs / 1000} 秒，询问用户是否继续等待...`);
+        setShowTimeoutDialog(true);
+        
+        // 再等待 5 分钟后重新检查
+        setTimeout(checkTimeout, API_TIMEOUT);
+      }
+    };
+
+    const timeoutId = setTimeout(checkTimeout, timeoutMs);
 
     try {
       const response = await fetch(url, {
@@ -987,16 +1018,21 @@ const Studio = () => {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      setShowTimeoutDialog(false);
+      abortControllerRef.current = null;
       return response;
     } catch (error) {
       clearTimeout(timeoutId);
+      setShowTimeoutDialog(false);
+      abortControllerRef.current = null;
+      
       if (error.name === "AbortError") {
-        throw new Error("请求超时：Google API 响应时间过长（超过 5 分钟）。可能原因：\n1. Google 服务器负载过高\n2. 网络连接不稳定\n3. 生成的图片过于复杂\n\n建议：\n- 简化提示词\n- 稍后重试\n- 检查网络连接", {
+        throw new Error("请求已取消", {
           cause: {
-            title: "请求超时",
-            message: "Google API 响应时间过长（超过 5 分钟）",
-            details: "可能原因：\n1. Google 服务器负载过高\n2. 网络连接不稳定\n3. 生成的图片过于复杂\n\n建议：\n- 简化提示词\n- 稍后重试\n- 检查网络连接",
-            isTimeout: true,
+            title: "请求已取消",
+            message: "您已取消此次图像生成请求",
+            details: "如需重新生成，请点击重试按钮",
+            isTimeout: false,
           }
         });
       }
@@ -2034,6 +2070,57 @@ const Studio = () => {
                   className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
                 >
                   关闭
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 超时提示对话框 */}
+        {showTimeoutDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="bg-yellow-50 border-b border-yellow-200 px-6 py-4">
+                <h3 className="text-lg font-semibold text-yellow-800 flex items-center gap-2">
+                  <span className="text-yellow-500">⏰</span>
+                  请求处理时间较长
+                </h3>
+              </div>
+
+              <div className="p-6">
+                <p className="text-gray-700 mb-4">
+                  图像生成已经运行了 <span className="font-bold text-blue-600">{Math.floor(loadingElapsedTime / 60)} 分钟 {loadingElapsedTime % 60} 秒</span>，
+                  Google API 仍在处理中。
+                </p>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>💡 温馨提示：</strong><br/>
+                    • 如果您选择"放弃"，已产生的 API 费用将无法退回<br/>
+                    • 建议选择"继续等待"，避免浪费费用<br/>
+                    • 复杂的图像生成可能需要更长时间
+                  </p>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  您希望如何处理？
+                </p>
+              </div>
+
+              <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+                <button
+                  onClick={cancelRequest}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors flex items-center gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  放弃请求
+                </button>
+                <button
+                  onClick={continueWaiting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  继续等待 5 分钟
                 </button>
               </div>
             </div>
