@@ -31,3 +31,4 @@ echo "重启服务: sudo systemctl restart bobstudio"
 echo "查看状态: sudo systemctl status bobstudio"
 echo "查看日志: sudo journalctl -u bobstudio -f"
 
+
