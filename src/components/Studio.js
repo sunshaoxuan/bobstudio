@@ -1971,26 +1971,8 @@ const Studio = () => {
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
                   {imageHistory.filter(record => !record.deleted).map((record) => {
+                    // 仅保留 下载 + 删除；查看大图改为点击图片触发
                     const actions = [
-                      {
-                        key: "view",
-                        icon: Eye,
-                        title: "查看大图",
-                        variant: "default",
-                        onPress: () => setFullscreenImage(record.imageUrl),
-                      },
-                      ...(mode !== "generate"
-                        ? [
-                            {
-                              key: "add",
-                              icon: Plus,
-                              title: "添加到参考图片",
-                              variant: "default",
-                              onPress: () => addHistoryImageToUploads(record),
-                              stopPropagation: true,
-                            },
-                          ]
-                        : []),
                       {
                         key: "download",
                         icon: Download,
