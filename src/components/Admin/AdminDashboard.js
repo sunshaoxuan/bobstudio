@@ -170,7 +170,7 @@ const AdminDashboard = () => {
       }
 
       await fetchUsers();
-      alert(`已${!currentValueど '开启' : '关闭'}用户自配置权限`);
+      alert(`已${!currentValue ? '开启' : '关闭'}用户自配置权限`);
     } catch (error) {
       console.error('切换自配置失败:', error);
       alert('操作失败，请重试');
