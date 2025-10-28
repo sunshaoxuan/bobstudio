@@ -1,129 +1,222 @@
-# BOB Studio 项目说明
+# BOB Studio
 
-BOB Studio 是一套面向团队与个人创作者的 AI 图像工作室解决方案，提供用户管理、会话历史存档、API Key 管控以及多种图像生成模式。项目基于 React 前端与 Node.js/Express 后端构建，适用于私有化部署或企业内网场景。
+🎨 面向团队与个人创作者的 AI 图像工作室解决方案
 
-## 项目结构
+## 📋 项目简介
 
-```
-├── server.js                 // Node.js 后端服务，负责鉴权、用户管理、历史记录等
-├── users.json                // 轻量用户数据存储（默认采用本地 JSON 文件，可扩展为数据库）
-├── history/                  // 每位用户的图像生成历史文件
-├── src/
-│   ├── components/           // 前端视图组件（Studio、Admin、Stats 等）
-│   ├── contexts/             // React Context（认证状态、统计信息）
-│   ├── config/               // 系统级配置项
-│   └── ...
-└── README.md
-```
+BOB Studio 提供完整的 AI 图像生成平台，支持用户管理、会话历史、API Key 管控以及多种图像生成模式。基于 React + Node.js/Express 构建，适用于私有化部署。
 
-## 核心功能
+## ✨ 核心功能
 
-- **用户认证与 Session 管理**：基于 Express Session 实现登录态维持，支持管理员与普通用户的角色划分。
-- **用户后台（Admin Dashboard）**：
-  - 创建/删除用户、激活状态开关
-  - API Key 管控：可统一配置或允许用户自助维护
-  - 重置密码、历史统计概览
-- **工作室前端（Studio）**：
-  - 文本生成图像、图像编辑/合成等模式
-  - 支持上传素材、查看生成历史、导出备份
-  - 自助配置 API Key（若管理员开通）
-- **统计中心（Stats）**：
-  - 普通用户查看个人数据
-  - 管理员查看整体概览及按用户维度的使用量
-- **历史记录持久化**：按用户 ID 存储至 `history/history-*.json`，并提供读取、保存、清理接口。
-- **安全与合规**：
-  - API Key 加密存储（AES-256-GCM），避免明文落盘
-  - 会话态重新同步用户信息，确保状态实时更新
-  - 支持配置开发/生产环境的跨域策略与 Session 安全项
+### 🔐 用户管理
+- Session 认证，角色权限控制
+- 邮件激活注册
+- API Key 加密存储（AES-256-GCM）
+- 30张体验额度自动管理
 
-## 系统架构
+### 🎨 图像生成
+- 文本生图（Text-to-Image）
+- 图像编辑（Image Edit）
+- 图像合成（Image Compose）
+- 后端 Google API 代理（解决网络屏蔽）
 
-```
-[React 前端]  <->  [Express/Node.js 后端]  <->  [本地 JSON / 可选数据库]
-```
+### 📊 数据管理
+- 历史记录逻辑删除
+- 实时统计刷新
+- 管理员全局视图
+- 图片本地存储
 
-- 前端通过 `fetch` 与后端 RESTful 接口交互，默认端口：
-  - 前端开发：`http://localhost:3000`
-  - 后端服务：默认监听 8080（会自动回退到备用端口）
-- `users.json` 与 `history/` 目录可替换为数据库实现（如 MongoDB / PostgreSQL）。
+### 👨‍💼 管理功能
+- 用户CRUD管理
+- API Key分配与监控
+- 使用统计与分析
+- 已删除记录可见
 
-## 环境与依赖
+## 🚀 快速开始
 
+### 环境要求
 - Node.js 18+
 - npm 8+
-- 主要依赖：React 19、React Router 6、Express 4、express-session、lucide-react、Recharts 等
 
-### 环境变量
-
-复制 `env.example` 为 `.env`，根据需求设置：
-
-| 变量 | 说明 |
-| --- | --- |
-| `NODE_ENV` | 环境标记（development/production） |
-| `API_KEY_ENCRYPTION_SECRET` | API Key 加密密钥（必须更换为高强度值） |
-| 邮件相关变量 | 用于账号激活/通知的 SMTP 配置，可参考 `SMTP_CONFIG.md` |
-
-## 本地开发
-
+### 开发环境
 ```bash
-npm install         # 安装依赖
-npm run server      # 启动后端服务（默认 8080）
-npm start           # 启动前端开发服务器（默认 3000）
+# 安装依赖
+npm install
+
+# 启动后端（端口8080）
+npm run server
+
+# 启动前端（端口3000）
+npm start
 ```
 
-> 提示：`npm run dev` 可并行启动前后端。
-
-## 编译与发布
-
+### 生产部署
 ```bash
-npm run build       # 构建前端生产包
-npm run server      # 在生产环境启动后端（需自行配置进程守护）
+# 构建前端
+npm run build
+
+# 启动服务
+npm run server
+
+# 或使用 systemd（推荐）
+sudo systemctl start bobstudio
 ```
 
-> 每次提交代码前需执行 `npm run build` 确保编译通过。
+## 📝 环境配置
 
-前端构建产物位于 `build/`，后端可通过 Nginx/AP的 或直接 Node 运行，建议结合 PM2 等管理工具。
+复制 `env.example` 为 `.env`：
 
-## API 概览
+```env
+# 基础配置
+NODE_ENV=production
+PORT=8080
+SESSION_SECRET=your-strong-secret
+API_KEY_ENCRYPTION_SECRET=your-encryption-secret
 
-- 认证：`POST /api/auth/login`、`POST /api/auth/logout`、`GET /api/auth/me`
-- 用户管理（管理员）：
-  - `GET /api/admin/users`
-  - `POST /api/admin/users`
-  - `PUT /api/admin/users/:id`
-  - `DELETE /api/admin/users/:id`
-  - `POST /api/admin/users/:id/reset-password`
-  - `POST /api/admin/users/:id/api-key`
-  - `GET /api/admin/users/:id/api-key`
-- 用户自助 API Key：`POST /api/me/api-key`
-- 图像历史：`GET/POST/DELETE /api/history/:userId`
-- 统计：`GET /api/stats?scope=self|summary|user`
+# 邮件配置
+SMTP_HOST=mail.briconbric.com
+SMTP_PORT=465
+SMTP_USER=postmaster@briconbric.com
+SMTP_PASS=your-password
+SITE_URL=https://your-domain.com
+```
 
-## 安全设计
+## 🗂️ 项目结构
 
-1. **API Key 加密存储**：
-   - 使用 AES-256-GCM，加密后的密文保存在 `users.json` 中。
-   - 支持旧数据迁移：发现明文 `apiKey` 会自动加密。
-2. **权限控制**：管理员可控制用户是否可自助配置 API Key；普通用户永远无法读取其他用户配置。
-3. **Session 管理**：登录后返回 `session.user`，并在 `GET /api/auth/me` 中实时刷新。
+```
+├── server.cjs              # Node.js 后端服务
+├── users.json              # 用户数据存储
+├── history/                # 图像历史记录
+├── images/                 # 上传图片存储
+├── sessions/               # Session 文件
+├── src/
+│   ├── components/         # React 组件
+│   │   ├── Studio.js       # 工作室主界面
+│   │   ├── Admin/          # 管理后台
+│   │   └── Stats.js        # 统计页面
+│   ├── contexts/           # React Context
+│   └── services/           # API 服务
+└── CHANGELOG.md            # 完整文档和版本记录
+```
 
-## 常见问题
+## 📖 API 概览
 
-| 问题 | 说明 |
-| --- | --- |
-| 构建失败 | 检查 `npm run build` 输出，确保终端环境变量正确设置 |
-| API Key 不生效 | 管理端确认 `showApiConfig`、`hasApiKey` 状态，并检查密钥有效性 |
-| 历史记录缺失 |确认 `history` 目录存在写入权限，或查看后端日志 |
+### 认证
+```
+POST   /api/auth/login              # 登录
+POST   /api/auth/logout             # 登出
+GET    /api/auth/me                 # 获取当前用户
+POST   /api/auth/register           # 注册
+GET    /api/auth/activate/:token    # 激活账号
+```
 
-## 扩展建议
+### 用户管理（管理员）
+```
+GET    /api/admin/users             # 获取用户列表
+POST   /api/admin/users             # 创建用户
+PUT    /api/admin/users/:id         # 更新用户
+DELETE /api/admin/users/:id         # 删除用户
+POST   /api/admin/users/:id/api-key # 设置API Key
+GET    /api/admin/users/:id/api-key # 获取API Key
+```
 
-- 将用户数据迁移至数据库（MongoDB / PostgreSQL），以支持更复杂的搜索和审计。
-- 集成 OAuth / 单点登录体系，提升企业环境兼容性。
-- 引入队列系统或云函数处理高并发图像生成请求。
+### 图像生成
+```
+POST   /api/gemini/generate         # Google API 代理
+POST   /api/upload                  # 上传图片
+```
+
+### 历史记录
+```
+GET    /api/history/:userId         # 获取历史
+POST   /api/history/:userId         # 保存历史
+DELETE /api/history/:userId         # 清空历史
+```
+
+### 统计
+```
+GET    /api/stats?scope=self        # 个人统计
+GET    /api/stats?scope=summary     # 全局统计（管理员）
+GET    /api/stats?scope=user&userId=xxx  # 指定用户（管理员）
+```
+
+## 🔒 安全设计
+
+1. **API Key 加密**：AES-256-GCM 加密存储
+2. **Session 管理**：express-session + file-store
+3. **权限控制**：基于角色的访问控制（RBAC）
+4. **数据隔离**：用户只能访问自己的数据
+
+## 📊 功能特性
+
+### 30张图片限制
+- 自注册用户：需自行配置 API Key
+- 管理员分配：30张体验额度，用完自动清空
+- 计数规则：包括已删除记录
+
+### 逻辑删除
+- 删除标记为 `deleted: true`
+- 统计数据包括已删除（反映真实成本）
+- 普通用户不可见，管理员可见红色标签
+
+### 后端代理
+- 解决中国用户 Google API 访问问题
+- 所有请求通过服务器代理
+- 详细日志记录（用户、模式、耗时）
+
+## 📚 文档
+
+- **[CHANGELOG.md](./CHANGELOG.md)** - 完整的版本记录、配置说明、部署指南
+
+## 🛠️ 技术栈
+
+### 后端
+- Node.js + Express
+- express-session
+- nodemailer
+- crypto-js
+
+### 前端
+- React 18.3.1
+- React Router 6.28.0
+- Vite 6.4.1
+- Tailwind CSS
+- Lucide React
+- Recharts
+
+### 部署
+- Ubuntu + Systemd
+- Nginx 反向代理
+- Git 版本控制
+
+## 🤝 贡献指南
+
+```bash
+# 1. Fork 项目
+# 2. 创建功能分支
+git checkout -b feature/amazing-feature
+
+# 3. 提交更改
+git commit -m "Add: amazing feature"
+
+# 4. 推送到分支
+git push origin feature/amazing-feature
+
+# 5. 创建 Pull Request
+```
+
+## 📄 许可证
+
+本项目仅供内部使用，未开放公开许可。
+
+## 📞 联系方式
+
+- 项目维护：BOB Studio Team
+- 网站：https://studio.briconbric.com
+- 邮箱：postmaster@briconbric.com
 
 ---
 
-如需更多参考，可查看以下文档：
-- `SERVER_SETUP.md`：后端部署指南
-- `SMTP_CONFIG.md`：邮件服务配置
-- `src/services/`：前端服务请求封装
+**最后更新**：2025-10-28  
+**版本**：1.0.0  
+**状态**：✅ 正常维护

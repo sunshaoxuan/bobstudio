@@ -1,0 +1,339 @@
+# BOB Studio 更新日志
+
+## 版本说明
+本文档记录 BOB Studio 的所有功能更新、Bug修复和配置变更。
+
+---
+
+## [2025-10-28] - 正式版本
+
+### ✨ 新增功能
+
+#### 1. 邮件激活系统
+- 新用户注册需要邮件激活
+- SMTP配置：`mail.briconbric.com:465` (SSL)
+- 激活令牌24小时有效
+- 精美的HTML邮件模板
+
+#### 2. Google API 后端代理
+- **问题**：中国用户无法直接访问 Google API
+- **解决**：所有图片生成请求通过后端代理
+- **覆盖**：文本生图、图片编辑、图片合成
+- **日志**：记录用户、模式、耗时等详细信息
+
+#### 3. 30张图片限制机制
+- 自注册用户：默认无API Key，需自行配置
+- 管理员分配：体验额度30张，用完自动清空
+- 计数规则：包括已删除记录（生成即产生成本）
+- 友好提示：详细的API Key获取指引
+
+#### 4. 逻辑删除功能
+- 删除不再物理移除记录，而是标记 `deleted: true`
+- 统计数据包括已删除记录（反映真实成本）
+- 普通用户看不到已删除记录
+- 管理员可见红色"已删除"标签
+
+#### 5. 实时统计刷新
+- 统计页面切换模式时自动刷新数据
+- 不再依赖缓存，实时获取最新数据
+
+### 🔧 配置更新
+
+#### 邮件服务配置
+```javascript
+const EMAIL_CONFIG = {
+  host: 'mail.briconbric.com',
+  port: 465,
+  secure: true, // SSL
+  auth: {
+    user: 'postmaster@briconbric.com',
+    pass: 'BtZhY1^3'
+  },
+  connectionTimeout: 30000
+};
+```
+
+#### API Key 限制配置
+```javascript
+const FREE_GENERATION_LIMIT = 30; // 免费额度
+```
+
+### 🐛 Bug修复
+
+#### 1. 权限显示问题
+- **问题**：普通用户能看到已删除图片的统计信息
+- **修复**：只有管理员能看到"已删除x张"
+
+#### 2. 缓存问题
+- **问题**：前端更新后浏览器缓存旧版本
+- **修复**：HTML文件设置 `no-cache`，静态资源设置 `immutable`
+
+#### 3. 统计不准确
+- **问题**：删除图片后统计数减少
+- **修复**：改为逻辑删除，统计始终准确
+
+### 📊 数据结构变更
+
+#### 用户数据
+```javascript
+{
+  id: "user_xxx",
+  username: "username",
+  email: "email@example.com",
+  password: "hashed",
+  apiKeyEncrypted: "", // 加密后的API Key
+  isActive: true,
+  isSuperAdmin: false,
+  showApiConfig: false,
+  createdAt: "2025-10-28T00:00:00.000Z",
+  activationToken: "...", // 激活令牌
+  activationExpires: "2025-10-29T00:00:00.000Z",
+  generationStats: {
+    today: 5,
+    thisMonth: 28,
+    total: 30 // 包括已删除
+  }
+}
+```
+
+#### 历史记录
+```javascript
+{
+  id: "xxx",
+  fileName: "bob-studio_xxx.png",
+  imageUrl: "/images/user/xxx.png",
+  prompt: "...",
+  mode: "generate", // generate|edit|compose
+  createdAt: "2025-10-28T00:00:00.000Z",
+  deleted: false, // 逻辑删除标记
+  deletedAt: null // 删除时间
+}
+```
+
+### 🚀 部署相关
+
+#### 自动部署脚本 (start.sh)
+```bash
+#!/bin/bash
+cd /root/bobstudio
+git reset --hard
+git pull origin main
+npm install --include=dev
+npm run build
+npm run server
+```
+
+#### Systemd 服务配置
+```ini
+[Unit]
+Description=BOB Studio Node.js Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/bobstudio
+ExecStart=/root/bobstudio/start.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Nginx 配置要点
+- 静态文件缓存：HTML no-cache，其他资源长期缓存
+- API代理：所有 `/api/*` 请求代理到 Node.js
+- 上传限制：`client_max_body_size 50M`
+- Session支持：传递必要的请求头
+
+### 📝 API 接口
+
+#### 新增接口
+```
+POST /api/auth/register         - 用户注册
+GET  /api/auth/activate/:token  - 邮件激活
+POST /api/gemini/generate       - Google API 代理
+POST /api/history/:userId       - 保存历史（返回限制状态）
+```
+
+#### 接口变更
+```javascript
+// POST /api/history/:userId 返回值增加
+{
+  message: "History saved successfully",
+  recordCount: 30,
+  apiKeyCleared: true,    // 新增：API Key是否被清空
+  reachedLimit: true      // 新增：是否达到限制
+}
+```
+
+### 🎨 前端优化
+
+#### 历史记录显示
+- 只显示未删除的记录
+- 显示格式：`(显示数/总数)`
+- 管理员额外显示："(已删除x)"
+
+#### 用户提示
+- 达到30张限制：详细的弹窗提示
+- 无API Key：如何获取API Key的指引
+- 邮件激活：注册成功提示检查邮箱
+
+#### 管理端增强
+- 已删除图片：右上角红色徽章 `🗑️ 已删除`
+- 图片卡片：红色"已删除"标签
+- 详情弹窗：显示删除时间
+
+### 📈 日志增强
+
+#### 全局时间戳
+所有服务器日志自动添加时间戳：
+```
+[2025-10-28 10:49:13] ✅ 服务器运行在端口 8080
+```
+
+#### API代理日志
+```
+[2025-10-28 10:49:14] 🌐 Google Gemini API 代理请求
+[2025-10-28 10:49:14]    👤 用户: admin (super-admin-001)
+[2025-10-28 10:49:14]    🎨 模式: generate (文本生图)
+[2025-10-28 10:49:14]    📊 图片数: 1
+[2025-10-28 10:49:15] ✅ API请求成功 (耗时: 1.2秒)
+```
+
+---
+
+## 技术栈
+
+### 后端
+- Node.js + Express
+- express-session (Session管理)
+- crypto-js (API Key加密)
+- nodemailer (邮件发送)
+- session-file-store (Session持久化)
+
+### 前端
+- React 18.3.1
+- React Router 6.28.0
+- Vite 6.4.1
+- Tailwind CSS
+- Lucide React (图标)
+- Recharts (图表)
+
+### 部署
+- Ubuntu Server
+- Systemd (进程管理)
+- Nginx (反向代理)
+- Git (版本控制)
+
+---
+
+## 配置文件说明
+
+### server.cjs
+- 核心后端服务
+- 用户认证、API代理、历史记录管理
+- 邮件发送、统计计算
+
+### users.json
+- 用户数据存储
+- API Key加密存储
+- 自动备份（Git管理）
+
+### history/
+- 按用户存储历史记录
+- JSON格式，易于查询
+- 包括逻辑删除标记
+
+### sessions/
+- Session文件存储
+- 自动清理过期Session
+
+### images/
+- 用户上传的图片
+- 按用户ID分目录存储
+
+---
+
+## 环境变量
+
+### 必需配置
+```env
+NODE_ENV=production
+PORT=8080
+SESSION_SECRET=your-strong-secret
+API_KEY_ENCRYPTION_SECRET=your-encryption-secret
+```
+
+### 邮件配置
+```env
+SMTP_HOST=mail.briconbric.com
+SMTP_PORT=465
+SMTP_USER=postmaster@briconbric.com
+SMTP_PASS=BtZhY1^3
+SITE_URL=https://studio.briconbric.com
+EMAIL_FROM=BOB Studio <postmaster@briconbric.com>
+```
+
+---
+
+## 部署命令
+
+### 开发环境
+```bash
+npm install
+npm run server      # 后端
+npm start           # 前端
+```
+
+### 生产环境
+```bash
+# 首次部署
+git clone <repo>
+cd bobstudio
+npm install --include=dev
+npm run build
+chmod +x start.sh
+
+# 配置systemd
+sudo cp bobstudio.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable bobstudio
+sudo systemctl start bobstudio
+
+# 更新部署
+sudo systemctl restart bobstudio
+```
+
+---
+
+## 已知问题
+
+### 1. 本地邮件测试可能失败
+- **现象**：本地无法连接SMTP服务器
+- **原因**：本地网络/防火墙限制
+- **解决**：直接在服务器上测试
+
+### 2. 前端缓存
+- **现象**：更新后前端不刷新
+- **原因**：浏览器缓存
+- **解决**：已设置Cache-Control，强刷（Ctrl+Shift+R）
+
+---
+
+## 未来计划
+
+- [ ] 数据库支持（替代JSON存储）
+- [ ] 批量图片生成
+- [ ] 图片收藏和分类
+- [ ] 团队协作功能
+- [ ] API使用统计和计费
+- [ ] 更多AI模型支持
+
+---
+
+**最后更新**：2025-10-28  
+**当前版本**：1.0.0  
+**维护状态**：✅ 正常维护
+
