@@ -6,6 +6,21 @@ const session = require("express-session");
 const FileStore = require("session-file-store")(session);
 const crypto = require("crypto");
 
+// ===== 全局日志时间戳 =====
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+const formatLogTime = () => {
+  const now = new Date();
+  return now.toISOString().replace('T', ' ').substring(0, 23);
+};
+
+console.log = (...args) => originalLog(`[${formatLogTime()}]`, ...args);
+console.error = (...args) => originalError(`[${formatLogTime()}]`, ...args);
+console.warn = (...args) => originalWarn(`[${formatLogTime()}]`, ...args);
+// ===== 全局日志时间戳结束 =====
+
 const API_KEY_SECRET =
   process.env.API_KEY_ENCRYPTION_SECRET || "change-me-bobstudio-secret";
 const API_KEY_KEY = crypto.createHash("sha256").update(API_KEY_SECRET).digest();
@@ -1118,12 +1133,6 @@ app.get("/api/admin/all-history", requireAdmin, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch all history" });
   }
 });
-
-// 格式化日志时间戳
-const formatLogTime = () => {
-  const now = new Date();
-  return now.toISOString().replace('T', ' ').substring(0, 23);
-};
 
 // Google Gemini API 代理（解决中国用户网络屏蔽问题）
 app.post("/api/gemini/generate", requireAuth, async (req, res) => {
