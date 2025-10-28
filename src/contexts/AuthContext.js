@@ -35,7 +35,8 @@ const normalizeUser = (user) => {
     generationStats: normalizedStats,
     showApiConfig: Boolean(user.showApiConfig),
     isActive: Boolean(user.isActive),
-    isSuperAdmin: Boolean(user.isSuperAdmin)
+    isSuperAdmin: Boolean(user.isSuperAdmin),
+    hasApiKey: Boolean(user.hasApiKey)  // 传递后端计算的 hasApiKey 字段
   };
 };
 

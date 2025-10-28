@@ -1909,7 +1909,10 @@ const Studio = () => {
               onClick={executeAction}
               disabled={
                 loading ||
-                !apiKey ||
+                // 如果是管理员配置的模式（showApiConfig=false），使用 hasApiKey 字段
+                (!currentUser?.showApiConfig && !currentUser?.hasApiKey) ||
+                // 如果是用户自己配置的模式（showApiConfig=true），检查前端的 apiKey
+                (currentUser?.showApiConfig && !apiKey) ||
                 !prompt ||
                 ((mode === "edit" || mode === "compose") &&
                   uploadedImages.length === 0)
