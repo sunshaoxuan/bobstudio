@@ -128,6 +128,82 @@ async function sendActivationEmail(email, username, activationToken) {
     throw error;
   }
 }
+
+// 发送密码重置邮件
+async function sendPasswordResetEmail(email, username, resetToken) {
+  if (!emailTransporter) {
+    throw new Error('邮件服务未配置');
+  }
+
+  const resetLink = `${SITE_URL}/reset-password/${resetToken}`;
+  
+  const mailOptions = {
+    from: EMAIL_FROM,
+    to: email,
+    subject: '重置您的 BOB Studio 密码',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #EF4444 0%, #F97316 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; background: #EF4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .warning { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; border-radius: 5px; }
+          .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🔒 重置密码请求</h1>
+          </div>
+          <div class="content">
+            <p>亲爱的 <strong>${username}</strong>，</p>
+            <p>我们收到了您的密码重置请求。</p>
+            <p>请点击下面的按钮重置您的密码：</p>
+            <p style="text-align: center;">
+              <a href="${resetLink}" class="button">重置密码</a>
+            </p>
+            <p>或复制以下链接到浏览器打开：</p>
+            <p style="background: #fff; padding: 10px; border-radius: 5px; word-break: break-all; font-family: monospace; font-size: 12px;">
+              ${resetLink}
+            </p>
+            <div class="warning">
+              <p><strong>⚠️ 重要提示：</strong></p>
+              <ul>
+                <li>此链接将在 <strong>24 小时</strong>后失效</li>
+                <li>此链接仅可使用一次</li>
+                <li>请勿将此链接分享给他人</li>
+              </ul>
+            </div>
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+            <p style="color: #666; font-size: 14px;">
+              如果您没有请求重置密码，请忽略此邮件。您的密码不会被更改。
+            </p>
+          </div>
+          <div class="footer">
+            <p>© 2025 BOB Studio. All rights reserved.</p>
+            <p>${SITE_URL}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `.trim()
+  };
+
+  try {
+    const info = await emailTransporter.sendMail(mailOptions);
+    console.log('📧 密码重置邮件已发送:', email, '| MessageID:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ 发送密码重置邮件失败:', email, '|', error.message);
+    throw error;
+  }
+}
 // ===== 邮件配置结束 =====
 
 let users = [];
@@ -572,6 +648,137 @@ app.get("/api/auth/activate/:token", async (req, res) => {
   } catch (error) {
     console.error('❌ 激活失败:', error);
     res.status(500).json({ error: "激活失败", details: error.message });
+  }
+});
+
+// 忘记密码 - 请求重置
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    const { username } = req.body || {};
+    
+    if (!username) {
+      return res.status(400).json({ error: "请输入用户名" });
+    }
+    
+    const normalizedUsername = String(username).trim();
+    const user = users.find(u => u.username && u.username.toLowerCase() === normalizedUsername.toLowerCase());
+    
+    if (!user) {
+      // 为了安全，不透露用户是否存在
+      return res.json({ 
+        success: true,
+        message: "如果该用户名存在，重置密码邮件已发送。" 
+      });
+    }
+    
+    // 生成重置令牌（24小时有效）
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24小时后过期
+    
+    user.resetToken = resetToken;
+    user.resetExpires = resetExpires.toISOString();
+    saveUsers();
+    
+    // 发送重置邮件（不显示完整邮箱地址）
+    try {
+      await sendPasswordResetEmail(user.email, user.username, resetToken);
+      
+      // 返回时隐藏邮箱地址
+      const maskedEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+      
+      console.log(`✅ 密码重置请求: ${user.username} (${maskedEmail})`);
+      res.json({ 
+        success: true,
+        message: `重置密码邮件已发送到 ${maskedEmail}` 
+      });
+    } catch (emailError) {
+      console.error('❌ 发送重置邮件失败:', emailError);
+      return res.status(500).json({ 
+        error: "发送重置邮件失败，请稍后重试",
+        details: emailError.message
+      });
+    }
+  } catch (error) {
+    console.error('❌ 密码重置请求失败:', error);
+    res.status(500).json({ error: "操作失败", details: error.message });
+  }
+});
+
+// 重置密码
+app.post("/api/auth/reset-password/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body || {};
+    
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: "密码至少需要 6 个字符" });
+    }
+    
+    const user = users.find(u => u.resetToken === token);
+    
+    if (!user) {
+      return res.status(404).json({ error: "无效的重置链接" });
+    }
+    
+    // 检查令牌是否过期
+    if (new Date() > new Date(user.resetExpires)) {
+      return res.status(410).json({ error: "重置链接已过期，请重新申请" });
+    }
+    
+    // 重置密码
+    user.password = hashPassword(newPassword);
+    user.resetToken = undefined;
+    user.resetExpires = undefined;
+    saveUsers();
+    
+    console.log(`✅ 密码重置成功: ${user.username}`);
+    res.json({ 
+      success: true,
+      message: "密码重置成功！请使用新密码登录。" 
+    });
+  } catch (error) {
+    console.error('❌ 密码重置失败:', error);
+    res.status(500).json({ error: "密码重置失败", details: error.message });
+  }
+});
+
+// 修改密码（已登录用户）
+app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+  try {
+    const user = users.find(u => u.id === req.session.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ error: "用户不存在" });
+    }
+    
+    // 生成重置令牌
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    
+    user.resetToken = resetToken;
+    user.resetExpires = resetExpires.toISOString();
+    saveUsers();
+    
+    // 发送重置邮件
+    try {
+      await sendPasswordResetEmail(user.email, user.username, resetToken);
+      
+      const maskedEmail = user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+      
+      console.log(`✅ 修改密码请求: ${user.username} (${maskedEmail})`);
+      res.json({ 
+        success: true,
+        message: `验证邮件已发送到 ${maskedEmail}，请查收` 
+      });
+    } catch (emailError) {
+      console.error('❌ 发送验证邮件失败:', emailError);
+      return res.status(500).json({ 
+        error: "发送验证邮件失败，请稍后重试"
+      });
+    }
+  } catch (error) {
+    console.error('❌ 修改密码请求失败:', error);
+    res.status(500).json({ error: "操作失败", details: error.message });
   }
 });
 

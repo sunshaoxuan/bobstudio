@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Mail, Send, X } from 'lucide-react';
+import { User, Send, X } from 'lucide-react';
 
 const ForgotPassword = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -14,13 +14,8 @@ const ForgotPassword = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!email) {
-      setError('请输入邮箱地址');
-      return;
-    }
-
-    if (!email.includes('@')) {
-      setError('请输入有效的邮箱地址');
+    if (!username) {
+      setError('请输入用户名');
       return;
     }
 
@@ -28,9 +23,10 @@ const ForgotPassword = () => {
     setError('');
     
     try {
-      const result = await forgotPassword(email);
+      const result = await forgotPassword(username);
       if (result.success) {
         setSuccess(result.message);
+        setUsername(''); // 清空输入
       } else {
         setError(result.message);
       }
@@ -51,28 +47,31 @@ const ForgotPassword = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
             🎨 BOB Studio
           </h1>
-          <p className="text-gray-600">重置密码</p>
+          <p className="text-gray-600">忘记密码</p>
         </div>
 
         <div className="mb-6 p-4 bg-blue-50 rounded-lg">
           <p className="text-sm text-blue-700">
-            输入您的邮箱地址，我们将发送重置密码的链接到您的邮箱。
+            输入您的用户名，我们将发送重置密码的链接到您注册时使用的邮箱。
+          </p>
+          <p className="text-xs text-blue-600 mt-2">
+            📧 为了保护您的隐私，我们不会显示完整的邮箱地址
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              邮箱地址
+              用户名
             </label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="请输入注册时使用的邮箱"
+                placeholder="请输入您的用户名"
                 required
               />
             </div>
@@ -100,7 +99,7 @@ const ForgotPassword = () => {
         <div className="mt-6 space-y-4 text-center text-sm">
           <Link
             to="/login"
-            className="text-purple-600 hover:text-purple-700 transition-colors"
+            className="text-purple-600 hover:text-purple-700 transition-colors block"
           >
             返回登录
           </Link>
@@ -117,7 +116,7 @@ const ForgotPassword = () => {
           
           <Link
             to="/"
-            className="text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-gray-500 hover:text-gray-700 transition-colors block"
           >
             返回首页
           </Link>
@@ -179,17 +178,18 @@ const ForgotPassword = () => {
               <p className="text-gray-700 mb-4">{success}</p>
               <div className="p-3 bg-blue-50 rounded">
                 <p className="text-sm text-blue-700">
-                  💡 提示：请检查您的邮箱（包括垃圾邮件文件夹），点击重置链接完成密码重置。重置链接将在1小时后失效。
+                  💡 提示：请检查您的邮箱（包括垃圾邮件文件夹），点击重置链接完成密码重置。重置链接将在24小时后失效。
                 </p>
               </div>
             </div>
-            <div className="bg-gray-50 px-6 py-4 flex justify-end">
-              <button
-                onClick={closeSuccess}
+            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-2">
+              <Link
+                to="/login"
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                onClick={closeSuccess}
               >
-                确定
-              </button>
+                去登录
+              </Link>
             </div>
           </div>
         </div>

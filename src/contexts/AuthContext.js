@@ -135,6 +135,42 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // 忘记密码
+  const forgotPassword = async (username) => {
+    try {
+      const data = await apiPost('/api/auth/forgot-password', { username: username.trim() });
+      console.log('✅ 密码重置请求成功');
+      return { success: true, message: data.message };
+    } catch (error) {
+      console.error('❌ 密码重置请求失败:', error);
+      return { success: false, message: error.message || '请求失败' };
+    }
+  };
+
+  // 重置密码
+  const resetPassword = async (token, newPassword) => {
+    try {
+      const data = await apiPost(`/api/auth/reset-password/${token}`, { newPassword });
+      console.log('✅ 密码重置成功');
+      return { success: true, message: data.message };
+    } catch (error) {
+      console.error('❌ 密码重置失败:', error);
+      return { success: false, message: error.message || '重置失败' };
+    }
+  };
+
+  // 修改密码（已登录用户）
+  const changePassword = async () => {
+    try {
+      const data = await apiPost('/api/auth/change-password');
+      console.log('✅ 修改密码邮件已发送');
+      return { success: true, message: data.message };
+    } catch (error) {
+      console.error('❌ 修改密码请求失败:', error);
+      return { success: false, message: error.message || '请求失败' };
+    }
+  };
+
   // 刷新当前用户信息（包括统计数据）
   const refreshUser = useCallback(async () => {
     if (!currentUser) {
@@ -184,6 +220,9 @@ export const AuthProvider = ({ children }) => {
     register,
     activateAccount,
     logout,
+    forgotPassword,
+    resetPassword,
+    changePassword,
     checkAuthStatus,
     refreshUser,
     fetchStats,
