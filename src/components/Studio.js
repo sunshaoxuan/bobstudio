@@ -1910,10 +1910,10 @@ const Studio = () => {
                 </div>
               )}
             </div>
-          </div>
+ forwarding </div>
 
-          {/* 历史记录 */}
-          <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
+        {/* 历史记录 - 全宽显示 */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 📸 本次会话记录
