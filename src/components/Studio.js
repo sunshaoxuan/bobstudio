@@ -711,7 +711,7 @@ const Studio = () => {
         }),
       });
 
-      console.log(`🌐 发送请求到: ${baseURL}/api/images/upload`);
+      console.log(`🌐 发送请求到: ${API_BASE_URL}/api/images/upload`);
       
       if (response.ok) {
         const result = await response.json();
