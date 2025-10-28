@@ -370,6 +370,11 @@ const Stats = () => {
                 </div>
                 <p className="text-sm text-gray-500 mt-2">
                   {totals.total ? `累计创作 ${totals.total} 次` : '新手上路'}
+                  {totals.deleted > 0 && (
+                    <span className="text-xs text-gray-400 block mt-1">
+                      (已删除 {totals.deleted} 张)
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -546,7 +551,14 @@ const Stats = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">历史总计:</span>
-                        <span className="font-medium text-green-600">{totals.total}</span>
+                        <span className="font-medium text-green-600">
+                          {totals.total}
+                          {totals.deleted > 0 && (
+                            <span className="text-xs text-gray-400 ml-1">
+                              (删除{totals.deleted})
+                            </span>
+                          )}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">最近创作:</span>

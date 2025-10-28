@@ -892,6 +892,7 @@ function computeStatsFromHistory(history) {
     today: 0,
     thisMonth: 0,
     total: 0,
+    deleted: 0, // 已删除的图片数量
   };
 
   const dailyMap = new Map();
@@ -905,6 +906,7 @@ function computeStatsFromHistory(history) {
 
   let lastGeneratedAt = null;
 
+  // 统计所有记录，包括已删除的（因为生成过就产生了成本）
   for (const item of history) {
     const createdAt = safeParseDate(item?.createdAt);
     if (!createdAt) continue;
@@ -912,6 +914,7 @@ function computeStatsFromHistory(history) {
     const dayKey = formatDateKey(createdAt);
     const monthKeyItem = formatMonthKey(createdAt);
 
+    // 所有记录都计入统计（包括已删除）
     totals.total += 1;
     dailyMap.set(dayKey, (dailyMap.get(dayKey) || 0) + 1);
     monthlyMap.set(monthKeyItem, (monthlyMap.get(monthKeyItem) || 0) + 1);
@@ -921,6 +924,11 @@ function computeStatsFromHistory(history) {
     }
     if (monthKeyItem === monthKey) {
       totals.thisMonth += 1;
+    }
+
+    // 统计已删除的数量
+    if (item.deleted === true) {
+      totals.deleted += 1;
     }
 
     const mode = typeof item?.mode === "string" ? item.mode : "other";

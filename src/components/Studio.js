@@ -859,11 +859,16 @@ const Studio = () => {
     input.click();
   }, []);
 
-  // 删除单条会话历史记录
+  // 删除单条会话历史记录（逻辑删除）
   const deleteHistoryImage = useCallback(
     (imageId) => {
       setImageHistory((prev) => {
-        const updatedHistory = prev.filter((record) => record.id !== imageId);
+        // 逻辑删除：标记为已删除，而不是真正删除记录
+        const updatedHistory = prev.map((record) => 
+          record.id === imageId 
+            ? { ...record, deleted: true, deletedAt: new Date().toISOString() }
+            : record
+        );
 
         // 同时更新服务器
         if (currentUser) {
@@ -872,7 +877,7 @@ const Studio = () => {
 
         return updatedHistory;
       });
-      console.log("已删除历史记录:", imageId);
+      console.log("已逻辑删除历史记录:", imageId);
     },
     [currentUser, saveHistoryToServer],
   );
@@ -1862,7 +1867,12 @@ const Studio = () => {
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 📸 本次会话记录
                 <span className="text-sm text-gray-500">
-                  ({imageHistory.length}/20)
+                  ({imageHistory.filter(r => !r.deleted).length}/{imageHistory.length})
+                  {imageHistory.filter(r => r.deleted).length > 0 && (
+                    <span className="text-xs text-gray-400 ml-1">
+                      (已删除 {imageHistory.filter(r => r.deleted).length})
+                    </span>
+                  )}
                 </span>
                 {pendingSync.length > 0 && (
                   <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full animate-pulse">
@@ -1914,7 +1924,7 @@ const Studio = () => {
                   历史记录自动保存到服务器，登录后会自动加载。也可以手动导入/导出进行备份
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
-                  {imageHistory.map((record) => {
+                  {imageHistory.filter(record => !record.deleted).map((record) => {
                     const actions = [
                       {
                         key: "view",

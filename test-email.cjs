@@ -1,33 +1,103 @@
 // 邮件发送测试脚本
 const nodemailer = require('nodemailer');
 
-const EMAIL_CONFIG = {
-  host: 'mail.briconbric.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: 'postmaster@briconbric.com',
-    pass: 'BtZhY1^3'
+// 尝试多个配置
+const CONFIGS = [
+  {
+    name: 'SSL/TLS (465) - 推荐',
+    host: 'mail.briconbric.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: 'postmaster@briconbric.com',
+      pass: 'BtZhY1^3'
+    },
+    connectionTimeout: 30000, // 30秒超时
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+    tls: {
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1'
+    }
   },
-  tls: {
-    rejectUnauthorized: false
+  {
+    name: 'STARTTLS (587)',
+    host: 'mail.briconbric.com',
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    auth: {
+      user: 'postmaster@briconbric.com',
+      pass: 'BtZhY1^3'
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+    tls: {
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1'
+    }
+  },
+  {
+    name: 'SSL (465) - 直接IP',
+    host: '104.21.58.143',
+    port: 465,
+    secure: true,
+    auth: {
+      user: 'postmaster@briconbric.com',
+      pass: 'BtZhY1^3'
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
+    tls: {
+      rejectUnauthorized: false,
+      servername: 'mail.briconbric.com',
+      minVersion: 'TLSv1'
+    }
   }
-};
+];
+
+const EMAIL_CONFIG = CONFIGS[0];
 
 const SITE_URL = 'https://studio.briconbric.com';
 const testToken = 'test-activation-token-' + Date.now();
 
 async function testEmail() {
-  console.log('🔧 正在配置邮件服务...');
-  console.log('SMTP服务器:', EMAIL_CONFIG.host + ':' + EMAIL_CONFIG.port);
-  console.log('发件账户:', EMAIL_CONFIG.auth.user);
+  console.log('🔧 开始测试邮件发送功能...\n');
+  
+  let workingConfig = null;
+  
+  // 尝试所有配置
+  for (const config of CONFIGS) {
+    console.log(`🔍 测试配置: ${config.name}`);
+    console.log(`   服务器: ${config.host}:${config.port}`);
+    console.log(`   账户: ${config.auth.user}`);
+    
+    try {
+      const transporter = nodemailer.createTransport(config);
+      await transporter.verify();
+      console.log(`   ✅ 连接成功！\n`);
+      workingConfig = config;
+      break;
+    } catch (error) {
+      console.log(`   ❌ 连接失败: ${error.message}\n`);
+    }
+  }
+  
+  if (!workingConfig) {
+    console.error('❌ 所有配置都失败了！');
+    console.error('\n可能的原因：');
+    console.error('1. 本地网络限制了 SMTP 端口');
+    console.error('2. 需要VPN或代理');
+    console.error('3. 邮件服务器限制来源IP');
+    console.error('\n💡 建议：在服务器上测试（服务器通常可以访问SMTP）');
+    process.exit(1);
+  }
   
   try {
-    const transporter = nodemailer.createTransport(EMAIL_CONFIG);
-    
-    console.log('\n🔍 测试SMTP连接...');
-    await transporter.verify();
-    console.log('✅ SMTP连接成功！\n');
+    const transporter = nodemailer.createTransport(workingConfig);
+    console.log(`📧 使用配置: ${workingConfig.name}`);
     
     const activationLink = `${SITE_URL}/activate/${testToken}`;
     
