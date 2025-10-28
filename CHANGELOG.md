@@ -7,7 +7,7 @@
 
 ## [2025-10-28] - 安全增强
 
-### 🔒 三大安全特性
+### 🔒 四大安全特性
 
 #### 1. 管理端访问控制增强
 **问题：** 非管理员用户可以尝试访问管理端URL  
@@ -120,13 +120,91 @@ const toSessionUser = (user) => {
 }
 ```
 
+#### 4. API Key 输入安全增强
+**问题：** API Key 输入框可以被复制/剪切，存在泄露风险  
+**解决：** 密码框显示 + 禁止复制/剪切操作
+
+**实现细节：**
+
+**输入框安全特性：**
+- ✅ 使用密码类型输入框（`type="password"`）
+- ✅ 带眼睛图标可临时显示/隐藏密钥
+- ✅ 禁止鼠标复制（`onCopy`）
+- ✅ 禁止鼠标剪切（`onCut`）
+- ✅ 禁止键盘复制（Ctrl+C / Cmd+C）
+- ✅ 禁止键盘剪切（Ctrl+X / Cmd+X）
+- ✅ 允许粘贴（Ctrl+V / Cmd+V）
+- ✅ 禁用自动完成（`autoComplete="off"`）
+- ✅ 禁用拼写检查（`spellCheck="false"`）
+
+**应用位置：**
+- ✅ Studio 工作台的 API Key 配置框
+- ✅ 管理端用户管理的 API Key 输入框
+
+**用户体验：**
+- 尝试复制/剪切时弹出提示：`🔒 为保护您的API密钥安全，禁止复制/剪切操作`
+- 默认隐藏密钥，点击眼睛图标可临时显示
+- 可以粘贴密钥（方便从其他地方复制过来）
+
+**修改文件：**
+- `src/components/Studio.js` - 用户工作台 API Key 输入框
+- `src/components/Admin/AdminDashboard.js` - 管理端 API Key 输入框
+
+**安全策略调整：**
+```javascript
+// 后端：区分管理员配置和用户自配的Key
+const toSessionUser = (user) => {
+  const sessionUser = {
+    ...safe,
+    hasApiKey: safe.hasApiKey,
+  };
+  
+  // 只有用户自己配置的API Key才传回前端
+  if (safe.showApiConfig && user.apiKeyEncrypted) {
+    sessionUser.apiKey = decryptedKey;  // HTTPS加密传输
+  }
+  // 管理员配置的Key不传回，完全在后端使用
+  
+  return sessionUser;
+};
+```
+
+**输入框代码示例：**
+```jsx
+<input
+  type={showApiKey ? 'text' : 'password'}
+  value={apiKey}
+  onChange={(e) => setApiKey(e.target.value)}
+  onCopy={(e) => {
+    e.preventDefault();
+    alert('🔒 为保护您的API密钥安全，禁止复制操作');
+  }}
+  onCut={(e) => {
+    e.preventDefault();
+    alert('🔒 为保护您的API密钥安全，禁止剪切操作');
+  }}
+  onKeyDown={(e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x')) {
+      e.preventDefault();
+      alert('🔒 为保护API密钥安全，禁止复制/剪切操作');
+    }
+  }}
+  autoComplete="off"
+  spellCheck="false"
+/>
+<button onClick={() => setShowApiKey(!showApiKey)}>
+  {showApiKey ? <EyeOff /> : <Eye />}
+</button>
+```
+
 ### 🎯 安全改进总结
 
 | 安全特性 | 状态 | 影响范围 |
 |---------|------|---------|
 | **管理端访问控制** | ✅ | 防止权限提升攻击 |
-| **API Key 保护** | ✅ | 防止密钥泄露 |
+| **API Key 保护** | ✅ | 防止密钥泄露（传输） |
 | **登录失败锁定** | ✅ | 防止暴力破解 |
+| **API Key 输入安全** | ✅ | 防止密钥泄露（UI层） |
 
 ### 📝 用户体验
 
@@ -143,9 +221,43 @@ const toSessionUser = (user) => {
 ### 🛡️ 防护能力
 
 1. **防暴力破解**：5次失败锁定30分钟，大幅提高破解成本
-2. **防密钥泄露**：API Key 永不传回前端，减少泄露面
-3. **防权限提升**：严格的路由保护，防止非法访问管理功能
-4. **可恢复性**：锁定后自动发送重置邮件，用户可自助解决
+2. **防密钥泄露（传输层）**：管理员配置的API Key不传回前端，用户自配的Key通过HTTPS加密传输
+3. **防密钥泄露（UI层）**：密码框显示 + 禁止复制/剪切，防止肩窥和意外泄露
+4. **防权限提升**：严格的路由保护，防止非法访问管理功能
+5. **可恢复性**：锁定后自动发送重置邮件，用户可自助解决
+
+### 🔐 多层防护架构
+
+```
+┌─────────────────────────────────────────┐
+│          用户界面层                      │
+│  - 密码框显示 API Key                    │
+│  - 禁止复制/剪切操作                     │
+│  - 可临时显示（眼睛图标）                │
+└──────────────┬──────────────────────────┘
+               │ HTTPS 加密传输
+┌──────────────▼──────────────────────────┐
+│          前端路由层                      │
+│  - ProtectedRoute 权限检查               │
+│  - 非管理员访问管理端 → /studio         │
+│  - 未登录访问 → /login                   │
+└──────────────┬──────────────────────────┘
+               │ Session Cookie
+┌──────────────▼──────────────────────────┐
+│          后端API层                       │
+│  - Session 验证                          │
+│  - requireAuth 中间件                    │
+│  - requireAdmin 中间件                   │
+│  - 登录失败计数 & 锁定                   │
+└──────────────┬──────────────────────────┘
+               │
+┌──────────────▼──────────────────────────┐
+│          数据存储层                      │
+│  - API Key AES-256-GCM 加密              │
+│  - 密码 SHA-256 哈希                     │
+│  - 重置令牌随机生成                      │
+└─────────────────────────────────────────┘
+```
 
 ---
 
