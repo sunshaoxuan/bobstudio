@@ -40,6 +40,7 @@ const AdminDashboard = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [loadingApiKey, setLoadingApiKey] = useState(false);
   const [originalApiKey, setOriginalApiKey] = useState("");
+  const [showAdminApiKey, setShowAdminApiKey] = useState(false);
   
   // 图片历史相关状态
   const [allHistory, setAllHistory] = useState([]);
@@ -77,6 +78,7 @@ const AdminDashboard = () => {
     setFormMode("create");
     setSelectedUserId(null);
     setOriginalApiKey("");
+    setShowAdminApiKey(false);
   };
 
   const loadUserApiKey = useCallback(
@@ -561,16 +563,45 @@ const AdminDashboard = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     API Key （可选）
                   </label>
-                  <textarea
-                    rows={formMode === "create" ? 2 : 3}
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="留空表示不设置/不修改"
-                    value={form.apiKey}
-                    onChange={(e) =>
-                      setForm((v) => ({ ...v, apiKey: e.target.value }))
-                    }
-                    disabled={loadingApiKey || submitting}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showAdminApiKey ? 'text' : 'password'}
+                      className="w-full border rounded px-3 py-2 pr-10"
+                      placeholder="留空表示不设置/不修改"
+                      value={form.apiKey}
+                      onChange={(e) =>
+                        setForm((v) => ({ ...v, apiKey: e.target.value }))
+                      }
+                      onCopy={(e) => {
+                        e.preventDefault();
+                        alert('🔒 为保护API密钥安全，禁止复制操作');
+                      }}
+                      onCut={(e) => {
+                        e.preventDefault();
+                        alert('🔒 为保护API密钥安全，禁止剪切操作');
+                      }}
+                      onKeyDown={(e) => {
+                        // 禁止 Ctrl+C 和 Ctrl+X (Windows/Linux)
+                        // 禁止 Cmd+C 和 Cmd+X (Mac)
+                        if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x')) {
+                          e.preventDefault();
+                          alert('🔒 为保护API密钥安全，禁止复制/剪切操作');
+                        }
+                      }}
+                      disabled={loadingApiKey || submitting}
+                      autoComplete="off"
+                      spellCheck="false"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminApiKey(!showAdminApiKey)}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      title={showAdminApiKey ? "隐藏密钥" : "显示密钥"}
+                      disabled={loadingApiKey || submitting}
+                    >
+                      {showAdminApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                   {loadingApiKey && (
                     <p className="text-xs text-gray-400 mt-1">
                       正在加载 API Key...

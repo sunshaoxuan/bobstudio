@@ -31,8 +31,10 @@ const Studio = () => {
   const { currentUser, logout, refreshUser, changePassword } = useAuth();
   const navigate = useNavigate();
   
-  // API Key 由用户手动输入，不从后端获取（安全考虑）
-  const [apiKey, setApiKey] = useState("");
+  // API Key 安全处理：
+  // - 用户自配的Key（showApiConfig=true）：从后端加密传回，用密码框显示，禁止复制
+  // - 管理员配置的Key：不传回前端，完全在后端使用
+  const [apiKey, setApiKey] = useState(currentUser?.apiKey || "");
   const [prompt, setPrompt] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [imageUrls, setImageUrls] = useState([]);
@@ -270,7 +272,10 @@ const Studio = () => {
     );
 
     if (currentUser) {
-      // API Key 不再从后端获取，由用户手动配置
+      // 用户自配的API Key会从后端传回（加密传输）
+      if (currentUser.apiKey) {
+        setApiKey(currentUser.apiKey);
+      }
 
       // 用户首次登录或切换用户时加载对应的历史记录
       if (previousUserId !== currentUser.id) {
@@ -1569,12 +1574,31 @@ const Studio = () => {
                       placeholder="请输入Gemini API密钥"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
+                      onCopy={(e) => {
+                        e.preventDefault();
+                        alert('🔒 为保护您的API密钥安全，禁止复制操作');
+                      }}
+                      onCut={(e) => {
+                        e.preventDefault();
+                        alert('🔒 为保护您的API密钥安全，禁止剪切操作');
+                      }}
+                      onKeyDown={(e) => {
+                        // 禁止 Ctrl+C 和 Ctrl+X (Windows/Linux)
+                        // 禁止 Cmd+C 和 Cmd+X (Mac)
+                        if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x')) {
+                          e.preventDefault();
+                          alert('🔒 为保护您的API密钥安全，禁止复制/剪切操作');
+                        }
+                      }}
                       className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      autoComplete="off"
+                      spellCheck="false"
                     />
                     <button
                       type="button"
                       onClick={() => setShowApiKey(!showApiKey)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      title={showApiKey ? "隐藏密钥" : "显示密钥"}
                     >
                       {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>

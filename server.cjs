@@ -544,17 +544,28 @@ const toSafeUser = (user) => {
 };
 
 // 返回前端会话所需的用户信息
-// 注意：API Key 永远不传回前端，只通过管理员专用端点获取
+// 注意：API Key 安全策略
+// - 管理员分配的Key（showApiConfig=false）：不传回前端
+// - 用户自配的Key（showApiConfig=true）：传回加密值，前端用密码框显示
 const toSessionUser = (user) => {
   const safe = toSafeUser(user);
   if (!safe) return null;
-  return {
+  
+  const sessionUser = {
     ...safe,
     isSuperAdmin: Boolean(safe.isSuperAdmin),
     isActive: Boolean(safe.isActive),
     hasApiKey: safe.hasApiKey,
-    // ❌ 不再返回 apiKey 明文，前端不需要知道
   };
+  
+  // 只有用户自己配置的API Key才传回前端（加密传输）
+  if (safe.showApiConfig && (user.apiKeyEncrypted || user.apiKey)) {
+    const decryptedKey = decryptSensitiveValue(user.apiKeyEncrypted || user.apiKey || "");
+    // 前端接收后立即用密码框显示，禁止复制
+    sessionUser.apiKey = decryptedKey;
+  }
+  
+  return sessionUser;
 };
 
 // 哈希密码
