@@ -1240,12 +1240,15 @@ const Studio = () => {
 
   // 文本生成图像
   const generateImage = async () => {
-    if (!currentUser?.showApiConfig && !apiKey) {
+    // 检查 API Key 配置
+    // 如果是管理员配置模式，检查 hasApiKey 字段
+    if (!currentUser?.showApiConfig && !currentUser?.hasApiKey) {
       showError("权限受限", "请联系管理员为该账号配置 API Key");
       return;
     }
-
-    if (!apiKey) {
+    
+    // 如果是用户自己配置模式，检查前端的 apiKey
+    if (currentUser?.showApiConfig && !apiKey) {
       showError(
         "需要配置 API Key", 
         "请在右上角个人信息中配置您的 Google Gemini API Key。\n\n" +
@@ -1323,13 +1326,20 @@ const Studio = () => {
 
   // 图像编辑/合成
   const processImages = async () => {
-    if (!currentUser?.showApiConfig && !apiKey) {
+    // 检查 API Key 配置
+    // 如果是管理员配置模式，检查 hasApiKey 字段
+    if (!currentUser?.showApiConfig && !currentUser?.hasApiKey) {
       showError("权限受限", "请联系管理员为该账号配置 API Key");
       return;
     }
-
-    if (!apiKey) {
-      showError("参数缺失", "请输入API密钥");
+    
+    // 如果是用户自己配置模式，检查前端的 apiKey
+    if (currentUser?.showApiConfig && !apiKey) {
+      showError(
+        "需要配置 API Key", 
+        "请在右上角个人信息中配置您的 Google Gemini API Key。\n\n" +
+        "获取方法：访问 https://aistudio.google.com/apikey 创建免费 API Key"
+      );
       return;
     }
 
