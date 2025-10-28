@@ -584,6 +584,28 @@ const Studio = () => {
     return { title, message, details: JSON.stringify(data, null, 2) };
   };
 
+  // 判定提示词是否偏短（容易出现只返回文本的情况）
+  const isShortPrompt = (text) => {
+    if (!text) return true;
+    const s = String(text).trim();
+    const wordCount = s.split(/\s+/).filter(Boolean).length;
+    return s.length < 25 || wordCount < 6;
+  };
+
+  // 是否适合自动重试（文本响应但无图像、且提示词偏短）
+  const shouldAutoRetryOnNoImage = (error, textPrompt) => {
+    if (!error || !error.cause) return false;
+    if (error.cause.isTimeout) return false;
+    const title = String(error.cause.title || "");
+    // 明确不重试的类型
+    const noRetryHints = ["内容安全", "图像安全", "响应长度限制", "请求已取消", "API请求失败"];
+    if (noRetryHints.some((k) => title.includes(k))) return false;
+    // 允许重试的类型
+    const retryHints = ["无法生成图像", "疑似内容拒绝", "内容被拒绝"];
+    const looksLikeNoImage = retryHints.some((k) => title.includes(k));
+    return looksLikeNoImage && isShortPrompt(textPrompt);
+  };
+
   // 将图片转换为base64
   const imageToBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -1254,7 +1276,23 @@ const Studio = () => {
       // 保存请求体以便重试
       setLastRequestBody({ type: "generate", body: requestBody, prompt });
 
-      const imageUrl = await callAPI(requestBody);
+      // 自动重试（最多3次）
+      const maxAttempts = 3;
+      let imageUrl = null;
+      let lastErr = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          imageUrl = await callAPI(requestBody);
+          break;
+        } catch (err) {
+          lastErr = err;
+          const shouldRetry = shouldAutoRetryOnNoImage(err, prompt) && attempt < maxAttempts;
+          console.warn(`⚠️ 第 ${attempt} 次尝试失败。${shouldRetry ? "准备自动重试..." : "不再重试"}`);
+          if (!shouldRetry) throw err;
+          await new Promise((r) => setTimeout(r, 800));
+        }
+      }
+      if (!imageUrl && lastErr) throw lastErr;
       setGeneratedImage(imageUrl);
 
       // 计算耗时
@@ -1325,7 +1363,23 @@ const Studio = () => {
       // 保存请求体以便重试
       setLastRequestBody({ type: mode, body: requestBody, prompt, uploadedImages });
 
-      const imageUrl = await callAPI(requestBody);
+      // 自动重试（最多3次）
+      const maxAttempts = 3;
+      let imageUrl = null;
+      let lastErr = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          imageUrl = await callAPI(requestBody);
+          break;
+        } catch (err) {
+          lastErr = err;
+          const shouldRetry = shouldAutoRetryOnNoImage(err, prompt) && attempt < maxAttempts;
+          console.warn(`⚠️ 第 ${attempt} 次尝试失败（编辑/合成）。${shouldRetry ? "准备自动重试..." : "不再重试"}`);
+          if (!shouldRetry) throw err;
+          await new Promise((r) => setTimeout(r, 800));
+        }
+      }
+      if (!imageUrl && lastErr) throw lastErr;
       setGeneratedImage(imageUrl);
 
       // 计算耗时
