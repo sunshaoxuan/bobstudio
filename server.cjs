@@ -152,10 +152,10 @@ const updateUserStats = async (userId, historyData) => {
     const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
 
-    // 计算统计
+    // 计算统计（包括已删除的记录，因为生成过就产生了成本）
     let todayCount = 0;
     let thisMonthCount = 0;
-    const totalCount = historyData.length;
+    const totalCount = historyData.length; // 所有记录，包括已删除
 
     historyData.forEach(item => {
       if (item.createdAt) {
@@ -179,11 +179,31 @@ const updateUserStats = async (userId, historyData) => {
       total: totalCount
     };
 
+    // 🔑 管理员分配的API Key限制：生成30张后自动清空
+    const FREE_GENERATION_LIMIT = 30;
+    if (totalCount >= FREE_GENERATION_LIMIT && user.apiKeyEncrypted) {
+      const hadApiKey = user.apiKeyEncrypted !== "";
+      user.apiKeyEncrypted = "";
+      user.showApiConfig = false;
+      
+      if (hadApiKey) {
+        console.log(`🔒 用户 ${userId} (${user.username}) 已生成 ${totalCount} 张图片，已自动清空API Key`);
+        console.log(`   需要用户自行配置API Key继续使用`);
+      }
+    }
+
     // 保存用户数据
     saveUsers();
     console.log(`✅ 统计已更新 - 今日: ${todayCount}, 本月: ${thisMonthCount}, 总计: ${totalCount}`);
+    
+    if (totalCount >= FREE_GENERATION_LIMIT) {
+      console.log(`⚠️ 用户已达到免费额度限制 (${totalCount}/${FREE_GENERATION_LIMIT})`);
+    }
+    
+    return { apiKeyCleared: totalCount >= FREE_GENERATION_LIMIT && user.apiKeyEncrypted === "" };
   } catch (error) {
     console.error(`❌ 更新用户统计失败:`, error);
+    return { apiKeyCleared: false };
   }
 };
 
@@ -1213,12 +1233,14 @@ app.post("/api/history/:userId", async (req, res) => {
     
     // 更新用户统计
     console.log(`\n📊 更新用户统计...`);
-    await updateUserStats(userId, historyData);
+    const statsResult = await updateUserStats(userId, historyData);
     
     console.log("=".repeat(60));
     res.json({ 
       message: "History saved successfully",
-      recordCount: historyData.length
+      recordCount: historyData.length,
+      apiKeyCleared: statsResult?.apiKeyCleared || false, // 告知前端API Key是否被清空
+      reachedLimit: historyData.length >= 30 // 是否达到限制
     });
   } catch (error) {
     console.error("❌ 保存历史记录失败:", error);

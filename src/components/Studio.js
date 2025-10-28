@@ -225,6 +225,25 @@ const Studio = () => {
       if (response.ok) {
         const result = await response.json();
         console.log("✅ 历史记录已保存到服务器:", result);
+        
+        // 🔑 检查是否达到免费额度限制
+        if (result.apiKeyCleared) {
+          alert(
+            "🎉 您已完成 30 张图片的免费体验！\n\n" +
+            "管理员分配的体验 API Key 已自动清空。\n" +
+            "请在右上角个人信息中配置您自己的 Google Gemini API Key 继续使用。\n\n" +
+            "如何获取 API Key：\n" +
+            "1. 访问 https://aistudio.google.com/apikey\n" +
+            "2. 创建并复制您的 API Key\n" +
+            "3. 在个人信息中填入 API Key 即可继续创作"
+          );
+          // 刷新用户信息
+          if (currentUser && refreshUserInfo) {
+            refreshUserInfo(currentUser.id);
+          }
+        } else if (result.reachedLimit && result.recordCount >= 30) {
+          console.log("⚠️ 用户已达到30张限制");
+        }
       } else {
         const errorText = await response.text();
         console.error("响应内容:", errorText);
@@ -1213,7 +1232,11 @@ const Studio = () => {
     }
 
     if (!apiKey) {
-      showError("参数缺失", "请输入API密钥");
+      showError(
+        "需要配置 API Key", 
+        "请在右上角个人信息中配置您的 Google Gemini API Key。\n\n" +
+        "获取方法：访问 https://aistudio.google.com/apikey 创建免费 API Key"
+      );
       return;
     }
 
