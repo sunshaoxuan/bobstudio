@@ -155,6 +155,28 @@ const AdminDashboard = () => {
     }
   };
 
+  // 切换用户的自配置权限
+  const toggleShowApiConfig = async (userId, currentValue) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ showApiConfig: !currentValue })
+      });
+
+      if (!res.ok) {
+        throw new Error('更新失败');
+      }
+
+      await fetchUsers();
+      alert(`已${!currentValue ? '开启' : '关闭'}用户自配置权限`);
+    } catch (error) {
+      console.error('切换自配置失败:', error);
+      alert('操作失败，请重试');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!form.username || !form.email) {
       alert("请填写用户名和邮箱");
@@ -757,7 +779,7 @@ const AdminDashboard = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // toggleShowApiConfig(u.id, u.showApiConfig); // This function is not defined in the original file
+                                toggleShowApiConfig(u.id, u.showApiConfig);
                               }}
                               className="text-yellow-600 hover:underline"
                             >
