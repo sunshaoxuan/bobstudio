@@ -35,15 +35,18 @@ const SESSIONS_DIR = path.join(__dirname, "sessions");
 // ===== 邮件配置 =====
 const EMAIL_CONFIG = {
   host: process.env.SMTP_HOST || 'mail.briconbric.com',
-  port: process.env.SMTP_PORT || 587,
-  secure: false, // true for 465, false for other ports
+  port: process.env.SMTP_PORT || 465,
+  secure: true, // true for 465 (SSL), false for 587 (TLS)
   auth: {
     user: process.env.SMTP_USER || 'postmaster@briconbric.com',
     pass: process.env.SMTP_PASS || 'BtZhY1^3'
   },
   tls: {
     rejectUnauthorized: false // 允许自签名证书
-  }
+  },
+  connectionTimeout: 30000, // 30秒连接超时
+  greetingTimeout: 30000,
+  socketTimeout: 30000
 };
 
 const SITE_URL = process.env.SITE_URL || 'https://studio.briconbric.com';
