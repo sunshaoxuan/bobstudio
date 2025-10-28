@@ -6,6 +6,8 @@ import React, {
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { API_BASE_URL, API_TIMEOUT } from "../config/api";
+import { apiPost } from "../utils/apiClient";
 import {
   Upload,
   Image,
@@ -27,12 +29,6 @@ import {
 const Studio = () => {
   const { currentUser, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
-  
-  // API 配置
-  const API_BASE_URL = import.meta.env.DEV
-    ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
-    : "";
-  const API_TIMEOUT = 300000; // 5分钟
   
   const [apiKey, setApiKey] = useState(currentUser?.apiKey || "");
   const [prompt, setPrompt] = useState("");

@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { API_BASE_URL_URL } from "../../config/api";
+import { apiGet, apiPost, apiPut, apiDelete } from "../../utils/apiClient";
 import {
   Users,
   Home,
@@ -45,12 +47,10 @@ const AdminDashboard = () => {
   const [filterMode, setFilterMode] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
 
-  const API_BASE = import.meta.env.DEV ? "http://localhost:8080" : "";
-
   const fetchUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const res = await fetch(`${API_BASE}/api/admin/users`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("加载用户失败");
@@ -64,7 +64,7 @@ const AdminDashboard = () => {
     } finally {
       setLoadingUsers(false);
     }
-  }, [API_BASE]);
+  }, [API_BASE_URL]);
 
   const resetForm = () => {
     setForm(EMPTY_FORM);
@@ -77,7 +77,7 @@ const AdminDashboard = () => {
     async (userId) => {
       try {
         setLoadingApiKey(true);
-        const res = await fetch(`${API_BASE}/api/admin/users/${userId}/api-key`, {
+        const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/api-key`, {
           credentials: "include",
         });
         if (!res.ok) {
@@ -94,13 +94,13 @@ const AdminDashboard = () => {
         return "";
       }
     },
-    [API_BASE],
+    [API_BASE_URL],
   );
 
   const deleteUser = async (id) => {
     if (!window.confirm("确认删除该用户？")) return;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -178,8 +178,8 @@ const AdminDashboard = () => {
       setSubmitting(true);
       const url =
         formMode === "create"
-          ? `${API_BASE}/api/admin/users`
-          : `${API_BASE}/api/admin/users/${selectedUserId}`;
+          ? `${API_BASE_URL}/api/admin/users`
+          : `${API_BASE_URL}/api/admin/users/${selectedUserId}`;
       const method = formMode === "create" ? "POST" : "PUT";
       const res = await fetch(url, {
         method,
@@ -210,7 +210,7 @@ const AdminDashboard = () => {
   const fetchAllHistory = useCallback(async () => {
     try {
       setLoadingHistory(true);
-      const res = await fetch(`${API_BASE}/api/admin/all-history`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/all-history`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("加载历史记录失败");
@@ -222,7 +222,7 @@ const AdminDashboard = () => {
     } finally {
       setLoadingHistory(false);
     }
-  }, [API_BASE]);
+  }, [API_BASE_URL]);
 
   // 检查管理员权限
   useEffect(() => {
@@ -819,7 +819,7 @@ const AdminDashboard = () => {
                         <div className="relative bg-gray-200 h-48">
                           {record.imageUrl ? (
                             <img
-                              src={`${API_BASE}${record.imageUrl}`}
+                              src={`${API_BASE_URL}${record.imageUrl}`}
                               alt={record.fileName}
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -922,7 +922,7 @@ const AdminDashboard = () => {
                 <div className="bg-gray-100 rounded-lg overflow-hidden">
                   {selectedImage.imageUrl ? (
                     <img
-                      src={`${API_BASE}${selectedImage.imageUrl}`}
+                      src={`${API_BASE_URL}${selectedImage.imageUrl}`}
                       alt={selectedImage.fileName}
                       className="w-full h-auto"
                     />
