@@ -1119,20 +1119,39 @@ app.get("/api/admin/all-history", requireAdmin, async (req, res) => {
   }
 });
 
+// 格式化日志时间戳
+const formatLogTime = () => {
+  const now = new Date();
+  return now.toISOString().replace('T', ' ').substring(0, 23);
+};
+
 // Google Gemini API 代理（解决中国用户网络屏蔽问题）
 app.post("/api/gemini/generate", requireAuth, async (req, res) => {
+  const startTime = Date.now();
+  const timestamp = formatLogTime();
+  const user = req.session.user;
+  const userId = user?.id || 'unknown';
+  const username = user?.username || 'unknown';
+  
   try {
     const { requestBody, apiKey } = req.body;
     
     if (!apiKey) {
+      console.log(`[${timestamp}] ❌ API代理请求失败 | 用户: ${username}(${userId}) | 原因: API密钥为空`);
       return res.status(400).json({ error: "API 密钥不能为空" });
     }
     
     if (!requestBody) {
+      console.log(`[${timestamp}] ❌ API代理请求失败 | 用户: ${username}(${userId}) | 原因: 请求体为空`);
       return res.status(400).json({ error: "请求体不能为空" });
     }
     
-    console.log("🌐 代理 Google Gemini API 请求...");
+    // 提取请求模式（文本生图/图像编辑/图像合成）
+    const hasImages = requestBody.contents?.[0]?.parts?.some(part => part.inlineData);
+    const imageCount = requestBody.contents?.[0]?.parts?.filter(part => part.inlineData).length || 0;
+    const mode = !hasImages ? '文本生图' : imageCount === 1 ? '图像编辑' : '图像合成';
+    
+    console.log(`[${timestamp}] 🌐 开始代理 Google Gemini API | 用户: ${username}(${userId}) | 模式: ${mode} | 图片数: ${imageCount}`);
     
     // 使用 fetch 调用 Google API
     // Node.js 18+ 内置 fetch，低版本使用 node-fetch v2
@@ -1157,16 +1176,18 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
     );
     
     const data = await response.json();
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     
     if (!response.ok) {
-      console.error("❌ Google API 返回错误:", response.status);
+      console.error(`[${timestamp}] ❌ Google API返回错误 | 用户: ${username}(${userId}) | 状态码: ${response.status} | 耗时: ${duration}s`);
       return res.status(response.status).json(data);
     }
     
-    console.log("✅ Google API 请求成功");
+    console.log(`[${timestamp}] ✅ API代理成功 | 用户: ${username}(${userId}) | 模式: ${mode} | 耗时: ${duration}s`);
     res.json(data);
   } catch (error) {
-    console.error("❌ 代理 Google API 请求失败:", error);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.error(`[${timestamp}] ❌ API代理异常 | 用户: ${username}(${userId}) | 错误: ${error.message} | 耗时: ${duration}s`);
     res.status(500).json({ 
       error: "代理请求失败", 
       details: error.message 
