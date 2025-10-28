@@ -1910,7 +1910,7 @@ const Studio = () => {
                 </div>
               )}
             </div>
- forwarding </div>
+          </div>
 
         {/* 历史记录 - 全宽显示 */}
         <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
