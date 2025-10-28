@@ -690,12 +690,34 @@ app.get("/api/auth/activate/:token", async (req, res) => {
     const user = users.find(u => u.activationToken === token);
     
     if (!user) {
+      // 检查是否用户已经激活（通过 isActive 字段）
+      const alreadyActivated = users.find(u => u.isActive && !u.activationToken);
+      if (alreadyActivated) {
+        return res.json({ 
+          success: true,
+          message: "账户已经激活！您可以直接登录。" 
+        });
+      }
       return res.status(404).json({ error: "无效的激活链接" });
     }
     
     // 检查令牌是否过期
     if (new Date() > new Date(user.activationExpires)) {
       return res.status(410).json({ error: "激活链接已过期，请重新注册" });
+    }
+    
+    // 检查用户是否已经激活
+    if (user.isActive) {
+      console.log(`ℹ️ 用户 ${user.username} 尝试重复激活`);
+      // 清除激活令牌（防止重复激活）
+      user.activationToken = undefined;
+      user.activationExpires = undefined;
+      saveUsers();
+      
+      return res.json({ 
+        success: true,
+        message: "账户已经激活！您可以直接登录。" 
+      });
     }
     
     // 激活用户
