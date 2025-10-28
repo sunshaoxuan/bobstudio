@@ -152,7 +152,20 @@ app.use(express.json({ limit: "2gb" }));
 app.use(express.urlencoded({ limit: "2gb", extended: true, parameterLimit: 500000 }));
 
 // 服务静态文件
-app.use(express.static("build")); // 服务React构建文件
+// HTML 文件不缓存，JS/CSS 文件长期缓存（因为有哈希名）
+app.use(express.static("build", {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html')) {
+      // HTML 不缓存，每次都检查最新版本
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$/)) {
+      // 静态资源长期缓存（1年）
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
 
 // 服务图片文件
 app.use("/images", express.static(IMAGES_DIR));
@@ -1168,6 +1181,7 @@ app.get("/api/health", (req, res) => {
     message: "Server is running",
     instanceId: SERVER_INSTANCE_ID,
     startedAt: SERVER_STARTED_AT,
+    version: require('./package.json').version,
   });
 });
 
