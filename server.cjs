@@ -588,8 +588,10 @@ const initSuperAdmin = () => {
       username: adminConfig.username,
       email: adminConfig.email.toLowerCase().trim(),
       password: hashPassword(adminConfig.password),
+      apiKeyEncrypted: "",
       isActive: true,
       isSuperAdmin: true,
+      showApiConfig: false, // 管理员不需要自配置
       createdAt: new Date().toISOString(),
     };
     users.push(admin);
@@ -649,7 +651,7 @@ app.post("/api/auth/register", async (req, res) => {
       apiKeyEncrypted: "",
       isActive: false, // 需要邮件激活
       isSuperAdmin: false,
-      showApiConfig: false,
+      showApiConfig: true, // 自注册用户可以自己配置API Key
       createdAt: new Date().toISOString(),
       activationToken,
       activationExpires: activationExpires.toISOString()
