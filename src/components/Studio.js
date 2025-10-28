@@ -1867,12 +1867,7 @@ const Studio = () => {
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 📸 本次会话记录
                 <span className="text-sm text-gray-500">
-                  ({imageHistory.filter(r => !r.deleted).length}/{imageHistory.length})
-                  {imageHistory.filter(r => r.deleted).length > 0 && (
-                    <span className="text-xs text-gray-400 ml-1">
-                      (已删除 {imageHistory.filter(r => r.deleted).length})
-                    </span>
-                  )}
+                  ({imageHistory.filter(r => !r.deleted).length}/20)
                 </span>
                 {pendingSync.length > 0 && (
                   <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full animate-pulse">
