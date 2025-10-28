@@ -3,6 +3,7 @@ import React, {
   useRef,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -35,6 +36,37 @@ const Studio = () => {
   // - 用户自配的Key（showApiConfig=true）：从后端加密传回，用密码框显示，禁止复制
   // - 管理员配置的Key：不传回前端，完全在后端使用
   const [apiKey, setApiKey] = useState(currentUser?.apiKey || "");
+  
+  // 统一的 API Key 可用性检查函数
+  // 返回 { isValid: boolean, errorMessage: string | null }
+  const checkApiKeyAvailable = useCallback(() => {
+    // 如果是管理员配置模式（showApiConfig=false），检查后端的 hasApiKey 字段
+    if (!currentUser?.showApiConfig) {
+      if (!currentUser?.hasApiKey) {
+        return {
+          isValid: false,
+          errorTitle: "权限受限",
+          errorMessage: "请联系管理员为该账号配置 API Key"
+        };
+      }
+      return { isValid: true, errorTitle: null, errorMessage: null };
+    }
+    
+    // 如果是用户自己配置模式（showApiConfig=true），检查前端的 apiKey
+    if (currentUser?.showApiConfig) {
+      if (!apiKey) {
+        return {
+          isValid: false,
+          errorTitle: "需要配置 API Key",
+          errorMessage: "请在右上角个人信息中配置您的 Google Gemini API Key。\n\n获取方法：访问 https://aistudio.google.com/apikey 创建免费 API Key"
+        };
+      }
+      return { isValid: true, errorTitle: null, errorMessage: null };
+    }
+    
+    return { isValid: false, errorTitle: "未知错误", errorMessage: "无法确定 API Key 状态" };
+  }, [currentUser, apiKey]);
+  
   const [prompt, setPrompt] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [imageUrls, setImageUrls] = useState([]);
@@ -1240,20 +1272,10 @@ const Studio = () => {
 
   // 文本生成图像
   const generateImage = async () => {
-    // 检查 API Key 配置
-    // 如果是管理员配置模式，检查 hasApiKey 字段
-    if (!currentUser?.showApiConfig && !currentUser?.hasApiKey) {
-      showError("权限受限", "请联系管理员为该账号配置 API Key");
-      return;
-    }
-    
-    // 如果是用户自己配置模式，检查前端的 apiKey
-    if (currentUser?.showApiConfig && !apiKey) {
-      showError(
-        "需要配置 API Key", 
-        "请在右上角个人信息中配置您的 Google Gemini API Key。\n\n" +
-        "获取方法：访问 https://aistudio.google.com/apikey 创建免费 API Key"
-      );
+    // 使用统一的 API Key 检查函数
+    const apiKeyCheck = checkApiKeyAvailable();
+    if (!apiKeyCheck.isValid) {
+      showError(apiKeyCheck.errorTitle, apiKeyCheck.errorMessage);
       return;
     }
 
@@ -1326,20 +1348,10 @@ const Studio = () => {
 
   // 图像编辑/合成
   const processImages = async () => {
-    // 检查 API Key 配置
-    // 如果是管理员配置模式，检查 hasApiKey 字段
-    if (!currentUser?.showApiConfig && !currentUser?.hasApiKey) {
-      showError("权限受限", "请联系管理员为该账号配置 API Key");
-      return;
-    }
-    
-    // 如果是用户自己配置模式，检查前端的 apiKey
-    if (currentUser?.showApiConfig && !apiKey) {
-      showError(
-        "需要配置 API Key", 
-        "请在右上角个人信息中配置您的 Google Gemini API Key。\n\n" +
-        "获取方法：访问 https://aistudio.google.com/apikey 创建免费 API Key"
-      );
+    // 使用统一的 API Key 检查函数
+    const apiKeyCheck = checkApiKeyAvailable();
+    if (!apiKeyCheck.isValid) {
+      showError(apiKeyCheck.errorTitle, apiKeyCheck.errorMessage);
       return;
     }
 
@@ -1553,7 +1565,14 @@ const Studio = () => {
     }
   };
 
-  const hasApiKeyConfigured = Boolean(currentUser?.hasApiKey || apiKey);
+  // 使用统一的 API Key 检查逻辑计算按钮是否可用
+  const isApiKeyAvailable = useMemo(() => {
+    const check = checkApiKeyAvailable();
+    return check.isValid;
+  }, [checkApiKeyAvailable]);
+  
+  // 保持向后兼容
+  const hasApiKeyConfigured = isApiKeyAvailable;
 
   if (!currentUser) {
     return null; // 避免在重定向前显示内容
@@ -1919,10 +1938,7 @@ const Studio = () => {
               onClick={executeAction}
               disabled={
                 loading ||
-                // 如果是管理员配置的模式（showApiConfig=false），使用 hasApiKey 字段
-                (!currentUser?.showApiConfig && !currentUser?.hasApiKey) ||
-                // 如果是用户自己配置的模式（showApiConfig=true），检查前端的 apiKey
-                (currentUser?.showApiConfig && !apiKey) ||
+                !isApiKeyAvailable ||
                 !prompt ||
                 ((mode === "edit" || mode === "compose") &&
                   uploadedImages.length === 0)
