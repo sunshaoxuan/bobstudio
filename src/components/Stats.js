@@ -63,8 +63,12 @@ const Stats = () => {
     const initialScope = currentUser.isSuperAdmin ? 'summary' : 'self';
     setScope(initialScope);
 
+    // 非管理员用户加载自己的统计
     if (!currentUser.isSuperAdmin) {
       fetchStats({ scope: 'self' });
+    } else {
+      // 管理员默认加载平台概览
+      fetchStats({ scope: 'summary' });
     }
   }, [currentUser, fetchStats, navigate]);
 
@@ -90,18 +94,15 @@ const Stats = () => {
       return;
     }
 
+    // 每次切换模式都重新请求数据，确保数据实时更新
     if (scope === 'summary') {
-      if (!summaryStatsCache) {
-        fetchStats({ scope: 'summary' });
-      }
+      fetchStats({ scope: 'summary' });
     } else if (scope === 'self') {
-      if (!selfStatsCache) {
-        fetchStats({ scope: 'self' });
-      }
+      fetchStats({ scope: 'self' });
     } else if (scope === 'user' && selectedUser) {
       fetchStats({ scope: 'user', userId: selectedUser });
     }
-  }, [scope, selectedUser, currentUser, summaryStatsCache, selfStatsCache, fetchStats]);
+  }, [scope, selectedUser, currentUser, fetchStats]);
 
   useEffect(() => {
     if (!selectedUser || !summaryStatsCache) return;
