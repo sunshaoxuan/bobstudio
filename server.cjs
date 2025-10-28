@@ -1752,7 +1752,21 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
   try {
     const { requestBody, apiKey } = req.body;
     
-    if (!apiKey) {
+    // 确定要使用的 API Key
+    // 优先使用前端传来的 apiKey（用户自己配置的情况）
+    // 如果前端没有 apiKey，则从用户的 session 中获取（管理员配置的情况）
+    let effectiveApiKey = apiKey;
+    
+    if (!effectiveApiKey) {
+      // 尝试从数据库获取用户的实际 API Key
+      const dbUser = users.find(u => u.id === userId);
+      if (dbUser && (dbUser.apiKeyEncrypted || dbUser.apiKey)) {
+        effectiveApiKey = decryptSensitiveValue(dbUser.apiKeyEncrypted || dbUser.apiKey || "");
+        console.log(`[${timestamp}] 📝 使用管理员配置的 API Key | 用户: ${username}(${userId})`);
+      }
+    }
+    
+    if (!effectiveApiKey) {
       console.log(`[${timestamp}] ❌ API代理请求失败 | 用户: ${username}(${userId}) | 原因: API密钥为空`);
       return res.status(400).json({ error: "API 密钥不能为空" });
     }
@@ -1784,7 +1798,7 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
       {
         method: "POST",
         headers: {
-          "x-goog-api-key": apiKey,
+          "x-goog-api-key": effectiveApiKey,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
