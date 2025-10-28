@@ -26,10 +26,5 @@ echo "🔨 构建前端..."
 echo "🚀 启动服务器..."
 # 启动服务器时才设置为生产环境
 export NODE_ENV=production
-
-# 设置加密密钥（生产环境必须修改为强随机字符串）
-export API_KEY_ENCRYPTION_SECRET="change-me-bobstudio-secret-$(date +%s)"
-export SESSION_SECRET="change-me-session-secret-$(date +%s)"
-
 exec /usr/bin/npm run server
 
