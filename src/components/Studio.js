@@ -31,7 +31,8 @@ const Studio = () => {
   const { currentUser, logout, refreshUser, changePassword } = useAuth();
   const navigate = useNavigate();
   
-  const [apiKey, setApiKey] = useState(currentUser?.apiKey || "");
+  // API Key 由用户手动输入，不从后端获取（安全考虑）
+  const [apiKey, setApiKey] = useState("");
   const [prompt, setPrompt] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [imageUrls, setImageUrls] = useState([]);
@@ -269,7 +270,7 @@ const Studio = () => {
     );
 
     if (currentUser) {
-      setApiKey(currentUser.apiKey || "");
+      // API Key 不再从后端获取，由用户手动配置
 
       // 用户首次登录或切换用户时加载对应的历史记录
       if (previousUserId !== currentUser.id) {

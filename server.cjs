@@ -544,18 +544,16 @@ const toSafeUser = (user) => {
 };
 
 // 返回前端会话所需的用户信息
+// 注意：API Key 永远不传回前端，只通过管理员专用端点获取
 const toSessionUser = (user) => {
   const safe = toSafeUser(user);
   if (!safe) return null;
-  const decryptedKey = decryptSensitiveValue(
-    user.apiKeyEncrypted || user.apiKey || "",
-  );
   return {
     ...safe,
     isSuperAdmin: Boolean(safe.isSuperAdmin),
     isActive: Boolean(safe.isActive),
-    apiKey: decryptedKey,
     hasApiKey: safe.hasApiKey,
+    // ❌ 不再返回 apiKey 明文，前端不需要知道
   };
 };
 
@@ -837,7 +835,7 @@ app.post("/api/auth/change-password", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const { identifier, email, password } = req.body || {};
 
   if (!password || (!identifier && !email)) {
@@ -865,13 +863,78 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(401).json({ error: "用户不存在" });
   }
 
+  // 检查账户是否被锁定
+  if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+    const remainingMinutes = Math.ceil((new Date(user.lockedUntil) - new Date()) / 60000);
+    console.warn(`🔒 用户 ${user.username} 账户已锁定，剩余 ${remainingMinutes} 分钟`);
+    return res.status(401).json({ 
+      error: `账户已被锁定，请 ${remainingMinutes} 分钟后再试，或通过邮件重置密码`,
+      locked: true,
+      remainingMinutes
+    });
+  }
+
+  // 如果锁定时间已过，清除锁定状态
+  if (user.lockedUntil && new Date(user.lockedUntil) <= new Date()) {
+    user.lockedUntil = null;
+    user.loginAttempts = 0;
+    saveUsers();
+  }
+
   if (!user.isActive && !user.isSuperAdmin) {
     return res.status(401).json({ error: "账户尚未激活" });
   }
 
+  // 验证密码
   if (user.password !== hashPassword(password)) {
-    return res.status(401).json({ error: "密码错误" });
+    // 登录失败：递增尝试次数
+    user.loginAttempts = (user.loginAttempts || 0) + 1;
+    
+    console.warn(`❌ 用户 ${user.username} 登录失败 (尝试 ${user.loginAttempts}/5)`);
+    
+    // 达到5次失败，锁定账户
+    if (user.loginAttempts >= 5) {
+      const lockDuration = 30 * 60 * 1000; // 30分钟
+      user.lockedUntil = new Date(Date.now() + lockDuration).toISOString();
+      
+      console.error(`🔒 用户 ${user.username} 账户已锁定30分钟（5次登录失败）`);
+      
+      // 生成密码重置令牌
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      user.resetToken = resetToken;
+      user.resetTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24小时
+      
+      saveUsers();
+      
+      // 发送密码重置邮件
+      try {
+        await sendPasswordResetEmail(user.email, user.username, resetToken);
+        console.log(`📧 已向 ${user.username} 发送密码重置邮件`);
+      } catch (emailError) {
+        console.error(`📧 发送密码重置邮件失败:`, emailError.message);
+        // 即使邮件发送失败，也继续锁定账户
+      }
+      
+      return res.status(401).json({ 
+        error: "登录失败次数过多，账户已被锁定30分钟。密码重置邮件已发送到您的邮箱。",
+        locked: true,
+        attemptsExceeded: true
+      });
+    }
+    
+    saveUsers();
+    
+    const remainingAttempts = 5 - user.loginAttempts;
+    return res.status(401).json({ 
+      error: `密码错误，还剩 ${remainingAttempts} 次尝试机会`,
+      remainingAttempts
+    });
   }
+
+  // 登录成功：重置尝试次数
+  user.loginAttempts = 0;
+  user.lockedUntil = null;
+  saveUsers();
 
   // 创建session
   req.session.user = toSessionUser(user);
