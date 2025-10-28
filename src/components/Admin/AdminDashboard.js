@@ -831,6 +831,12 @@ const AdminDashboard = () => {
                               <ImageIcon className="w-16 h-16" />
                             </div>
                           )}
+                          {/* 已删除标签 */}
+                          {record.deleted && (
+                            <div className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded-md font-bold shadow-lg">
+                              🗑️ 已删除
+                            </div>
+                          )}
                         </div>
 
                         {/* 信息 */}
@@ -846,7 +852,7 @@ const AdminDashboard = () => {
                             </span>
                           </div>
                           
-                          <div className="text-xs">
+                          <div className="text-xs flex gap-2">
                             <span className={`inline-block px-2 py-1 rounded ${
                               record.mode === 'generate' ? 'bg-purple-100 text-purple-700' :
                               record.mode === 'edit' ? 'bg-blue-100 text-blue-700' :
@@ -857,6 +863,11 @@ const AdminDashboard = () => {
                                record.mode === 'edit' ? '图像编辑' :
                                record.mode === 'compose' ? '图像合成' : '其他'}
                             </span>
+                            {record.deleted && (
+                              <span className="inline-block px-2 py-1 rounded bg-red-100 text-red-700 font-semibold">
+                                已删除
+                              </span>
+                            )}
                           </div>
 
                           <p className="text-sm text-gray-700 line-clamp-3">
@@ -891,7 +902,14 @@ const AdminDashboard = () => {
             >
               <div className="p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold">图片详情</h3>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xl font-bold">图片详情</h3>
+                    {selectedImage.deleted && (
+                      <span className="bg-red-600 text-white text-sm px-3 py-1 rounded-md font-bold">
+                        🗑️ 已删除
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={() => setSelectedImage(null)}
                     className="text-gray-500 hover:text-gray-700"
@@ -940,6 +958,13 @@ const AdminDashboard = () => {
                     <label className="text-sm font-semibold text-gray-700">创建时间</label>
                     <p className="text-gray-600">{new Date(selectedImage.createdAt).toLocaleString('zh-CN')}</p>
                   </div>
+
+                  {selectedImage.deleted && selectedImage.deletedAt && (
+                    <div>
+                      <label className="text-sm font-semibold text-red-700">删除时间</label>
+                      <p className="text-red-600">{new Date(selectedImage.deletedAt).toLocaleString('zh-CN')}</p>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-sm font-semibold text-gray-700">Prompt</label>
