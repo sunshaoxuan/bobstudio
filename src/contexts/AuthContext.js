@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { apiGet, apiPost } from '../utils/apiClient';
 
 const AuthContext = createContext();
 
@@ -43,32 +44,19 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ loading: false, scope: 'self', payload: null, requestedScope: 'self' });
 
-  const API_BASE = import.meta.env.DEV
-    ? (import.meta.env.VITE_API_URL || 'http://localhost:8080')
-    : '';
-
   const checkAuthStatus = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/me`, {
-        credentials: 'include' // 包含cookies
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const normalizedUser = normalizeUser(data.user);
-        setCurrentUser(normalizedUser);
-        console.log('✅ 用户已登录:', data.user.username);
-      } else {
-        setCurrentUser(null);
-        console.log('❌ 用户未登录');
-      }
+      const data = await apiGet('/api/auth/me');
+      const normalizedUser = normalizeUser(data.user);
+      setCurrentUser(normalizedUser);
+      console.log('✅ 用户已登录:', data.user.username);
     } catch (error) {
       console.error('检查登录状态失败:', error);
       setCurrentUser(null);
     } finally {
       setLoading(false);
     }
-  }, [API_BASE]);
+  }, []);
 
   // 检查当前登录状态
   useEffect(() => {
@@ -78,44 +66,25 @@ export const AuthProvider = ({ children }) => {
   // 用户登录
   const login = async (identifier, password) => {
     try {
-      const loginUrl = `${API_BASE}/api/auth/login?ts=${Date.now()}`;
-      console.log('🔗 尝试登录，API 地址:', loginUrl);
+      console.log('🔗 尝试登录...');
       
-      const response = await fetch(loginUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // 包含cookies
-        body: JSON.stringify({ 
-          identifier: typeof identifier === 'string' ? identifier.trim() : '',
-          password 
-        }),
+      const data = await apiPost('/api/auth/login', {
+        identifier: typeof identifier === 'string' ? identifier.trim() : '',
+        password 
       });
 
-      console.log('📡 登录响应状态:', response.status);
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        const normalizedUser = normalizeUser(data.user);
-        setCurrentUser(normalizedUser);
-        console.log('✅ 登录成功:', data.user.username);
-        return { success: true, message: data.message };
-      } else {
-        return { success: false, message: data.error || '登录失败' };
-      }
+      const normalizedUser = normalizeUser(data.user);
+      setCurrentUser(normalizedUser);
+      console.log('✅ 登录成功:', data.user.username);
+      return { success: true, message: data.message };
     } catch (error) {
       console.error('❌ 登录异常:', error);
-      // 更详细的错误信息
-      let errorMessage = '网络连接失败，请重试';
-      
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        errorMessage = '无法连接到服务器。请确保后端服务已启动（运行 npm run server）';
-      } else if (error.message) {
-        errorMessage = `连接失败: ${error.message}`;
+      let errorMessage = error.message || '登录失败';
+      if (error.status === 401) {
+        errorMessage = '用户名或密码错误';
+      } else if (error.status === 403) {
+        errorMessage = '账号未激活或已被禁用';
       }
-      
       return { success: false, message: errorMessage };
     }
   };
@@ -123,52 +92,29 @@ export const AuthProvider = ({ children }) => {
   // 用户注册
   const register = async (email, password, username) => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ 
-          email: email.trim(),
-          password,
-          username: username.trim()
-        }),
+      const data = await apiPost('/api/auth/register', {
+        email: email.trim(),
+        password,
+        username: username.trim()
       });
 
-      const data = await response.json();
-      
-      if (response.ok) {
-        console.log('✅ 注册成功:', username);
-        return { success: true, message: data.message };
-      } else {
-        return { success: false, message: data.error || '注册失败' };
-      }
+      console.log('✅ 注册成功:', username);
+      return { success: true, message: data.message };
     } catch (error) {
       console.error('❌ 注册异常:', error);
-      return { success: false, message: '网络连接失败，请重试' };
+      return { success: false, message: error.message || '注册失败' };
     }
   };
 
   // 激活账户
   const activateAccount = async (token) => {
     try {
-      const response = await fetch(`${API_BASE}/api/auth/activate/${token}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        console.log('✅ 账户激活成功');
-        return { success: true, message: data.message };
-      } else {
-        return { success: false, message: data.error || '激活失败' };
-      }
+      const data = await apiGet(`/api/auth/activate/${token}`);
+      console.log('✅ 账户激活成功');
+      return { success: true, message: data.message };
     } catch (error) {
       console.error('❌ 激活异常:', error);
-      return { success: false, message: '网络连接失败，请重试' };
+      return { success: false, message: error.message || '激活失败' };
     }
   };
 
@@ -176,23 +122,11 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       console.log('🚪 执行退出登录');
-      
-      const response = await fetch(`${API_BASE}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include', // 包含cookies
-      });
-
-      if (response.ok) {
-        setCurrentUser(null);
-        setStats({ loading: false, scope: 'self', payload: null });
-        console.log('✅ 退出成功');
-        window.location.href = '/login';
-      } else {
-        console.error('退出失败');
-        // 即使服务器退出失败，也强制清空前端状态
-        setCurrentUser(null);
-        window.location.href = '/login';
-      }
+      await apiPost('/api/auth/logout');
+      setCurrentUser(null);
+      setStats({ loading: false, scope: 'self', payload: null });
+      console.log('✅ 退出成功');
+      window.location.href = '/login';
     } catch (error) {
       console.error('退出请求失败:', error);
       // 网络错误时也强制退出
@@ -209,15 +143,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/refresh`, {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error('刷新用户信息失败');
-      }
-
-      const data = await response.json();
+      const data = await apiGet('/api/auth/refresh');
       const normalizedUser = normalizeUser(data.user);
       setCurrentUser(normalizedUser);
       console.log('🔄 用户信息已刷新:', normalizedUser.generationStats);
@@ -226,7 +152,7 @@ export const AuthProvider = ({ children }) => {
       console.error('刷新用户信息失败:', error);
       return { success: false, error: error.message };
     }
-  }, [API_BASE, currentUser]);
+  }, [currentUser]);
 
   const fetchStats = useCallback(async (options = {}) => {
     if (!currentUser) {
@@ -239,17 +165,9 @@ export const AuthProvider = ({ children }) => {
     if (options.userId) params.set('userId', options.userId);
 
     setStats(prev => ({ ...prev, loading: true, requestedScope: options.scope || 'self' }));
+    
     try {
-      const response = await fetch(`${API_BASE}/api/stats?${params.toString()}`, {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.error || '获取统计数据失败');
-      }
-
-      const data = await response.json();
+      const data = await apiGet(`/api/stats?${params.toString()}`);
       setStats({ loading: false, scope: data.scope, payload: data, requestedScope: options.scope || 'self' });
       return { success: true, data };
     } catch (error) {
@@ -257,7 +175,7 @@ export const AuthProvider = ({ children }) => {
       setStats({ loading: false, scope: 'self', payload: null, requestedScope: options.scope || 'self' });
       return { success: false, error: error.message };
     }
-  }, [API_BASE, currentUser]);
+  }, [currentUser]);
 
   const value = {
     currentUser,
