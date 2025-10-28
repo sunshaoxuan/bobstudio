@@ -28,7 +28,10 @@ const Studio = () => {
   const { currentUser, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
   
-  // API 请求超时设置（毫秒）
+  // API 配置
+  const API_BASE_URL = import.meta.env.DEV
+    ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
+    : "";
   const API_TIMEOUT = 300000; // 5分钟
   
   const [apiKey, setApiKey] = useState(currentUser?.apiKey || "");
@@ -142,10 +145,7 @@ const Studio = () => {
 
     try {
       // 从服务器API加载历史记录
-      const baseURL = import.meta.env.DEV
-        ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
-        : "";
-      const response = await fetch(`${baseURL}/api/history/${currentUser.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/history/${currentUser.id}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -205,10 +205,7 @@ const Studio = () => {
       console.log("数据大小:", (dataSize / 1024).toFixed(2), "KB");
       console.log("清理后的记录数:", cleanedHistory.length);
 
-      const baseURL = import.meta.env.DEV
-        ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
-        : "";
-      const url = `${baseURL}/api/history/${userId}`;
+      const url = `${API_BASE_URL}/api/history/${userId}`;
       console.log("请求URL:", url);
       
       const response = await fetch(url, {
@@ -644,11 +641,7 @@ const Studio = () => {
         throw new Error(`图片过大 (${requestSizeMB} MB)，请生成较小的图片或降低分辨率`);
       }
       
-      const baseURL = import.meta.env.DEV
-        ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
-        : "";
-      
-      const response = await fetch(`${baseURL}/api/images/upload`, {
+      const response = await fetch(`${API_BASE_URL}/api/images/upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1153,12 +1146,8 @@ const Studio = () => {
       console.log("⏰ 开始计时...");
 
       // 通过后端服务器代理调用 Google API（解决中国用户网络屏蔽问题）
-      const baseURL = import.meta.env.DEV
-        ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
-        : "";
-      
       const response = await fetchWithTimeout(
-        `${baseURL}/api/gemini/generate`,
+        `${API_BASE_URL}/api/gemini/generate`,
         {
           method: "POST",
           headers: {
