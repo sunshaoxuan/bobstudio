@@ -1527,6 +1527,23 @@ const Studio = () => {
                 <Home className="w-4 h-4" />
                 <span className="hidden sm:inline">首页</span>
               </Link>
+              <button
+                onClick={async () => {
+                  if (window.confirm('系统将发送验证邮件到您的注册邮箱，确认继续吗？')) {
+                    const result = await changePassword();
+                    if (result.success) {
+                      alert(`✅ ${result.message}\n\n请查收邮件并点击链接完成密码修改。`);
+                    } else {
+                      alert(`❌ ${result.message}`);
+                    }
+                  }
+                }}
+                className="flex items-center gap-1 sm:gap-2 text-blue-600 hover:text-blue-800 transition-colors text-sm sm:text-base"
+                title="修改密码"
+              >
+                <Key className="w-4 h-4" />
+                <span className="hidden sm:inline">修改密码</span>
+              </button>
               <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[100px] sm:max-w-none">
                 {currentUser.username}
                 {currentUser.isSuperAdmin && (
@@ -1628,39 +1645,6 @@ const Studio = () => {
             )}
           </div>
         )}
-
-        {/* 账户设置 */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Shield className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold">账户设置</h2>
-          </div>
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-            <div className="flex items-center gap-3">
-              <Key className="w-5 h-5 text-purple-600" />
-              <div>
-                <p className="font-medium text-gray-800">修改密码</p>
-                <p className="text-sm text-gray-500">通过邮件验证后修改密码</p>
-              </div>
-            </div>
-            <button
-              onClick={async () => {
-                if (window.confirm('系统将发送验证邮件到您的注册邮箱，确认继续吗？')) {
-                  const result = await changePassword();
-                  if (result.success) {
-                    alert(`✅ ${result.message}\n\n请查收邮件并点击链接完成密码修改。`);
-                  } else {
-                    alert(`❌ ${result.message}`);
-                  }
-                }
-              }}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-            >
-              <Key className="w-4 h-4" />
-              修改密码
-            </button>
-          </div>
-        </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* 左侧控制面板 */}
