@@ -49,6 +49,8 @@ const AdminDashboard = () => {
   const [filterUser, setFilterUser] = useState("");
   const [filterMode, setFilterMode] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
+  const [pageSize, setPageSize] = useState(20); // 每页显示数量
+  const [currentPage, setCurrentPage] = useState(1); // 当前页码
   
   // 在线用户相关状态
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -813,7 +815,7 @@ const AdminDashboard = () => {
 
             {/* 搜索和过滤 */}
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <Search className="w-4 h-4 inline mr-1" />
@@ -859,6 +861,23 @@ const AdminDashboard = () => {
                     <option value="compose">图像合成</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    每页显示
+                  </label>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1); // 改变每页数量时重置到第一页
+                    }}
+                  >
+                    <option value="20">20 张</option>
+                    <option value="50">50 张</option>
+                    <option value="100">100 张</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -870,26 +889,52 @@ const AdminDashboard = () => {
               </div>
             ) : (
               <>
-                {/* 统计信息 */}
-                <div className="text-sm text-gray-600">
-                  共 {allHistory.filter(record => {
+                {/* 统计信息和分页控制 */}
+                {(() => {
+                  const filteredRecords = allHistory.filter(record => {
                     const matchesSearch = !searchTerm || (record.prompt && record.prompt.toLowerCase().includes(searchTerm.toLowerCase()));
                     const matchesUser = !filterUser || record.user?.id === filterUser;
                     const matchesMode = !filterMode || record.mode === filterMode;
                     return matchesSearch && matchesUser && matchesMode;
-                  }).length} 条记录
-                </div>
+                  });
+                  
+                  const totalPages = Math.ceil(filteredRecords.length / pageSize);
+                  const startIndex = (currentPage - 1) * pageSize;
+                  const endIndex = startIndex + pageSize;
+                  const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
+                  
+                  return (
+                    <>
+                      {/* 统计信息 */}
+                      <div className="text-sm text-gray-600 flex items-center justify-between">
+                        <span>
+                          共 {filteredRecords.length} 条记录，第 {currentPage} / {totalPages || 1} 页
+                        </span>
+                        {/* 分页控件 */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            disabled={currentPage === 1}
+                            className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            上一页
+                          </button>
+                          <span className="text-gray-600">
+                            {currentPage} / {totalPages || 1}
+                          </span>
+                          <button
+                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            disabled={currentPage >= totalPages}
+                            className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            下一页
+                          </button>
+                        </div>
+                      </div>
 
-                {/* 图片网格 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {allHistory
-                    .filter(record => {
-                      const matchesSearch = !searchTerm || (record.prompt && record.prompt.toLowerCase().includes(searchTerm.toLowerCase()));
-                      const matchesUser = !filterUser || record.user?.id === filterUser;
-                      const matchesMode = !filterMode || record.mode === filterMode;
-                      return matchesSearch && matchesUser && matchesMode;
-                    })
-                    .map(record => (
+                      {/* 图片网格 */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {paginatedRecords.map(record => (
                       <div
                         key={record.id}
                         className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
@@ -955,16 +1000,19 @@ const AdminDashboard = () => {
                           </p>
                         </div>
                       </div>
-                    ))}
-                </div>
+                        ))}
+                      </div>
 
-                {/* 无数据提示 */}
-                {allHistory.length === 0 && (
-                  <div className="text-center py-12 text-gray-500">
-                    <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p>暂无图片记录</p>
-                  </div>
-                )}
+                      {/* 无数据提示 */}
+                      {filteredRecords.length === 0 && (
+                        <div className="text-center py-12 text-gray-500">
+                          <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                          <p>暂无图片记录</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </>
             )}
           </div>
