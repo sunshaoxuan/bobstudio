@@ -1128,15 +1128,23 @@ const Studio = () => {
       console.log("发送API请求:", JSON.stringify(requestBody, null, 2));
       console.log("⏰ 开始计时...");
 
+      // 通过后端服务器代理调用 Google API（解决中国用户网络屏蔽问题）
+      const baseURL = import.meta.env.DEV
+        ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
+        : "";
+      
       const response = await fetchWithTimeout(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent",
+        `${baseURL}/api/gemini/generate`,
         {
           method: "POST",
           headers: {
-            "x-goog-api-key": apiKey,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(requestBody),
+          credentials: "include", // 包含 session cookie
+          body: JSON.stringify({
+            requestBody,
+            apiKey,
+          }),
         },
         API_TIMEOUT
       );

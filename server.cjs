@@ -1106,6 +1106,61 @@ app.get("/api/admin/all-history", requireAdmin, async (req, res) => {
   }
 });
 
+// Google Gemini API 代理（解决中国用户网络屏蔽问题）
+app.post("/api/gemini/generate", requireAuth, async (req, res) => {
+  try {
+    const { requestBody, apiKey } = req.body;
+    
+    if (!apiKey) {
+      return res.status(400).json({ error: "API 密钥不能为空" });
+    }
+    
+    if (!requestBody) {
+      return res.status(400).json({ error: "请求体不能为空" });
+    }
+    
+    console.log("🌐 代理 Google Gemini API 请求...");
+    
+    // 使用 fetch 调用 Google API
+    // Node.js 18+ 内置 fetch，低版本使用 node-fetch v2
+    let fetch;
+    if (globalThis.fetch) {
+      fetch = globalThis.fetch;
+    } else {
+      // 动态导入 node-fetch v2（CommonJS 兼容）
+      fetch = require('node-fetch');
+    }
+    
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent",
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      console.error("❌ Google API 返回错误:", response.status);
+      return res.status(response.status).json(data);
+    }
+    
+    console.log("✅ Google API 请求成功");
+    res.json(data);
+  } catch (error) {
+    console.error("❌ 代理 Google API 请求失败:", error);
+    res.status(500).json({ 
+      error: "代理请求失败", 
+      details: error.message 
+    });
+  }
+});
+
 // 健康检查
 app.get("/api/health", (req, res) => {
   res.json({
