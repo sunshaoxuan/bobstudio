@@ -1410,6 +1410,13 @@ const Studio = () => {
 
   const executeAction = () => {
     console.log("执行动作，当前模式:", mode);
+    console.log("🔍 当前状态调试信息:");
+    console.log("- mode:", mode);
+    console.log("- loading:", loading);
+    console.log("- apiKey:", apiKey ? '已配置' : '未配置');
+    console.log("- prompt:", prompt);
+    console.log("- uploadedImages.length:", uploadedImages.length);
+    console.log("- uploadedImages:", uploadedImages);
 
     switch (mode) {
       case "generate":
@@ -1763,7 +1770,10 @@ const Studio = () => {
                   <div className="text-xs sm:text-sm font-medium whitespace-nowrap">图像编辑</div>
                 </button>
                 <button
-                  onClick={() => setMode("compose")}
+                  onClick={() => {
+                    console.log('切换到图像合成模式');
+                    setMode("compose");
+                  }}
                   className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                     mode === "compose"
                       ? "border-purple-500 bg-purple-50 text-purple-700"
