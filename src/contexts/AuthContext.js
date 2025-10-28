@@ -120,6 +120,58 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // 用户注册
+  const register = async (email, password, username) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          email: email.trim(),
+          password,
+          username: username.trim()
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log('✅ 注册成功:', username);
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.error || '注册失败' };
+      }
+    } catch (error) {
+      console.error('❌ 注册异常:', error);
+      return { success: false, message: '网络连接失败，请重试' };
+    }
+  };
+
+  // 激活账户
+  const activateAccount = async (token) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/activate/${token}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log('✅ 账户激活成功');
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.error || '激活失败' };
+      }
+    } catch (error) {
+      console.error('❌ 激活异常:', error);
+      return { success: false, message: '网络连接失败，请重试' };
+    }
+  };
+
   // 用户登出
   const logout = async () => {
     try {
@@ -211,6 +263,8 @@ export const AuthProvider = ({ children }) => {
     currentUser,
     loading,
     login,
+    register,
+    activateAccount,
     logout,
     checkAuthStatus,
     refreshUser,

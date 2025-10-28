@@ -5,6 +5,7 @@ const cors = require("cors");
 const session = require("express-session");
 const FileStore = require("session-file-store")(session);
 const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 
 // ===== 全局日志时间戳 =====
 const originalLog = console.log;
@@ -30,6 +31,101 @@ const API_KEY_IV_LENGTH = 12;
 const HISTORY_DIR = path.join(__dirname, "history");
 const IMAGES_DIR = path.join(__dirname, "images");
 const SESSIONS_DIR = path.join(__dirname, "sessions");
+
+// ===== 邮件配置 =====
+const EMAIL_CONFIG = {
+  host: process.env.SMTP_HOST || 'mail.briconbric.com',
+  port: process.env.SMTP_PORT || 587,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER || 'postmaster@briconbric.com',
+    pass: process.env.SMTP_PASS || 'BtZhY1^3'
+  },
+  tls: {
+    rejectUnauthorized: false // 允许自签名证书
+  }
+};
+
+const SITE_URL = process.env.SITE_URL || 'https://studio.briconbric.com';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'BOB Studio <postmaster@briconbric.com>';
+
+// 创建邮件传输器
+let emailTransporter = null;
+try {
+  emailTransporter = nodemailer.createTransport(EMAIL_CONFIG);
+  console.log('✅ 邮件服务已配置:', EMAIL_CONFIG.host);
+} catch (error) {
+  console.error('❌ 邮件服务配置失败:', error.message);
+}
+
+// 发送激活邮件
+async function sendActivationEmail(email, username, activationToken) {
+  if (!emailTransporter) {
+    throw new Error('邮件服务未配置');
+  }
+
+  const activationLink = `${SITE_URL}/activate/${activationToken}`;
+  
+  const mailOptions = {
+    from: EMAIL_FROM,
+    to: email,
+    subject: '激活您的 BOB Studio 账户',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; background: #8B5CF6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎨 欢迎来到 BOB Studio</h1>
+          </div>
+          <div class="content">
+            <p>亲爱的 <strong>${username}</strong>，</p>
+            <p>感谢您注册 BOB Studio！您的 AI 图像创作之旅即将开始。</p>
+            <p>请点击下面的按钮激活您的账户：</p>
+            <p style="text-align: center;">
+              <a href="${activationLink}" class="button">激活账户</a>
+            </p>
+            <p>或复制以下链接到浏览器打开：</p>
+            <p style="background: #fff; padding: 10px; border-radius: 5px; word-break: break-all; font-family: monospace; font-size: 12px;">
+              ${activationLink}
+            </p>
+            <p><strong>注意：</strong>此链接将在 24 小时后失效。</p>
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+            <p style="color: #666; font-size: 14px;">
+              如果您没有注册 BOB Studio 账户，请忽略此邮件。
+            </p>
+          </div>
+          <div class="footer">
+            <p>© 2025 BOB Studio. All rights reserved.</p>
+            <p>${SITE_URL}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  };
+
+  try {
+    const info = await emailTransporter.sendMail(mailOptions);
+    console.log('📧 激活邮件已发送:', email, '| MessageID:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ 发送激活邮件失败:', email, '|', error.message);
+    throw error;
+  }
+}
+// ===== 邮件配置结束 =====
 
 let users = [];
 
@@ -358,6 +454,104 @@ const requireAdmin = (req, res, next) => {
 };
 
 // 认证API
+// 用户注册
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { username, email, password } = req.body || {};
+    
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: "用户名、邮箱和密码均为必填" });
+    }
+    
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedUsername = String(username).trim();
+    
+    if (users.some((u) => u.email === normalizedEmail)) {
+      return res.status(409).json({ error: "邮箱已被注册" });
+    }
+    
+    if (users.some((u) => u.username && u.username.toLowerCase() === normalizedUsername.toLowerCase())) {
+      return res.status(409).json({ error: "用户名已存在" });
+    }
+    
+    // 生成激活令牌（24小时有效）
+    const activationToken = crypto.randomBytes(32).toString('hex');
+    const activationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24小时后过期
+    
+    const newUser = {
+      id: `user_${Date.now()}`,
+      username: normalizedUsername,
+      email: normalizedEmail,
+      password: hashPassword(password),
+      apiKeyEncrypted: "",
+      isActive: false, // 需要邮件激活
+      isSuperAdmin: false,
+      showApiConfig: false,
+      createdAt: new Date().toISOString(),
+      activationToken,
+      activationExpires: activationExpires.toISOString()
+    };
+    
+    users.push(newUser);
+    saveUsers();
+    
+    // 发送激活邮件
+    try {
+      await sendActivationEmail(normalizedEmail, normalizedUsername, activationToken);
+      console.log(`✅ 用户注册成功: ${normalizedUsername} (${normalizedEmail})`);
+      res.status(201).json({ 
+        success: true,
+        message: "注册成功！请检查您的邮箱并点击激活链接。" 
+      });
+    } catch (emailError) {
+      console.error('❌ 发送激活邮件失败:', emailError);
+      // 如果邮件发送失败，删除用户并返回错误
+      users = users.filter(u => u.id !== newUser.id);
+      saveUsers();
+      return res.status(500).json({ 
+        error: "注册失败：无法发送激活邮件。请稍后重试或联系管理员。",
+        details: emailError.message
+      });
+    }
+  } catch (error) {
+    console.error('❌ 注册失败:', error);
+    res.status(500).json({ error: "注册失败", details: error.message });
+  }
+});
+
+// 激活账户
+app.get("/api/auth/activate/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const user = users.find(u => u.activationToken === token);
+    
+    if (!user) {
+      return res.status(404).json({ error: "无效的激活链接" });
+    }
+    
+    // 检查令牌是否过期
+    if (new Date() > new Date(user.activationExpires)) {
+      return res.status(410).json({ error: "激活链接已过期，请重新注册" });
+    }
+    
+    // 激活用户
+    user.isActive = true;
+    user.activationToken = undefined;
+    user.activationExpires = undefined;
+    saveUsers();
+    
+    console.log(`✅ 用户激活成功: ${user.username} (${user.email})`);
+    res.json({ 
+      success: true,
+      message: "账户激活成功！您现在可以登录了。" 
+    });
+  } catch (error) {
+    console.error('❌ 激活失败:', error);
+    res.status(500).json({ error: "激活失败", details: error.message });
+  }
+});
+
 app.post("/api/auth/login", (req, res) => {
   const { identifier, email, password } = req.body || {};
 
