@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { API_BASE_URL_URL } from "../../config/api";
+import { API_BASE_URL } from "../../config/api";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../utils/apiClient";
 import {
   Users,
@@ -15,6 +15,8 @@ import {
   Search,
   Filter,
   Calendar,
+  Wifi,
+  Clock,
 } from "lucide-react";
 
 const AdminDashboard = () => {
@@ -46,6 +48,10 @@ const AdminDashboard = () => {
   const [filterUser, setFilterUser] = useState("");
   const [filterMode, setFilterMode] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
+  
+  // 在线用户相关状态
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [loadingOnlineUsers, setLoadingOnlineUsers] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -224,6 +230,24 @@ const AdminDashboard = () => {
     }
   }, [API_BASE_URL]);
 
+  // 获取在线用户
+  const fetchOnlineUsers = useCallback(async () => {
+    try {
+      setLoadingOnlineUsers(true);
+      const res = await fetch(`${API_BASE_URL}/api/admin/online-users`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("加载在线用户失败");
+      const data = await res.json();
+      setOnlineUsers(data.onlineUsers || []);
+    } catch (e) {
+      console.error(e);
+      // 静默失败，不影响用户体验
+    } finally {
+      setLoadingOnlineUsers(false);
+    }
+  }, [API_BASE_URL]);
+
   // 检查管理员权限
   useEffect(() => {
     if (!currentUser || !currentUser.isSuperAdmin) {
@@ -239,6 +263,20 @@ const AdminDashboard = () => {
       fetchAllHistory();
     }
   }, [activeTab, allHistory.length, fetchAllHistory]);
+
+  // 在线用户tab：加载数据并设置自动刷新
+  useEffect(() => {
+    if (activeTab === "online") {
+      fetchOnlineUsers(); // 立即加载一次
+      
+      // 每5秒自动刷新
+      const interval = setInterval(() => {
+        fetchOnlineUsers();
+      }, 5000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, fetchOnlineUsers]);
 
   // 如果不是超级管理员，显示权限不足页面
   if (!currentUser || !currentUser.isSuperAdmin) {
@@ -341,6 +379,17 @@ const AdminDashboard = () => {
           >
             <ImageIcon className="w-5 h-5" />
             图片记录
+          </button>
+          <button
+            onClick={() => setActiveTab("online")}
+            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+              activeTab === "online"
+                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <Wifi className="w-5 h-5" />
+            在线用户
           </button>
         </div>
 
@@ -887,6 +936,116 @@ const AdminDashboard = () => {
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* 在线用户 Tab */}
+        {activeTab === "online" && (
+          <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Wifi className="w-5 h-5 text-green-600" />
+                在线用户监控
+                <span className="ml-2 text-sm text-gray-500">
+                  (每5秒自动刷新)
+                </span>
+              </h2>
+              <div className="flex items-center gap-4">
+                <div className="text-sm">
+                  <span className="font-semibold text-purple-600">{onlineUsers.length}</span>
+                  <span className="text-gray-600 ml-1">人在线</span>
+                </div>
+                <button
+                  onClick={fetchOnlineUsers}
+                  disabled={loadingOnlineUsers}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {loadingOnlineUsers ? '刷新中...' : '立即刷新'}
+                </button>
+              </div>
+            </div>
+
+            {loadingOnlineUsers && onlineUsers.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+              </div>
+            ) : onlineUsers.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <Wifi className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p>当前暂无在线用户</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {onlineUsers.map((user, index) => {
+                  const idleMinutes = Math.floor(user.idleTime / 60000);
+                  const idleSeconds = Math.floor((user.idleTime % 60000) / 1000);
+                  const isActive = user.status === 'active';
+                  
+                  return (
+                    <div
+                      key={user.username}
+                      className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
+                        isActive 
+                          ? 'border-green-200 bg-green-50' 
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                            isActive ? 'bg-green-600' : 'bg-gray-400'
+                          }`}>
+                            {user.username.charAt(0).toUpperCase()}
+                          </div>
+                          {isActive && (
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-800">{user.username}</span>
+                            {isActive && (
+                              <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded-full">
+                                活跃中
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              闲置: {idleMinutes > 0 && `${idleMinutes}分`}{idleSeconds}秒
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="text-right text-xs text-gray-400">
+                        <div>最后活动</div>
+                        <div className="font-mono">
+                          {new Date(user.lastActivity).toLocaleTimeString('zh-CN')}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg text-sm text-gray-600">
+              <div className="flex items-start gap-2">
+                <div className="text-blue-600 mt-0.5">ℹ️</div>
+                <div>
+                  <p><strong>说明：</strong></p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>绿色标记表示用户正在活跃操作（1分钟内有活动）</li>
+                    <li>灰色标记表示用户处于闲置状态</li>
+                    <li>15分钟无活动的用户将自动标记为离线</li>
+                    <li>数据每5秒自动刷新，也可手动刷新</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

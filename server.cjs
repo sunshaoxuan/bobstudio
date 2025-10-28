@@ -32,6 +32,53 @@ const HISTORY_DIR = path.join(__dirname, "history");
 const IMAGES_DIR = path.join(__dirname, "images");
 const SESSIONS_DIR = path.join(__dirname, "sessions");
 
+// ===== 在线用户跟踪 =====
+const activeUsers = new Map(); // { username: { lastActivity: timestamp, sessionId: string } }
+const IDLE_TIMEOUT = 15 * 60 * 1000; // 15分钟无活动视为离线
+
+function updateUserActivity(username, sessionId) {
+  if (username) {
+    activeUsers.set(username, {
+      lastActivity: Date.now(),
+      sessionId: sessionId
+    });
+  }
+}
+
+function getOnlineUsers() {
+  const now = Date.now();
+  const onlineUsers = [];
+  
+  for (const [username, data] of activeUsers.entries()) {
+    const idleTime = now - data.lastActivity;
+    if (idleTime < IDLE_TIMEOUT) {
+      onlineUsers.push({
+        username,
+        lastActivity: data.lastActivity,
+        idleTime: idleTime,
+        status: idleTime < 60000 ? 'active' : 'idle' // 1分钟内为活跃，否则为闲置
+      });
+    } else {
+      // 移除超时用户
+      activeUsers.delete(username);
+    }
+  }
+  
+  return onlineUsers.sort((a, b) => a.idleTime - b.idleTime);
+}
+
+// 定期清理离线用户
+setInterval(() => {
+  const now = Date.now();
+  for (const [username, data] of activeUsers.entries()) {
+    if (now - data.lastActivity >= IDLE_TIMEOUT) {
+      activeUsers.delete(username);
+      console.log(`🚪 用户 ${username} 已离线（超时）`);
+    }
+  }
+}, 60000); // 每分钟检查一次
+// ===== 在线用户跟踪结束 =====
+
 // ===== 邮件配置 =====
 const EMAIL_CONFIG = {
   host: process.env.SMTP_HOST || 'mail.briconbric.com',
@@ -360,6 +407,14 @@ app.use(
 // 大幅增加请求体限制，支持超大图片
 app.use(express.json({ limit: "2gb" }));
 app.use(express.urlencoded({ limit: "2gb", extended: true, parameterLimit: 500000 }));
+
+// 用户活动跟踪中间件
+app.use((req, res, next) => {
+  if (req.session && req.session.user) {
+    updateUserActivity(req.session.user.username, req.sessionID);
+  }
+  next();
+});
 
 // 服务静态文件
 // HTML 文件不缓存，JS/CSS 文件长期缓存（因为有哈希名）
@@ -821,7 +876,9 @@ app.post("/api/auth/login", (req, res) => {
   // 创建session
   req.session.user = toSessionUser(user);
 
-  console.log(`✅ 用户 ${user.username} 登录成功`);
+  // 更新在线状态
+  updateUserActivity(user.username, req.sessionID);
+  console.log(`✅ 用户 ${user.username} 登录成功 [在线用户: ${activeUsers.size}]`);
   res.json({
     success: true,
     message: "登录成功",
@@ -853,7 +910,9 @@ app.get("/api/auth/refresh", requireAuth, (req, res) => {
 
 app.post("/api/auth/logout", (req, res) => {
   if (req.session.user) {
-    console.log(`🚪 用户 ${req.session.user.username} 退出登录`);
+    const username = req.session.user.username;
+    activeUsers.delete(username);
+    console.log(`🚪 用户 ${username} 退出登录 [在线用户: ${activeUsers.size}]`);
   }
 
   req.session.destroy((err) => {
@@ -891,6 +950,22 @@ app.get("/api/admin/users", requireAdmin, (req, res) => {
   } catch (error) {
     console.error("获取用户列表失败:", error);
     res.status(500).json({ error: "Failed to list users" });
+  }
+});
+
+// 获取在线用户列表
+app.get("/api/admin/online-users", requireAdmin, (req, res) => {
+  try {
+    const onlineUsers = getOnlineUsers();
+    console.log(`👥 管理员查询在线用户: ${onlineUsers.length} 人在线`);
+    res.json({ 
+      onlineUsers,
+      total: onlineUsers.length,
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    console.error("获取在线用户失败:", error);
+    res.status(500).json({ error: "Failed to get online users" });
   }
 });
 
