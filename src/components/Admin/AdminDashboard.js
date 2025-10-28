@@ -170,11 +170,48 @@ const AdminDashboard = () => {
       }
 
       await fetchUsers();
-      alert(`已${!currentValue ? '开启' : '关闭'}用户自配置权限`);
+      alert(`已${!currentValueど '开启' : '关闭'}用户自配置权限`);
     } catch (error) {
       console.error('切换自配置失败:', error);
       alert('操作失败，请重试');
     }
+  };
+
+  // 重置用户密码
+  const resetPassword = async (userId) => {
+    const newPassword = prompt('请输入新密码（留空将生成随机密码）：');
+    
+    if (newPassword === null) return; // 用户取消
+    
+    const passwordToSet = newPassword || generateRandomPassword();
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ newPassword: passwordToSet })
+      });
+
+      if (!res.ok) {
+        throw new Error('重置密码失败');
+      }
+
+      alert(`密码已重置为: ${passwordToSet}`);
+    } catch (error) {
+      console.error('重置密码失败:', error);
+      alert('操作失败，请重试');
+    }
+  };
+
+  // 生成随机密码
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
   };
 
   const handleSubmit = async () => {
@@ -788,7 +825,7 @@ const AdminDashboard = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // resetPassword(u.id); // This function is not defined in the original file
+                                resetPassword(u.id);
                               }}
                               className="text-purple-600 hover:underline"
                             >
