@@ -363,11 +363,11 @@ const updateUserStats = async (userId, historyData) => {
     if (limitEnabled && totalCount >= FREE_GENERATION_LIMIT && user.apiKeyEncrypted) {
       const hadApiKey = user.apiKeyEncrypted !== "";
       user.apiKeyEncrypted = "";
-      user.showApiConfig = false;
+      user.showApiConfig = true;  // 🔑 关键改动：达到额度后自动开放自助配置
       
       if (hadApiKey) {
         console.log(`🔒 用户 ${userId} (${user.username}) 已生成 ${totalCount} 张图片，已自动清空API Key`);
-        console.log(`   需要用户自行配置API Key继续使用`);
+        console.log(`✨ 已开放自助配置权限，用户可自行配置 API Key 继续使用`);
       }
     }
     
@@ -793,12 +793,32 @@ app.get("/api/auth/activate/:token", async (req, res) => {
     user.isActive = true;
     user.activationToken = undefined;
     user.activationExpires = undefined;
+    
+    // 🎁 新用户激活福利：自动分配体验额度
+    // 1. 复制管理员的 API Key 给新用户
+    const adminId = getFirstSuperAdminId();
+    const admin = adminId ? users.find(u => u.id === adminId) : null;
+    
+    if (admin && (admin.apiKeyEncrypted || admin.apiKey)) {
+      // 复制管理员的 API Key
+      user.apiKeyEncrypted = admin.apiKeyEncrypted || admin.apiKey;
+      
+      // 2. 设置体验额度配置
+      user.freeLimitEnabled = true;  // 启用额度限制
+      user.freeLimit = 30;           // 30张免费体验
+      user.showApiConfig = false;    // 初始不允许自己配置（用完后自动开放）
+      
+      console.log(`🎁 新用户 ${user.username} 获得30张免费体验额度（使用管理员 API Key）`);
+    } else {
+      console.warn(`⚠️ 管理员未配置 API Key，新用户 ${user.username} 无法获得体验额度`);
+    }
+    
     saveUsers();
     
     console.log(`✅ 用户激活成功: ${user.username} (${user.email})`);
     res.json({ 
       success: true,
-      message: "账户激活成功！您现在可以登录了。" 
+      message: "账户激活成功！\n\n🎁 您已获得30张免费图片生成额度，立即登录开始创作吧！" 
     });
   } catch (error) {
     console.error('❌ 激活失败:', error);

@@ -297,17 +297,22 @@ const Studio = () => {
         // 🔑 检查是否达到免费额度限制
         if (result.apiKeyCleared) {
           alert(
-            "🎉 您已完成 30 张图片的免费体验！\n\n" +
-            "管理员分配的体验 API Key 已自动清空。\n" +
-            "请在右上角个人信息中配置您自己的 Google Gemini API Key 继续使用。\n\n" +
-            "如何获取 API Key：\n" +
-            "1. 访问 https://aistudio.google.com/apikey\n" +
-            "2. 创建并复制您的 API Key\n" +
-            "3. 在个人信息中填入 API Key 即可继续创作"
+            "🎉 恭喜！您已完成 30 张图片的免费体验！\n\n" +
+            "✨ 体验额度已用完，现在您可以：\n\n" +
+            "方案 1️⃣：配置自己的 API Key（推荐）\n" +
+            "• 在页面上方「API配置」区域配置\n" +
+            "• 访问 https://aistudio.google.com/apikey 获取免费 Key\n" +
+            "• 配置后即可无限制使用\n\n" +
+            "方案 2️⃣：联系管理员\n" +
+            "• 申请更多体验额度\n\n" +
+            "页面将自动刷新，显示 API 配置选项..."
           );
-          // 刷新用户信息（修复：使用 refreshUser 而非不存在的 refreshUserInfo）
+          // 刷新用户信息
           if (currentUser && typeof refreshUser === 'function') {
-            try { await refreshUser(); } catch (_) {}
+            try { 
+              await refreshUser(); 
+              window.location.reload(); // 刷新页面以显示 API 配置区域
+            } catch (_) {}
           }
         } else if (result.reachedLimit) {
           console.log("⚠️ 用户已达到免费额度限制");
