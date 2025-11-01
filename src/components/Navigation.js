@@ -1,9 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import * as Icons from 'lucide-react';
-
-const { LogOut, Shield, BarChart3, Users, User } = Icons;
+import {
+  LogOut,
+  BarChart3,
+  Users,
+  User,
+} from 'lucide-react';
 
 const Navigation = () => {
   const { currentUser, logout } = useAuth();
@@ -53,7 +56,7 @@ const Navigation = () => {
                     className="flex items-center gap-1 sm:gap-2 text-yellow-600 hover:text-yellow-800 transition-colors text-sm sm:text-base"
                     title="管理端"
                   >
-                    <Shield className="w-4 h-4" />
+                    <span className="text-base">🛡️</span>
                     <span className="hidden sm:inline">管理端</span>
                   </Link>
                 )}
