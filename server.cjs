@@ -1454,6 +1454,7 @@ app.post("/api/admin/users", requireAdmin, (req, res) => {
   try {
     const {
       username,
+      displayName,
       email,
       password,
       isActive = false,
@@ -1482,6 +1483,7 @@ app.post("/api/admin/users", requireAdmin, (req, res) => {
     const newUser = {
       id: `user_${Date.now()}`,
       username: String(username).trim(),
+      displayName: displayName ? String(displayName).trim() : String(username).trim(),
       email: normalizedEmail,
       password: hashPassword(password),
       apiKeyEncrypted: "",
@@ -1510,7 +1512,7 @@ app.put("/api/admin/users/:id", requireAdmin, (req, res) => {
       return res.status(404).json({ error: "用户不存在" });
     }
     const target = users[targetIndex];
-    const { username, email, isActive, isSuperAdmin, apiKey, showApiConfig, freeLimitEnabled, freeLimit } =
+    const { username, displayName, email, isActive, isSuperAdmin, apiKey, showApiConfig, freeLimitEnabled, freeLimit } =
       req.body || {};
 
     if (typeof email !== "undefined") {
@@ -1525,6 +1527,8 @@ app.put("/api/admin/users/:id", requireAdmin, (req, res) => {
     }
     if (typeof username !== "undefined")
       target.username = String(username).trim();
+    if (typeof displayName !== "undefined")
+      target.displayName = String(displayName).trim() || target.username;
     if (typeof isActive !== "undefined") target.isActive = Boolean(isActive);
     if (typeof isSuperAdmin !== "undefined")
       target.isSuperAdmin = Boolean(isSuperAdmin);
