@@ -36,6 +36,8 @@ const EMPTY_TOTALS = { today: 0, thisMonth: 0, total: 0 };
 const Stats = () => {
   const { currentUser, fetchStats, statsState } = useAuth();
   const navigate = useNavigate();
+  
+  console.log('Stats 组件渲染，currentUser:', currentUser);
 
   const [scope, setScope] = useState('self');
   const [selectedUser, setSelectedUser] = useState(null);
