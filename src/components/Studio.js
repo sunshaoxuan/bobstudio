@@ -72,7 +72,7 @@ const Studio = () => {
   const [mode, setMode] = useState("generate");
   const [imageHistory, setImageHistory] = useState([]);
   // 历史记录分页（仅显示当前用户未删除记录）
-  const [historyPageSize, setHistoryPageSize] = useState(20);
+  const [historyPageSize, setHistoryPageSize] = useState(12);
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
   const nonDeletedHistory = useMemo(() => imageHistory.filter(r => !r.deleted), [imageHistory]);
   const totalHistoryPages = useMemo(() => Math.max(1, Math.ceil(nonDeletedHistory.length / historyPageSize)), [nonDeletedHistory.length, historyPageSize]);
@@ -2239,10 +2239,9 @@ const Studio = () => {
                     className="border rounded px-2 py-1 text-gray-700"
                   >
                     <option value={12}>12</option>
-                    <option value={16}>16</option>
-                    <option value={20}>20</option>
-                    <option value={30}>30</option>
-                    <option value={50}>50</option>
+                    <option value={24}>24</option>
+                    <option value={36}>36</option>
+                    <option value={48}>48</option>
                   </select>
                 </div>
                 {/* 分页导航 */}
