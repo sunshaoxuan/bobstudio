@@ -106,6 +106,11 @@ const Studio = () => {
     if (!currentUser?.showApiConfig && currentUser?.hasApiKey) {
       const total = Number(currentUser?.generationStats?.total || 0);
       
+      // 超级管理员永远无限制
+      if (currentUser?.isSuperAdmin) {
+        return { unlimited: true, total, isSuperAdmin: true };
+      }
+      
       // 如果未启用限制，返回无限制标记
       if (!currentUser?.freeLimitEnabled) {
         return { unlimited: true, total };
@@ -1916,8 +1921,20 @@ const Studio = () => {
                 </div>
               </div>
               {remainingQuota !== null && (
-                <div className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded">
-                  {remainingQuota.unlimited ? (
+                <div className={`mt-3 text-sm px-3 py-2 rounded ${
+                  remainingQuota.isSuperAdmin 
+                    ? 'text-purple-700 bg-purple-50 border border-purple-200'
+                    : remainingQuota.unlimited
+                      ? 'text-green-700 bg-green-50 border border-green-200'
+                      : 'text-amber-700 bg-amber-50 border border-amber-200'
+                }`}>
+                  {remainingQuota.isSuperAdmin ? (
+                    <>
+                      👑 超级管理员：
+                      <span className="font-semibold text-purple-600"> 无限制使用 </span>
+                      （已生成 {remainingQuota.total} 张）
+                    </>
+                  ) : remainingQuota.unlimited ? (
                     <>
                       使用管理员分配的 API Key：
                       <span className="font-semibold text-green-600"> 无限制使用 </span>

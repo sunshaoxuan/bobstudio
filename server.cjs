@@ -303,8 +303,11 @@ const updateUserStats = async (userId, historyData) => {
     };
 
     // 🔑 管理员分配的API Key限制：达到额度后自动清空（可配置）
-    const limitEnabled = typeof user.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true;
+    // 注意：超级管理员不受限制
+    const isSuperAdmin = Boolean(user.isSuperAdmin);
+    const limitEnabled = !isSuperAdmin && (typeof user.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true);
     const FREE_GENERATION_LIMIT = (Number.isFinite(user.freeLimit) && user.freeLimit > 0) ? Math.floor(user.freeLimit) : 30;
+    
     if (limitEnabled && totalCount >= FREE_GENERATION_LIMIT && user.apiKeyEncrypted) {
       const hadApiKey = user.apiKeyEncrypted !== "";
       user.apiKeyEncrypted = "";
@@ -314,6 +317,10 @@ const updateUserStats = async (userId, historyData) => {
         console.log(`🔒 用户 ${userId} (${user.username}) 已生成 ${totalCount} 张图片，已自动清空API Key`);
         console.log(`   需要用户自行配置API Key继续使用`);
       }
+    }
+    
+    if (isSuperAdmin) {
+      console.log(`👑 超级管理员不受额度限制`);
     }
 
     // 保存用户数据
