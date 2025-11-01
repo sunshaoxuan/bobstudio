@@ -5,10 +5,11 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { API_BASE_URL, API_TIMEOUT } from "../config/api";
 import { apiPost } from "../utils/apiClient";
+import Navigation from "./Navigation";
 import {
   Upload,
   Image,
@@ -19,16 +20,9 @@ import {
   Sparkles,
   Plus,
   X,
-  Home,
-  LogOut,
-  BarChart3,
   Eye,
   EyeOff,
-  Shield,
-  Key,
   Share2,
-  Users,
-  User,
 } from "lucide-react";
 
 const Studio = () => {
@@ -1823,78 +1817,7 @@ const Studio = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 to-blue-100">
-      {/* 顶部导航栏 */}
-      <nav className="bg-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <h1 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                🎨 BOB Studio
-              </h1>
-              <span className="text-sm sm:text-base text-gray-600">工作室</span>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-              <Link
-                to="/friends"
-                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-800 transition-colors text-sm sm:text-base"
-                title="好友管理"
-              >
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">好友</span>
-              </Link>
-              <Link
-                to="/stats"
-                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-800 transition-colors text-sm sm:text-base"
-                title="统计"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">统计</span>
-              </Link>
-              {currentUser.isSuperAdmin && (
-                <Link
-                  to="/admin"
-                  className="flex items-center gap-1 sm:gap-2 text-yellow-600 hover:text-yellow-800 transition-colors text-sm sm:text-base"
-                  title="管理端"
-                >
-                  <Shield className="w-4 h-4" />
-                  <span className="hidden sm:inline">管理端</span>
-                </Link>
-              )}
-              <Link
-                to="/"
-                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-800 transition-colors text-sm sm:text-base"
-                title="首页"
-              >
-                <Home className="w-4 h-4" />
-                <span className="hidden sm:inline">首页</span>
-              </Link>
-              <Link
-                to="/profile"
-                className="flex items-center gap-1 sm:gap-2 text-purple-600 hover:text-purple-800 transition-colors text-xs sm:text-sm"
-                title="个人中心"
-              >
-                <User className="w-4 h-4" />
-                <span className="truncate max-w-[100px] sm:max-w-none">
-                  {currentUser.displayName || currentUser.username}
-                  {currentUser.isSuperAdmin && (
-                    <span className="ml-1 text-yellow-600">👑</span>
-                  )}
-                </span>
-              </Link>
-              <button
-                onClick={() => {
-                  console.log("工作室退出按钮被点击");
-                  logout(); // logout函数现在自己处理跳转
-                }}
-                className="flex items-center gap-2 text-red-600 hover:text-red-800 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                退出
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       <div className="max-w-7xl mx-auto p-6">
         {/* API配置（仅允许自助配置时显示） */}

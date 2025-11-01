@@ -1,14 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Navigation from './Navigation';
 import {
   BarChart3,
   Calendar,
   TrendingUp,
-  Home,
-  LogOut,
-  ArrowLeft,
-  Shield,
   Users,
   Loader2,
   Search,
@@ -239,54 +236,7 @@ const Stats = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 to-blue-100">
-      <nav className="bg-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                🎨 BOB Studio
-              </h1>
-              <span className="text-gray-600">统计中心</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Link
-                to="/studio"
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                返回工作室
-              </Link>
-              {isAdmin && (
-                <Link
-                  to="/admin"
-                  className="flex items-center gap-2 text-yellow-600 hover:text-yellow-800 transition-colors"
-                >
-                  <Shield className="w-4 h-4" />
-                  管理端
-                </Link>
-              )}
-              <Link
-                to="/"
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <Home className="w-4 h-4" />
-                首页
-              </Link>
-              <span className="text-gray-600">
-                欢迎，{currentUser?.username}
-                {isAdmin && <span className="ml-1 text-yellow-600">👑</span>}
-              </span>
-              <button
-                onClick={logout}
-                className="flex items-center gap-2 text-red-600 hover:text-red-800 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                退出
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       <div className="max-w-7xl mx-auto p-6 space-y-8">
         {isAdmin && (
