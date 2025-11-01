@@ -38,7 +38,9 @@ const normalizeUser = (user) => {
     isSuperAdmin: Boolean(user.isSuperAdmin),
     hasApiKey: Boolean(user.hasApiKey),  // 传递后端计算的 hasApiKey 字段
     freeLimitEnabled: typeof user.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true,
-    freeLimit: Number.isFinite(user.freeLimit) && user.freeLimit > 0 ? Math.floor(user.freeLimit) : 30
+    freeLimit: Number.isFinite(user.freeLimit) && user.freeLimit > 0 ? Math.floor(user.freeLimit) : 30,
+    displayName: user.displayName || user.username || '',  // 显示名称
+    pendingEmail: user.pendingEmail || null  // 待验证邮箱
   };
 };
 

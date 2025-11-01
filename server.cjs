@@ -601,6 +601,10 @@ const toSafeUser = (user) => {
     // 免费额度控制（管理员可配置）
     freeLimitEnabled: typeof rest?.freeLimitEnabled === 'boolean' ? rest.freeLimitEnabled : true,
     freeLimit: Number.isFinite(rest?.freeLimit) && rest.freeLimit > 0 ? Math.floor(rest.freeLimit) : 30,
+    // 显示名称
+    displayName: rest?.displayName || rest?.username || '',
+    // 待验证邮箱
+    pendingEmail: rest?.pendingEmail || null,
   };
 
   return safe;
@@ -1114,23 +1118,135 @@ app.get("/api/admin/users", requireAdmin, (req, res) => {
   }
 });
 
-// ===== 用户列表 API（用于添加好友）=====
-app.get('/api/users/list', requireAuth, (req, res) => {
+// ===== 搜索用户（通过用户名或邮箱精确查找）=====
+app.post('/api/users/search', requireAuth, (req, res) => {
   try {
-    const userList = users
-      .filter(u => u.isActive) // 只返回激活的用户
-      .map(u => ({
-        id: u.id,
-        username: u.username,
-        email: u.email,
-        isSuperAdmin: !!u.isSuperAdmin
-      }));
-    res.json({ users: userList });
+    const { query } = req.body;
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: '请输入用户名或邮箱' });
+    }
+    
+    const searchTerm = query.trim().toLowerCase();
+    const found = users.find(u => 
+      u.isActive && 
+      u.id !== req.session.user.id && 
+      (u.username?.toLowerCase() === searchTerm || u.email?.toLowerCase() === searchTerm)
+    );
+    
+    if (!found) {
+      return res.json({ found: false, message: '未找到该用户' });
+    }
+    
+    res.json({
+      found: true,
+      user: {
+        id: found.id,
+        username: found.username,
+        displayName: found.displayName || found.username,
+        email: found.email,
+        isSuperAdmin: !!found.isSuperAdmin
+      }
+    });
   } catch (error) {
-    console.error('获取用户列表失败:', error);
-    res.status(500).json({ error: 'Failed to get users' });
+    console.error('搜索用户失败:', error);
+    res.status(500).json({ error: 'Failed to search user' });
   }
 });
+
+// ===== 更新个人资料 =====
+app.post('/api/profile/update', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { displayName, email } = req.body;
+    const user = users.find(u => u.id === userId);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    
+    let emailChanged = false;
+    
+    // 更新显示名称
+    if (displayName !== undefined && displayName.trim()) {
+      user.displayName = displayName.trim();
+    }
+    
+    // 如果邮箱改变，需要验证
+    if (email && email.trim() && email.trim().toLowerCase() !== user.email.toLowerCase()) {
+      // TODO: 发送验证邮件，这里先标记为待验证
+      user.pendingEmail = email.trim().toLowerCase();
+      emailChanged = true;
+      // 实际应用中应该发送验证邮件
+    }
+    
+    saveUsers();
+    req.session.user = toSessionUser(user);
+    
+    res.json({ 
+      success: true, 
+      message: emailChanged ? '显示名称已更新，邮箱验证邮件已发送' : '个人资料已更新',
+      emailChanged
+    });
+  } catch (error) {
+    console.error('更新个人资料失败:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// ===== 消息通知系统 =====
+app.get('/api/notifications', requireAuth, (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const user = users.find(u => u.id === userId);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    
+    const notifications = Array.isArray(user.notifications) ? user.notifications : [];
+    res.json({ notifications });
+  } catch (error) {
+    console.error('获取通知失败:', error);
+    res.status(500).json({ error: 'Failed to get notifications' });
+  }
+});
+
+app.post('/api/notifications/:id/read', requireAuth, (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { id } = req.params;
+    const user = users.find(u => u.id === userId);
+    if (!user) return res.status(404).json({ error: '用户不存在' });
+    
+    if (!Array.isArray(user.notifications)) user.notifications = [];
+    const notification = user.notifications.find(n => n.id === id);
+    if (notification) {
+      notification.read = true;
+      saveUsers();
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('标记通知已读失败:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// 添加通知的辅助函数
+const addNotification = (userId, notification) => {
+  const user = users.find(u => u.id === userId);
+  if (!user) return;
+  
+  if (!Array.isArray(user.notifications)) user.notifications = [];
+  
+  user.notifications.unshift({
+    id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    ...notification,
+    createdAt: new Date().toISOString(),
+    read: false
+  });
+  
+  // 只保留最近50条通知
+  if (user.notifications.length > 50) {
+    user.notifications = user.notifications.slice(0, 50);
+  }
+  
+  saveUsers();
+};
 
 // ===== 好友关系 API =====
 app.get('/api/friends', requireAuth, (req, res) => {
@@ -1141,7 +1257,13 @@ app.get('/api/friends', requireAuth, (req, res) => {
     const friendSummaries = friendIds
       .map(id => users.find(u => u.id === id))
       .filter(Boolean)
-      .map(u => ({ id: u.id, username: u.username, email: u.email, isSuperAdmin: !!u.isSuperAdmin }));
+      .map(u => ({ 
+        id: u.id, 
+        username: u.username, 
+        displayName: u.displayName || u.username,
+        email: u.email, 
+        isSuperAdmin: !!u.isSuperAdmin 
+      }));
     res.json({ friends: friendSummaries });
   } catch (error) {
     console.error('获取好友列表失败:', error);
@@ -1153,9 +1275,37 @@ app.post('/api/friends/:friendId', requireAuth, (req, res) => {
   try {
     const meId = req.session.user.id;
     const { friendId } = req.params;
+    const me = users.find(u => u.id === meId);
     const target = users.find(u => u.id === friendId);
     if (!target) return res.status(404).json({ error: '好友不存在' });
+    if (!me) return res.status(404).json({ error: '用户不存在' });
+    
     addFriendship(meId, friendId);
+    
+    // 发送通知给对方
+    addNotification(friendId, {
+      type: 'friend_request',
+      title: '新的好友',
+      message: `${me.displayName || me.username} 已将您添加为好友`,
+      from: {
+        id: me.id,
+        username: me.username,
+        displayName: me.displayName || me.username
+      }
+    });
+    
+    // 发送通知给自己
+    addNotification(meId, {
+      type: 'friend_added',
+      title: '添加好友成功',
+      message: `您已成功添加 ${target.displayName || target.username} 为好友`,
+      from: {
+        id: target.id,
+        username: target.username,
+        displayName: target.displayName || target.username
+      }
+    });
+    
     res.json({ success: true });
   } catch (error) {
     console.error('添加好友失败:', error);
