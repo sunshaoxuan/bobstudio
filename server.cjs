@@ -1329,6 +1329,53 @@ app.delete('/api/friends/:friendId', requireAuth, (req, res) => {
   }
 });
 
+// 推荐好友给其他好友
+app.post('/api/friends/recommend', requireAuth, (req, res) => {
+  try {
+    const meId = req.session.user.id;
+    const { recommendedUserId, targetUserIds } = req.body;
+    
+    if (!recommendedUserId || !Array.isArray(targetUserIds) || targetUserIds.length === 0) {
+      return res.status(400).json({ error: '参数错误' });
+    }
+    
+    const me = users.find(u => u.id === meId);
+    const recommended = users.find(u => u.id === recommendedUserId);
+    
+    if (!me || !recommended) {
+      return res.status(404).json({ error: '用户不存在' });
+    }
+    
+    // 发送通知给每个目标用户
+    targetUserIds.forEach(targetId => {
+      const target = users.find(u => u.id === targetId);
+      if (target) {
+        addNotification(targetId, {
+          type: 'friend_recommendation',
+          title: '好友推荐',
+          message: `${me.displayName || me.username} 向您推荐了好友：${recommended.displayName || recommended.username}（@${recommended.username}）`,
+          from: {
+            id: me.id,
+            username: me.username,
+            displayName: me.displayName || me.username
+          },
+          recommendedUser: {
+            id: recommended.id,
+            username: recommended.username,
+            displayName: recommended.displayName || recommended.username,
+            email: recommended.email
+          }
+        });
+      }
+    });
+    
+    res.json({ success: true, notifiedCount: targetUserIds.length });
+  } catch (error) {
+    console.error('推荐好友失败:', error);
+    res.status(500).json({ error: 'Failed to recommend friend' });
+  }
+});
+
 // ===== 分享 API =====
 // 设置（替换）某条历史记录的分享目标用户列表
 app.post('/api/share/:ownerId/:imageId', requireAuth, async (req, res) => {

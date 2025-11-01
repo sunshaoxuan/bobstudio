@@ -9,6 +9,7 @@ import {
   Users,
   Search,
   X,
+  Send,
 } from 'lucide-react';
 
 const Friends = () => {
@@ -23,6 +24,11 @@ const Friends = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [searching, setSearching] = useState(false);
+  
+  // 推荐好友
+  const [showRecommendModal, setShowRecommendModal] = useState(false);
+  const [recommendingFriend, setRecommendingFriend] = useState(null);
+  const [selectedTargets, setSelectedTargets] = useState([]);
 
   // 加载好友列表
   const loadFriends = useCallback(async () => {
@@ -110,6 +116,57 @@ const Friends = () => {
     } catch (error) {
       console.error('添加好友失败:', error);
       alert('添加好友失败，请重试');
+    }
+  };
+
+  // 打开推荐弹窗
+  const openRecommendModal = (friend) => {
+    setRecommendingFriend(friend);
+    setSelectedTargets([]);
+    setShowRecommendModal(true);
+  };
+  
+  // 关闭推荐弹窗
+  const closeRecommendModal = () => {
+    setShowRecommendModal(false);
+    setRecommendingFriend(null);
+    setSelectedTargets([]);
+  };
+  
+  // 切换推荐目标
+  const toggleTarget = (friendId) => {
+    setSelectedTargets(prev => 
+      prev.includes(friendId) 
+        ? prev.filter(id => id !== friendId)
+        : [...prev, friendId]
+    );
+  };
+  
+  // 发送推荐
+  const sendRecommendation = async () => {
+    if (selectedTargets.length === 0) {
+      alert('请至少选择一位好友');
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/friends/recommend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          recommendedUserId: recommendingFriend.id,
+          targetUserIds: selectedTargets
+        })
+      });
+      
+      if (!res.ok) throw new Error('推荐失败');
+      
+      closeRecommendModal();
+      alert(`✅ 已成功将「${recommendingFriend.displayName || recommendingFriend.username}」推荐给 ${selectedTargets.length} 位好友`);
+    } catch (error) {
+      console.error('推荐好友失败:', error);
+      alert('推荐失败，请重试');
     }
   };
 
@@ -208,15 +265,24 @@ const Friends = () => {
                         </div>
                       )}
                     </div>
-                    {!friend.isSuperAdmin && (
+                    <div className="ml-2 flex flex-col gap-2">
                       <button
-                        onClick={() => removeFriend(friend.id, friend.displayName || friend.username)}
-                        className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                        title="移除好友"
+                        onClick={() => openRecommendModal(friend)}
+                        className="p-2 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                        title="推荐给其他好友"
                       >
-                        <UserMinus className="w-4 h-4" />
+                        <Send className="w-4 h-4" />
                       </button>
-                    )}
+                      {!friend.isSuperAdmin && (
+                        <button
+                          onClick={() => removeFriend(friend.id, friend.displayName || friend.username)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                          title="移除好友"
+                        >
+                          <UserMinus className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -346,6 +412,93 @@ const Friends = () => {
                   • 添加成功后双方都会收到消息通知
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 推荐好友弹窗 */}
+      {showRecommendModal && recommendingFriend && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={closeRecommendModal}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-purple-50">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-800">推荐好友</h3>
+                <button
+                  onClick={closeRecommendModal}
+                  className="p-1 hover:bg-white hover:bg-opacity-50 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  将「<strong>{recommendingFriend.displayName || recommendingFriend.username}</strong>」推荐给：
+                </p>
+              </div>
+              
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {friends.filter(f => f.id !== recommendingFriend.id).length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>暂无其他好友可推荐</p>
+                  </div>
+                ) : (
+                  friends
+                    .filter(f => f.id !== recommendingFriend.id)
+                    .map(f => (
+                      <label 
+                        key={f.id} 
+                        className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTargets.includes(f.id)}
+                          onChange={() => toggleTarget(f.id)}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-800">
+                            {f.displayName || f.username}
+                            {f.isSuperAdmin && <span className="ml-1 text-yellow-600">👑</span>}
+                          </div>
+                          <div className="text-xs text-gray-500">@{f.username}</div>
+                        </div>
+                      </label>
+                    ))
+                )}
+              </div>
+              
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-600">
+                  💡 推荐后，对方会收到通知消息，包含被推荐人的用户名，方便添加为好友
+                </p>
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2">
+              <button
+                onClick={closeRecommendModal}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={sendRecommendation}
+                disabled={selectedTargets.length === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <Send className="w-4 h-4" />
+                推荐 ({selectedTargets.length})
+              </button>
             </div>
           </div>
         </div>
