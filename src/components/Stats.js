@@ -444,7 +444,7 @@ const Stats = () => {
                           <tr key={user.id} className="border-b last:border-b-0">
                             <td className="py-2 pr-4 text-gray-700">
                               <div className="flex items-center gap-2">
-                                {user.isSuperAdmin && <Shield className="w-3 h-3 text-yellow-500" />}
+                                {user.isSuperAdmin && <span className="text-yellow-500">👑</span>}
                                 <span>{user.username}</span>
                               </div>
                               <div className="text-xs text-gray-400">{user.email}</div>
@@ -587,7 +587,7 @@ const Stats = () => {
                   <div>
                     <div className="flex items-center gap-2 font-medium text-gray-800">
                       {user.username}
-                      {user.isSuperAdmin && <Shield className="w-3 h-3 text-yellow-500" />}
+                      {user.isSuperAdmin && <span className="text-yellow-500">👑</span>}
                     </div>
                     <div className="text-xs text-gray-500">{user.email}</div>
                   </div>
