@@ -109,11 +109,17 @@ const Studio = () => {
   const [pendingSync, setPendingSync] = useState([]); // 待同步的历史记录
   const [serverAvailable, setServerAvailable] = useState(true); // 服务器是否可用
 
-  // 体验额度（管理员分配的 API Key 情况下显示剩余）
+  // 使用限额显示逻辑
   const remainingQuota = useMemo(() => {
+    const total = Number(currentUser?.generationStats?.total || 0);
+    
+    // 用户自己配置的 API Key - 无限制
+    if (currentUser?.showApiConfig && currentUser?.hasApiKey) {
+      return { unlimited: true, total, selfConfigured: true };
+    }
+    
+    // 管理员分配的 API Key
     if (!currentUser?.showApiConfig && currentUser?.hasApiKey) {
-      const total = Number(currentUser?.generationStats?.total || 0);
-      
       // 超级管理员永远无限制
       if (currentUser?.isSuperAdmin) {
         return { unlimited: true, total, isSuperAdmin: true };
@@ -128,6 +134,7 @@ const Studio = () => {
       const limit = Number.isFinite(currentUser?.freeLimit) && currentUser.freeLimit > 0 ? Math.floor(currentUser.freeLimit) : 30;
       return { remaining: Math.max(0, limit - total), limit, total };
     }
+    
     return null;
   }, [currentUser]);
 
@@ -2000,21 +2007,27 @@ const Studio = () => {
                 }`}>
                   {remainingQuota.isSuperAdmin ? (
                     <>
-                      👑 超级管理员：
-                      <span className="font-semibold text-purple-600"> 无限制使用 </span>
+                      👑 超级管理员 | 使用限额：
+                      <span className="font-semibold text-purple-600">无</span>
                       （已生成 {remainingQuota.total} 张）
+                    </>
+                  ) : remainingQuota.selfConfigured ? (
+                    <>
+                      使用限额：
+                      <span className="font-semibold text-green-600">无</span>
+                      （已生成 {remainingQuota.total} 张，使用自己的 API Key）
                     </>
                   ) : remainingQuota.unlimited ? (
                     <>
-                      使用管理员分配的 API Key：
-                      <span className="font-semibold text-green-600"> 无限制使用 </span>
+                      使用限额：
+                      <span className="font-semibold text-green-600">无</span>
                       （已生成 {remainingQuota.total} 张）
                     </>
                   ) : (
                     <>
-                      体验额度剩余：
-                      <span className="font-semibold"> {remainingQuota.remaining} / {remainingQuota.limit} </span>
-                      （由管理员分配的 API Key）
+                      使用限额：
+                      <span className="font-semibold">{remainingQuota.remaining} / {remainingQuota.limit}</span>
+                      张（已生成 {remainingQuota.total} 张）
                     </>
                   )}
                 </div>
