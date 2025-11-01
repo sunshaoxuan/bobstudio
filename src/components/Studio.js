@@ -2820,7 +2820,7 @@ const Studio = () => {
                         checked={shareModal.targets.includes(f.id)}
                         onChange={() => toggleShareTarget(f.id)}
                       />
-                      <span className="text-gray-700">{f.username} {f.isSuperAdmin && <span className=\"text-yellow-600\">(管理员)</span>}</span>
+                       <span className="text-gray-700">{f.username} {f.isSuperAdmin && <span className="text-yellow-600">(管理员)</span>}</span>
                     </label>
                   ))
                 )}
