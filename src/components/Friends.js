@@ -13,40 +13,20 @@ import {
   User,
   Search,
   X,
-  Key,
-  Edit,
-  Save,
-  Bell,
-  Check,
 } from 'lucide-react';
 
 const Friends = () => {
-  const { currentUser, logout, changePassword, refreshUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   
   const [friends, setFriends] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  
-  // 个人资料编辑
-  const [editMode, setEditMode] = useState(false);
-  const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
   
   // 添加好友
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [searching, setSearching] = useState(false);
-
-  // 初始化个人资料
-  useEffect(() => {
-    if (currentUser) {
-      setDisplayName(currentUser.displayName || currentUser.username || '');
-      setEmail(currentUser.email || '');
-    }
-  }, [currentUser]);
 
   // 加载好友列表
   const loadFriends = useCallback(async () => {
@@ -63,22 +43,6 @@ const Friends = () => {
     }
   }, []);
 
-  // 加载通知
-  const loadNotifications = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/notifications`, {
-        credentials: 'include'
-      });
-      if (!res.ok) throw new Error('加载通知失败');
-      const data = await res.json();
-      const notifs = Array.isArray(data.notifications) ? data.notifications : [];
-      setNotifications(notifs);
-      setUnreadCount(notifs.filter(n => !n.read).length);
-    } catch (error) {
-      console.error('加载通知失败:', error);
-    }
-  }, []);
-
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
@@ -87,16 +51,12 @@ const Friends = () => {
     
     const init = async () => {
       setLoading(true);
-      await Promise.all([loadFriends(), loadNotifications()]);
+      await loadFriends();
       setLoading(false);
     };
     
     init();
-    
-    // 定时刷新通知
-    const interval = setInterval(loadNotifications, 30000); // 每30秒
-    return () => clearInterval(interval);
-  }, [currentUser, navigate, loadFriends, loadNotifications]);
+  }, [currentUser, navigate, loadFriends]);
 
   // 搜索用户
   const searchUser = async () => {
@@ -127,7 +87,7 @@ const Friends = () => {
           isFriend
         });
       } else {
-        alert('未找到该用户，请检查用户名或邮箱是否正确');
+        alert('❌ 未找到该用户\n\n请检查：\n• 用户名是否正确（区分大小写）\n• 邮箱是否正确\n• 对方账户是否已激活');
       }
     } catch (error) {
       console.error('搜索用户失败:', error);
@@ -146,11 +106,11 @@ const Friends = () => {
       });
       if (!res.ok) throw new Error('添加好友失败');
       
-      await Promise.all([loadFriends(), loadNotifications()]);
+      await loadFriends();
       setSearchResult(null);
       setSearchQuery('');
       setShowAddModal(false);
-      alert('✅ 好友添加成功，对方已收到通知');
+      alert('✅ 好友添加成功\n\n对方已收到通知，您也可以在个人中心查看通知消息');
     } catch (error) {
       console.error('添加好友失败:', error);
       alert('添加好友失败，请重试');
@@ -165,7 +125,7 @@ const Friends = () => {
       return;
     }
 
-    if (!window.confirm(`确定要移除好友「${friendName}」吗？`)) {
+    if (!window.confirm(`确定要移除好友「${friendName}」吗？\n\n移除后将无法再看到对方分享给你的图片。`)) {
       return;
     }
 
@@ -183,41 +143,6 @@ const Friends = () => {
     } catch (error) {
       console.error('移除好友失败:', error);
       alert(error.message || '移除好友失败，请重试');
-    }
-  };
-
-  // 保存个人资料
-  const saveProfile = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/profile/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ displayName, email })
-      });
-      
-      if (!res.ok) throw new Error('更新失败');
-      const data = await res.json();
-      
-      await refreshUser(); // 刷新用户信息
-      setEditMode(false);
-      alert(`✅ ${data.message}`);
-    } catch (error) {
-      console.error('更新个人资料失败:', error);
-      alert('更新失败，请重试');
-    }
-  };
-
-  // 标记通知为已读
-  const markAsRead = async (notificationId) => {
-    try {
-      await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      await loadNotifications();
-    } catch (error) {
-      console.error('标记已读失败:', error);
     }
   };
 
@@ -263,35 +188,25 @@ const Friends = () => {
                   <span className="hidden sm:inline">管理端</span>
                 </Link>
               )}
-              <button
-                onClick={async () => {
-                  if (window.confirm('系统将发送验证邮件到您的注册邮箱，确认继续吗？')) {
-                    const result = await changePassword();
-                    if (result.success) {
-                      alert(`✅ ${result.message}\n\n请查收邮件并点击链接完成密码修改。`);
-                    } else {
-                      alert(`❌ ${result.message}`);
-                    }
-                  }
-                }}
-                className="flex items-center gap-1 sm:gap-2 text-blue-600 hover:text-blue-800 transition-colors text-sm sm:text-base"
-                title="修改密码"
+              <Link
+                to="/profile"
+                className="flex items-center gap-1 sm:gap-2 text-purple-600 hover:text-purple-800 transition-colors text-sm sm:text-base"
+                title="个人中心"
               >
-                <Key className="w-4 h-4" />
-                <span className="hidden sm:inline">修改密码</span>
-              </button>
-              <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[100px] sm:max-w-none">
-                {currentUser.displayName || currentUser.username}
-                {currentUser.isSuperAdmin && (
-                  <span className="ml-1 text-yellow-600">👑</span>
-                )}
-              </span>
+                <User className="w-4 h-4" />
+                <span className="text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">
+                  {currentUser.displayName || currentUser.username}
+                  {currentUser.isSuperAdmin && (
+                    <span className="ml-1 text-yellow-600">👑</span>
+                  )}
+                </span>
+              </Link>
               <button
                 onClick={logout}
                 className="flex items-center gap-2 text-red-600 hover:text-red-800 transition-colors"
               >
                 <LogOut className="w-4 h-4" />
-                退出
+                <span className="hidden sm:inline">退出</span>
               </button>
             </div>
           </div>
@@ -299,147 +214,9 @@ const Friends = () => {
       </nav>
 
       <div className="max-w-6xl mx-auto p-6">
-        {/* 通知提醒 */}
-        {unreadCount > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bell className="w-5 h-5 text-blue-600" />
-                <span className="text-blue-700 font-medium">
-                  您有 {unreadCount} 条未读通知
-                </span>
-              </div>
-            </div>
-            <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
-              {notifications.filter(n => !n.read).slice(0, 5).map(notif => (
-                <div key={notif.id} className="bg-white rounded p-3 flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-800">{notif.title}</div>
-                    <div className="text-sm text-gray-600 mt-1">{notif.message}</div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {new Date(notif.createdAt).toLocaleString('zh-CN')}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => markAsRead(notif.id)}
-                    className="ml-2 p-1 text-green-600 hover:bg-green-50 rounded"
-                    title="标记为已读"
-                  >
-                    <Check className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 个人档案卡片 */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <User className="w-5 h-5" />
-              个人档案
-            </h2>
-            {!editMode ? (
-              <button
-                onClick={() => setEditMode(true)}
-                className="flex items-center gap-2 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-                编辑
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setDisplayName(currentUser.displayName || currentUser.username || '');
-                    setEmail(currentUser.email || '');
-                    setEditMode(false);
-                  }}
-                  className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={saveProfile}
-                  className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  保存
-                </button>
-              </div>
-            )}
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-500">用户名（不可更改）</label>
-                <div className="text-lg font-medium flex items-center gap-2">
-                  {currentUser.username}
-                  {currentUser.isSuperAdmin && (
-                    <span className="text-sm px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded">
-                      👑 超级管理员
-                    </span>
-                  )}
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-sm text-gray-500">显示名称</label>
-                {editMode ? (
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="输入显示名称"
-                  />
-                ) : (
-                  <div className="text-lg">{currentUser.displayName || currentUser.username}</div>
-                )}
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-500">邮箱</label>
-                {editMode ? (
-                  <>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="输入新邮箱"
-                    />
-                    <p className="text-xs text-orange-600 mt-1">
-                      ⚠️ 修改邮箱需要验证，验证邮件将发送到新邮箱
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-lg">{currentUser.email}</div>
-                    {currentUser.pendingEmail && (
-                      <p className="text-xs text-orange-600 mt-1">
-                        待验证邮箱: {currentUser.pendingEmail}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-              
-              <div>
-                <label className="text-sm text-gray-500">好友数量</label>
-                <div className="text-lg font-medium">{friends.length} 位好友</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* 好友列表 */}
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <Users className="w-5 h-5" />
               我的好友
@@ -455,37 +232,40 @@ const Friends = () => {
           </div>
 
           {loading ? (
-            <div className="text-center py-8 text-gray-500">加载中...</div>
+            <div className="text-center py-12 text-gray-500">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              加载中...
+            </div>
           ) : friends.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-12 text-gray-500">
               <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <p>还没有好友</p>
-              <p className="text-sm mt-2">点击右上角「添加好友」按钮开始添加</p>
+              <p className="text-lg mb-2">还没有好友</p>
+              <p className="text-sm">点击右上角「添加好友」按钮，通过用户名或邮箱搜索添加</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {friends.map(friend => (
                 <div
                   key={friend.id}
-                  className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-blue-300 transition-all"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="font-medium text-lg flex items-center gap-2">
+                      <div className="font-medium text-lg flex items-center gap-2 mb-1">
                         {friend.displayName || friend.username}
                         {friend.isSuperAdmin && (
-                          <span className="text-yellow-600 text-sm">👑</span>
+                          <span className="text-yellow-600 text-base">👑</span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500 mt-1">
+                      <div className="text-sm text-gray-500">
                         @{friend.username}
                       </div>
-                      <div className="text-sm text-gray-400 mt-1">
+                      <div className="text-xs text-gray-400 mt-1">
                         {friend.email}
                       </div>
                       {friend.isSuperAdmin && (
-                        <div className="mt-2">
-                          <span className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded">
+                        <div className="mt-3">
+                          <span className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded border border-yellow-200">
                             默认好友（不可移除）
                           </span>
                         </div>
@@ -506,6 +286,20 @@ const Friends = () => {
             </div>
           )}
         </div>
+
+        {/* 使用说明 */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 className="font-semibold text-blue-800 mb-3">💡 如何添加好友</h3>
+          <div className="text-sm text-blue-700 space-y-2">
+            <p>• 点击右上角「添加好友」按钮</p>
+            <p>• 输入对方的<strong>用户名</strong>或<strong>邮箱</strong>（需精确匹配）</p>
+            <p>• 点击搜索找到对方后，点击「添加」按钮</p>
+            <p>• 对方会收到通知，双方自动成为好友</p>
+            <p className="pt-2 border-t border-blue-300">
+              🔒 <strong>隐私保护：</strong>系统不会显示用户列表，只能通过精确搜索添加好友
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* 添加好友弹窗 */}
@@ -519,29 +313,29 @@ const Friends = () => {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-md w-full"
+            className="bg-white rounded-lg shadow-xl max-w-lg w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-6 py-4 border-b flex items-center justify-between">
-              <h3 className="text-lg font-semibold">添加好友</h3>
+            <div className="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50">
+              <h3 className="text-xl font-semibold text-gray-800">添加好友</h3>
               <button
                 onClick={() => {
                   setShowAddModal(false);
                   setSearchQuery('');
                   setSearchResult(null);
                 }}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                className="p-1 hover:bg-white hover:bg-opacity-50 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
             <div className="p-6">
-              <p className="text-sm text-gray-600 mb-4">
-                输入对方的<strong>用户名</strong>或<strong>邮箱</strong>来添加好友
+              <p className="text-sm text-gray-600 mb-4 bg-gray-50 p-3 rounded-lg">
+                🔍 输入对方的<strong>用户名</strong>或<strong>邮箱</strong>来搜索并添加好友
               </p>
               
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-4">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -549,39 +343,45 @@ const Friends = () => {
                     placeholder="输入用户名或邮箱..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && searchUser()}
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onKeyPress={(e) => e.key === 'Enter' && !searching && searchUser()}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
                   />
                 </div>
                 <button
                   onClick={searchUser}
                   disabled={searching || !searchQuery.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
-                  {searching ? '搜索中...' : '搜索'}
+                  {searching ? (
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      搜索中
+                    </span>
+                  ) : '搜索'}
                 </button>
               </div>
 
               {/* 搜索结果 */}
               {searchResult && (
-                <div className="mt-4 border rounded-lg p-4">
+                <div className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="font-medium text-lg flex items-center gap-2">
+                      <div className="font-semibold text-lg flex items-center gap-2 mb-1">
                         {searchResult.displayName || searchResult.username}
                         {searchResult.isSuperAdmin && (
                           <span className="text-yellow-600 text-sm">👑 管理员</span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500 mt-1">
+                      <div className="text-sm text-gray-600">
                         @{searchResult.username}
                       </div>
-                      <div className="text-sm text-gray-400 mt-1">
+                      <div className="text-sm text-gray-500 mt-1">
                         {searchResult.email}
                       </div>
                       {searchResult.isFriend && (
-                        <div className="mt-2">
-                          <span className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded">
+                        <div className="mt-3">
+                          <span className="text-sm px-3 py-1 bg-green-100 text-green-700 rounded-full border border-green-300">
                             ✓ 已是好友
                           </span>
                         </div>
@@ -590,19 +390,23 @@ const Friends = () => {
                     {!searchResult.isFriend && (
                       <button
                         onClick={() => addFriend(searchResult.id)}
-                        className="ml-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        className="ml-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium"
                       >
                         <UserPlus className="w-4 h-4" />
-                        添加
+                        添加好友
                       </button>
                     )}
                   </div>
                 </div>
               )}
               
-              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-gray-600">
-                  💡 <strong>隐私保护：</strong>系统不会显示用户列表，只能通过精确的用户名或邮箱搜索添加好友
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  🔒 <strong>隐私保护说明：</strong><br/>
+                  • 系统不会显示用户列表，保护所有用户隐私<br/>
+                  • 只能通过精确的用户名或邮箱搜索<br/>
+                  • 只有激活的用户才能被搜索到<br/>
+                  • 添加成功后双方都会收到消息通知
                 </p>
               </div>
             </div>

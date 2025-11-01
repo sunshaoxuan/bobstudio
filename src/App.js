@@ -14,6 +14,7 @@ import Studio from './components/Studio';
 import Stats from './components/Stats';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import Friends from './components/Friends';
+import Profile from './components/Profile';
 
 const App = () => {
   return (
@@ -51,6 +52,14 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Friends />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
                 </ProtectedRoute>
               }
             />

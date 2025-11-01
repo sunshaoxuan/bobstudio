@@ -1860,29 +1860,19 @@ const Studio = () => {
                 <Home className="w-4 h-4" />
                 <span className="hidden sm:inline">首页</span>
               </Link>
-              <button
-                onClick={async () => {
-                  if (window.confirm('系统将发送验证邮件到您的注册邮箱，确认继续吗？')) {
-                    const result = await changePassword();
-                    if (result.success) {
-                      alert(`✅ ${result.message}\n\n请查收邮件并点击链接完成密码修改。`);
-                    } else {
-                      alert(`❌ ${result.message}`);
-                    }
-                  }
-                }}
-                className="flex items-center gap-1 sm:gap-2 text-blue-600 hover:text-blue-800 transition-colors text-sm sm:text-base"
-                title="修改密码"
+              <Link
+                to="/profile"
+                className="flex items-center gap-1 sm:gap-2 text-purple-600 hover:text-purple-800 transition-colors text-xs sm:text-sm"
+                title="个人中心"
               >
-                <Key className="w-4 h-4" />
-                <span className="hidden sm:inline">修改密码</span>
-              </button>
-              <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[100px] sm:max-w-none">
-                {currentUser.username}
-                {currentUser.isSuperAdmin && (
-                  <span className="ml-1 text-yellow-600">👑</span>
-                )}
-              </span>
+                <User className="w-4 h-4" />
+                <span className="truncate max-w-[100px] sm:max-w-none">
+                  {currentUser.displayName || currentUser.username}
+                  {currentUser.isSuperAdmin && (
+                    <span className="ml-1 text-yellow-600">👑</span>
+                  )}
+                </span>
+              </Link>
               <button
                 onClick={() => {
                   console.log("工作室退出按钮被点击");
