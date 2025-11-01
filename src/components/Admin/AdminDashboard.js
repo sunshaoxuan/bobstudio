@@ -36,6 +36,8 @@ const AdminDashboard = () => {
     isSuperAdmin: false,
     showApiConfig: false,
     apiKey: "",
+    freeLimitEnabled: true,
+    freeLimit: 30,
   };
   const [form, setForm] = useState(EMPTY_FORM);
   const [loadingApiKey, setLoadingApiKey] = useState(false);
@@ -140,6 +142,8 @@ const AdminDashboard = () => {
       isSuperAdmin: Boolean(user.isSuperAdmin),
       showApiConfig: Boolean(user.showApiConfig),
       apiKey,
+      freeLimitEnabled: typeof user.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true,
+      freeLimit: Number.isFinite(user.freeLimit) && user.freeLimit > 0 ? Math.floor(user.freeLimit) : 30,
     });
     setOriginalApiKey(apiKey);
   };
@@ -226,6 +230,8 @@ const AdminDashboard = () => {
       isActive: form.isActive,
       isSuperAdmin: form.isSuperAdmin,
       showApiConfig: form.showApiConfig,
+      freeLimitEnabled: form.freeLimitEnabled,
+      freeLimit: Number.isFinite(Number(form.freeLimit)) && Number(form.freeLimit) > 0 ? Math.floor(Number(form.freeLimit)) : 30,
     };
 
     if (formMode === "create") {
@@ -532,6 +538,27 @@ const AdminDashboard = () => {
                       setForm((v) => ({ ...v, username: e.target.value }))
                     }
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 items-end">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={form.freeLimitEnabled}
+                      onChange={(e) => setForm((v) => ({ ...v, freeLimitEnabled: e.target.checked }))}
+                    />
+                    启用免费额度限制（仅管理员分配的 API Key 生效）
+                  </label>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">额度上限（张）</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="w-full border rounded px-3 py-2"
+                      value={form.freeLimit}
+                      onChange={(e) => setForm((v) => ({ ...v, freeLimit: e.target.value }))}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

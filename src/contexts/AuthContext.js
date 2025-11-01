@@ -36,7 +36,9 @@ const normalizeUser = (user) => {
     showApiConfig: Boolean(user.showApiConfig),
     isActive: Boolean(user.isActive),
     isSuperAdmin: Boolean(user.isSuperAdmin),
-    hasApiKey: Boolean(user.hasApiKey)  // 传递后端计算的 hasApiKey 字段
+    hasApiKey: Boolean(user.hasApiKey),  // 传递后端计算的 hasApiKey 字段
+    freeLimitEnabled: typeof user.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true,
+    freeLimit: Number.isFinite(user.freeLimit) && user.freeLimit > 0 ? Math.floor(user.freeLimit) : 30
   };
 };
 

@@ -302,9 +302,10 @@ const updateUserStats = async (userId, historyData) => {
       total: totalCount
     };
 
-    // 🔑 管理员分配的API Key限制：生成30张后自动清空
-    const FREE_GENERATION_LIMIT = 30;
-    if (totalCount >= FREE_GENERATION_LIMIT && user.apiKeyEncrypted) {
+    // 🔑 管理员分配的API Key限制：达到额度后自动清空（可配置）
+    const limitEnabled = typeof user.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true;
+    const FREE_GENERATION_LIMIT = (Number.isFinite(user.freeLimit) && user.freeLimit > 0) ? Math.floor(user.freeLimit) : 30;
+    if (limitEnabled && totalCount >= FREE_GENERATION_LIMIT && user.apiKeyEncrypted) {
       const hadApiKey = user.apiKeyEncrypted !== "";
       user.apiKeyEncrypted = "";
       user.showApiConfig = false;
@@ -319,11 +320,11 @@ const updateUserStats = async (userId, historyData) => {
     saveUsers();
     console.log(`✅ 统计已更新 - 今日: ${todayCount}, 本月: ${thisMonthCount}, 总计: ${totalCount}`);
     
-    if (totalCount >= FREE_GENERATION_LIMIT) {
+    if (limitEnabled && totalCount >= FREE_GENERATION_LIMIT) {
       console.log(`⚠️ 用户已达到免费额度限制 (${totalCount}/${FREE_GENERATION_LIMIT})`);
     }
     
-    return { apiKeyCleared: totalCount >= FREE_GENERATION_LIMIT && user.apiKeyEncrypted === "" };
+    return { apiKeyCleared: limitEnabled && totalCount >= FREE_GENERATION_LIMIT && user.apiKeyEncrypted === "" , limitEnabled, limit: FREE_GENERATION_LIMIT };
   } catch (error) {
     console.error(`❌ 更新用户统计失败:`, error);
     return { apiKeyCleared: false };
@@ -538,6 +539,9 @@ const toSafeUser = (user) => {
     isActive: Boolean(rest?.isActive),
     isSuperAdmin: Boolean(rest?.isSuperAdmin),
     hasApiKey: Boolean(apiKeyEncrypted || apiKey),
+    // 免费额度控制（管理员可配置）
+    freeLimitEnabled: typeof rest?.freeLimitEnabled === 'boolean' ? rest.freeLimitEnabled : true,
+    freeLimit: Number.isFinite(rest?.freeLimit) && rest.freeLimit > 0 ? Math.floor(rest.freeLimit) : 30,
   };
 
   return safe;
@@ -1077,6 +1081,8 @@ app.post("/api/admin/users", requireAdmin, (req, res) => {
       isActive = false,
       isSuperAdmin = false,
       showApiConfig = false,
+      freeLimitEnabled = true,
+      freeLimit = 30,
     } = req.body || {};
     if (!username || !email || !password) {
       return res.status(400).json({ error: "用户名、邮箱、密码均为必填" });
@@ -1104,6 +1110,8 @@ app.post("/api/admin/users", requireAdmin, (req, res) => {
       isActive: Boolean(isActive),
       isSuperAdmin: Boolean(isSuperAdmin),
       showApiConfig: Boolean(showApiConfig),
+      freeLimitEnabled: Boolean(freeLimitEnabled),
+      freeLimit: Number.isFinite(freeLimit) && freeLimit > 0 ? Math.floor(freeLimit) : 30,
       createdAt: new Date().toISOString(),
     };
     users.push(newUser);
@@ -1124,7 +1132,7 @@ app.put("/api/admin/users/:id", requireAdmin, (req, res) => {
       return res.status(404).json({ error: "用户不存在" });
     }
     const target = users[targetIndex];
-    const { username, email, isActive, isSuperAdmin, apiKey, showApiConfig } =
+    const { username, email, isActive, isSuperAdmin, apiKey, showApiConfig, freeLimitEnabled, freeLimit } =
       req.body || {};
 
     if (typeof email !== "undefined") {
@@ -1144,6 +1152,12 @@ app.put("/api/admin/users/:id", requireAdmin, (req, res) => {
       target.isSuperAdmin = Boolean(isSuperAdmin);
     if (typeof showApiConfig !== "undefined")
       target.showApiConfig = Boolean(showApiConfig);
+    if (typeof freeLimitEnabled !== 'undefined')
+      target.freeLimitEnabled = Boolean(freeLimitEnabled);
+    if (typeof freeLimit !== 'undefined') {
+      const lim = Number(freeLimit);
+      if (Number.isFinite(lim) && lim > 0) target.freeLimit = Math.floor(lim);
+    }
     if (typeof apiKey !== "undefined") {
       target.apiKeyEncrypted = encryptSensitiveValue(String(apiKey));
     }
@@ -1616,11 +1630,16 @@ app.post("/api/history/:userId", async (req, res) => {
     const statsResult = await updateUserStats(userId, historyData);
     
     console.log("=".repeat(60));
+    const user = users.find(u => u.id === userId);
+    const limitEnabled = typeof user?.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true;
+    const limit = (Number.isFinite(user?.freeLimit) && user.freeLimit > 0) ? Math.floor(user.freeLimit) : 30;
     res.json({ 
       message: "History saved successfully",
       recordCount: historyData.length,
-      apiKeyCleared: statsResult?.apiKeyCleared || false, // 告知前端API Key是否被清空
-      reachedLimit: historyData.length >= 30 // 是否达到限制
+      apiKeyCleared: statsResult?.apiKeyCleared || false,
+      reachedLimit: limitEnabled && historyData.length >= limit,
+      limitEnabled,
+      limit
     });
   } catch (error) {
     console.error("❌ 保存历史记录失败:", error);
@@ -1774,6 +1793,44 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
     if (!requestBody) {
       console.log(`[${timestamp}] ❌ API代理请求失败 | 用户: ${username}(${userId}) | 原因: 请求体为空`);
       return res.status(400).json({ error: "请求体不能为空" });
+    }
+    
+    // 将前端传来的服务器图片引用转换为 inlineData，避免前端下载图片浪费带宽
+    // 允许的字段：part.serverImagePath 或 part.imageUrl（以 /images/ 开头）
+    try {
+      const contents = Array.isArray(requestBody.contents) ? requestBody.contents : [];
+      for (const content of contents) {
+        const parts = Array.isArray(content.parts) ? content.parts : [];
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          const refPath = part?.serverImagePath || part?.imageUrl;
+          if (typeof refPath === 'string' && refPath.startsWith('/images/')) {
+            const rel = refPath.replace(/^\/images\//, '');
+            const abs = path.join(IMAGES_DIR, rel);
+            const normalized = path.normalize(abs);
+            if (!normalized.startsWith(IMAGES_DIR)) {
+              throw new Error('非法图片路径');
+            }
+            let mime = 'image/png';
+            const ext = path.extname(normalized).toLowerCase();
+            if (ext === '.jpg' || ext === '.jpeg') mime = 'image/jpeg';
+            else if (ext === '.png') mime = 'image/png';
+            else if (ext === '.webp') mime = 'image/webp';
+            else if (ext === '.gif') mime = 'image/gif';
+            const buf = await fs.readFile(normalized);
+            const b64 = buf.toString('base64');
+            parts[i] = {
+              inlineData: {
+                mimeType: mime,
+                data: b64,
+              }
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[${timestamp}] ❌ 处理服务器图片引用失败 | 用户: ${username}(${userId}) | 错误: ${e.message}`);
+      return res.status(400).json({ error: '无法处理服务器图片引用', details: e.message });
     }
     
     // 提取请求模式（文本生图/图像编辑/图像合成）

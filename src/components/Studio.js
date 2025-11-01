@@ -74,6 +74,14 @@ const Studio = () => {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("generate");
   const [imageHistory, setImageHistory] = useState([]);
+  // 历史记录分页（仅显示当前用户未删除记录）
+  const [historyPageSize, setHistoryPageSize] = useState(20);
+  const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
+  const nonDeletedHistory = useMemo(() => imageHistory.filter(r => !r.deleted), [imageHistory]);
+  const totalHistoryPages = useMemo(() => Math.max(1, Math.ceil(nonDeletedHistory.length / historyPageSize)), [nonDeletedHistory.length, historyPageSize]);
+  useEffect(() => {
+    setHistoryCurrentPage((p) => Math.min(p, totalHistoryPages));
+  }, [totalHistoryPages]);
   
   // 统计数据状态
   const [stats, setStats] = useState({
@@ -92,6 +100,16 @@ const Studio = () => {
   // 本地缓存和服务器状态
   const [pendingSync, setPendingSync] = useState([]); // 待同步的历史记录
   const [serverAvailable, setServerAvailable] = useState(true); // 服务器是否可用
+
+  // 体验额度（管理员分配的 API Key 情况下显示剩余）
+  const remainingQuota = useMemo(() => {
+    if (!currentUser?.showApiConfig && currentUser?.hasApiKey && currentUser?.freeLimitEnabled) {
+      const total = Number(currentUser?.generationStats?.total || 0);
+      const limit = Number.isFinite(currentUser?.freeLimit) && currentUser.freeLimit > 0 ? Math.floor(currentUser.freeLimit) : 30;
+      return { remaining: Math.max(0, limit - total), limit };
+    }
+    return null;
+  }, [currentUser]);
 
   // Loading 计时器
   useEffect(() => {
@@ -266,12 +284,12 @@ const Studio = () => {
             "2. 创建并复制您的 API Key\n" +
             "3. 在个人信息中填入 API Key 即可继续创作"
           );
-          // 刷新用户信息
-          if (currentUser && refreshUserInfo) {
-            refreshUserInfo(currentUser.id);
+          // 刷新用户信息（修复：使用 refreshUser 而非不存在的 refreshUserInfo）
+          if (currentUser && typeof refreshUser === 'function') {
+            try { await refreshUser(); } catch (_) {}
           }
-        } else if (result.reachedLimit && result.recordCount >= 30) {
-          console.log("⚠️ 用户已达到30张限制");
+        } else if (result.reachedLimit) {
+          console.log("⚠️ 用户已达到免费额度限制");
         }
       } else {
         const errorText = await response.text();
@@ -290,7 +308,7 @@ const Studio = () => {
         console.warn("⚠️ 网络连接问题，无法保存到服务器，但本地记录仍然有效");
       }
     }
-  }, []);
+  }, [currentUser, refreshUser]);
 
   // 当currentUser变化时，更新API密钥并加载历史记录
   const [previousUserId, setPreviousUserId] = useState(null);
@@ -653,6 +671,27 @@ const Studio = () => {
     return URL.createObjectURL(file);
   }, []);
 
+  // 将 dataURL 转换为 File
+  const dataUrlToFile = useCallback((dataUrl, fallbackName = `generated_${Date.now()}.png`) => {
+    try {
+      const arr = dataUrl.split(',');
+      const mimeMatch = arr[0].match(/data:(.*?);base64/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+      const bstr = atob(arr[1] || '');
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const ext = mime.includes('jpeg') ? 'jpg' : (mime.split('/')[1] || 'png');
+      const filename = fallbackName.endsWith(`.${ext}`) ? fallbackName : `${fallbackName}.${ext}`;
+      return new File([u8arr], filename, { type: mime });
+    } catch (e) {
+      console.error('dataUrl 转 File 失败:', e);
+      return null;
+    }
+  }, []);
+
   // 生成基于日期时间的文件名
   const generateFileName = useCallback(() => {
     const now = new Date();
@@ -780,7 +819,7 @@ const Studio = () => {
 
         // 添加到当前会话历史记录（内存存储）
         setImageHistory((prev) => {
-          const updatedHistory = [imageRecord, ...prev].slice(0, 20);
+          const updatedHistory = [imageRecord, ...prev];
 
           // 同时保存到服务器（如果用户已登录）
           if (currentUser) {
@@ -872,7 +911,7 @@ const Studio = () => {
       // 去重（按 id）
       const uniqueHistory = Array.from(
         new Map(mergedHistory.map(item => [item.id, item])).values()
-      ).slice(0, 20);
+      );
 
       // 尝试保存到服务器
       await saveHistoryToServer(uniqueHistory, currentUser.id);
@@ -953,17 +992,24 @@ const Studio = () => {
 
   // 清空所有会话历史记录
   const clearAllHistory = useCallback(() => {
-    if (window.confirm("确定要清空当前会话的所有历史记录吗？")) {
-      setImageHistory([]);
+    if (!imageHistory || imageHistory.length === 0) return;
+    if (window.confirm("确定要清空当前会话的所有历史记录吗？这将进行逻辑删除（仅管理员可见已删除记录）。")) {
+      const now = new Date().toISOString();
+      const updated = imageHistory.map(record => (
+        record.deleted ? record : { ...record, deleted: true, deletedAt: now }
+      ));
 
-      // 同时清空服务器记录
+      // 本地更新（普通用户视图中将被过滤掉）
+      setImageHistory(updated);
+
+      // 同步到服务器，保持统计口径一致（包含已删除）
       if (currentUser) {
-        saveHistoryToServer([], currentUser.id);
+        saveHistoryToServer(updated, currentUser.id);
       }
 
-      console.log("已清空所有历史记录");
+      console.log("已逻辑清空所有历史记录（管理员仍可见）");
     }
-  }, [currentUser, saveHistoryToServer]);
+  }, [currentUser, saveHistoryToServer, imageHistory]);
 
   // 更新用户统计（刷新用户信息以获取最新统计数据）
   const updateStats = useCallback(async () => {
@@ -1013,6 +1059,106 @@ const Studio = () => {
     const files = Array.from(event.target.files || []);
     processFiles(files);
   };
+
+  // 复制文本到剪贴板（用于快捷复制提示词）
+  const copyText = useCallback(async (text) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      alert('✅ 提示词已复制到剪贴板');
+    } catch (e) {
+      console.error('复制失败:', e);
+      alert('❌ 复制失败，请手动选择复制');
+    }
+  }, []);
+
+  // 从历史记录添加图片到上传区（支持编辑/合成模式）
+  const resolveHistoryImageUrl = useCallback((u) => {
+    if (!u) return u;
+    if (u.startsWith('/images/')) return `${API_BASE_URL}${u}`;
+    return u;
+  }, []);
+
+  const addHistoryRecordToUpload = useCallback((record) => {
+    try {
+      if (!(mode === 'edit' || mode === 'compose')) {
+        alert('请先切换到“图像编辑”或“图像合成”模式');
+        return;
+      }
+
+      const serverPath = record.imageUrl; // 形如 /images/...
+      const previewUrl = resolveHistoryImageUrl(record.imageUrl);
+      const name = record.fileName || `history_${Date.now()}.png`;
+
+      const ext = String(name).split('.').pop()?.toLowerCase();
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+                  : ext === 'png' ? 'image/png'
+                  : ext === 'webp' ? 'image/webp'
+                  : ext === 'gif' ? 'image/gif'
+                  : 'image/png';
+
+      const remoteRef = { __remote: true, serverImagePath: serverPath, name, mimeType: mime };
+
+      if (mode === 'edit') {
+        setUploadedImages([remoteRef]);
+        setImageUrls([previewUrl]);
+      } else {
+        setUploadedImages((prev) => [...prev, remoteRef]);
+        setImageUrls((prev) => [...prev, previewUrl]);
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      console.error('历史图片添加到上传区失败:', e);
+      alert('添加失败，请稍后重试');
+    }
+  }, [mode, resolveHistoryImageUrl]);
+
+  // 将当前生成结果加入上传区
+  const addGeneratedToUpload = useCallback(() => {
+    try {
+      if (!generatedImage) return;
+
+      // 优先使用服务器引用（若有）
+      if (typeof generatedImage === 'string' && generatedImage.startsWith('/images/')) {
+        const name = `generated_${Date.now()}.png`;
+        const remoteRef = { __remote: true, serverImagePath: generatedImage, name, mimeType: 'image/png' };
+        const previewUrl = resolveHistoryImageUrl(generatedImage);
+        if (!(mode === 'edit' || mode === 'compose')) setMode('edit');
+        setUploadedImages([remoteRef]);
+        setImageUrls([previewUrl]);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // dataURL 场景：直接在前端内存中构造 File（不走网络）
+      if (typeof generatedImage === 'string' && generatedImage.startsWith('data:')) {
+        const file = dataUrlToFile(generatedImage, `generated_${Date.now()}`);
+        if (!file) throw new Error('无法解析生成图片');
+        const url = createImageUrl(file);
+        if (!(mode === 'edit' || mode === 'compose')) setMode('edit');
+        setUploadedImages([file]);
+        setImageUrls([url]);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      alert('暂不支持的生成结果格式');
+    } catch (e) {
+      console.error('加入上传区失败:', e);
+      alert('加入上传区失败，请重试');
+    }
+  }, [generatedImage, mode, dataUrlToFile, createImageUrl, resolveHistoryImageUrl]);
 
   // 拖拽事件处理
   const handleDragEnter = (e) => {
@@ -1366,13 +1512,19 @@ const Studio = () => {
       const parts = [{ text: prompt }];
 
       for (let i = 0; i < uploadedImages.length; i++) {
-        const base64Image = await imageToBase64(uploadedImages[i]);
-        parts.push({
-          inlineData: {
-            mimeType: uploadedImages[i].type,
-            data: base64Image,
-          },
-        });
+        const item = uploadedImages[i];
+        if (item && item.__remote) {
+          // 传递服务器图片引用，后端将读取文件并转为 inlineData
+          parts.push({ serverImagePath: item.serverImagePath });
+        } else {
+          const base64Image = await imageToBase64(item);
+          parts.push({
+            inlineData: {
+              mimeType: item.type,
+              data: base64Image,
+            },
+          });
+        }
       }
 
       const requestBody = {
@@ -1756,6 +1908,13 @@ const Studio = () => {
                   <div className="text-sm text-gray-500">总计</div>
                 </div>
               </div>
+              {remainingQuota !== null && (
+                <div className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded">
+                  体验额度剩余：
+                  <span className="font-semibold"> {remainingQuota.remaining} / {remainingQuota.limit} </span>
+                  （由管理员分配的 API Key）
+                </div>
+              )}
               {!hasApiKeyConfigured && (
                 <div className="mt-4 p-3 rounded-lg bg-orange-50 text-orange-700 text-sm">
                   当前账户尚未配置 API Key，生成图像功能不可用。
@@ -2003,6 +2162,17 @@ const Studio = () => {
                 </div>
               )}
             </div>
+            {generatedImage && (
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={addGeneratedToUpload}
+                  className="px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors text-sm flex items-center gap-2"
+                  title="将该图像加入上传区以继续编辑/合成"
+                >
+                  <Plus className="w-4 h-4" /> 加入上传区
+                </button>
+              </div>
+            )}
           </div>
 
         {/* 历史记录 - 全宽显示 */}
@@ -2011,7 +2181,7 @@ const Studio = () => {
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 📸 本次会话记录
                 <span className="text-sm text-gray-500">
-                  ({imageHistory.filter(r => !r.deleted).length}/20)
+                  共 {nonDeletedHistory.length} 张
                 </span>
                 {pendingSync.length > 0 && (
                   <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full animate-pulse">
@@ -2019,7 +2189,56 @@ const Studio = () => {
                   </span>
                 )}
               </h3>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* 分页大小选择 */}
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500">每页</span>
+                  <select
+                    value={historyPageSize}
+                    onChange={(e) => { setHistoryPageSize(Number(e.target.value)); setHistoryCurrentPage(1); }}
+                    className="border rounded px-2 py-1 text-gray-700"
+                  >
+                    <option value={12}>12</option>
+                    <option value={16}>16</option>
+                    <option value={20}>20</option>
+                    <option value={30}>30</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+                {/* 分页导航 */}
+                <div className="flex items-center gap-1 text-sm">
+                  <button
+                    onClick={() => setHistoryCurrentPage(1)}
+                    className="px-2 py-1 border rounded hover:bg-gray-100"
+                    title="第一页"
+                  >
+                    «
+                  </button>
+                  <button
+                    onClick={() => setHistoryCurrentPage(p => Math.max(1, p - 1))}
+                    className="px-2 py-1 border rounded hover:bg-gray-100"
+                    title="上一页"
+                  >
+                    ‹
+                  </button>
+                  <span className="px-2 text-gray-600">
+                    第 {historyCurrentPage}
+                  </span>
+                  <button
+                    onClick={() => setHistoryCurrentPage(p => Math.min(totalHistoryPages, p + 1))}
+                    className="px-2 py-1 border rounded hover:bg-gray-100"
+                    title="下一页"
+                  >
+                    ›
+                  </button>
+                  <button
+                    onClick={() => setHistoryCurrentPage(totalHistoryPages)}
+                    className="px-2 py-1 border rounded hover:bg-gray-100"
+                    title="最后一页"
+                  >
+                    »
+                  </button>
+                </div>
                 {pendingSync.length > 0 && (
                   <button
                     onClick={syncPendingToServer}
@@ -2062,9 +2281,14 @@ const Studio = () => {
                   💡
                   历史记录自动保存到服务器，登录后会自动加载。也可以手动导入/导出进行备份
                 </p>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
-                  {imageHistory.filter(record => !record.deleted).map((record) => {
-                    // 仅保留 下载 + 删除；查看大图改为点击图片触发
+                {(() => {
+                  const start = (historyCurrentPage - 1) * historyPageSize;
+                  const end = start + historyPageSize;
+                  const pageItems = nonDeletedHistory.slice(start, end);
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {pageItems.map((record) => {
+                      // 仅保留 下载 + 删除；查看大图改为点击图片触发
                     const actions = [
                       {
                         key: "download",
@@ -2073,6 +2297,13 @@ const Studio = () => {
                         variant: "default",
                         onPress: () => downloadImage(record.imageUrl, record.fileName),
                       },
+                      ...(mode === 'edit' || mode === 'compose' ? [{
+                        key: 'use',
+                        icon: Plus,
+                        title: '加入上传区',
+                        variant: 'default',
+                        onPress: () => addHistoryRecordToUpload(record)
+                      }] : []),
                       {
                         key: "delete",
                         icon: X,
@@ -2143,10 +2374,15 @@ const Studio = () => {
                             alt={`Generated ${record.mode}`}
                             className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
                             onClick={() => setFullscreenImage(record.imageUrl)}
+                            title="点击放大查看"
                           />
-                          <div className="absolute inset-0 rounded-lg hidden md:flex items-end justify-center pb-6 px-4 transition-opacity md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40">
+                          <div className="absolute inset-0 rounded-lg hidden md:flex items-end justify-center pb-6 px-4 transition-opacity md:bg-black md:bg-opacity-0 md:group-hover:bg-opacity-40"
+                               onClick={() => setFullscreenImage(record.imageUrl)}>
                             <div className={`opacity-0 group-hover:opacity-100 transition-opacity ${overlayLayoutClass}`}>
                               {preparedActions.map((action) => renderActionButton(action, "overlay"))}
+                            </div>
+                            <div className="absolute top-2 left-2 text-white text-xs md:opacity-0 md:group-hover:opacity-100 bg-black bg-opacity-40 px-2 py-1 rounded">
+                              点击图片放大查看
                             </div>
                           </div>
                         </div>
@@ -2181,16 +2417,25 @@ const Studio = () => {
                             <div className="mt-2 bg-gray-50 rounded p-2 border border-gray-200">
                               <div className="flex items-start justify-between gap-2 mb-1">
                                 <span className="font-medium text-gray-700 flex-shrink-0">提示词:</span>
-                                <button
-                                  onClick={() => {
-                                    setPrompt(record.prompt);
-                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                  }}
-                                  className="flex-shrink-0 text-blue-600 hover:text-blue-800 text-xs px-2 py-0.5 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
-                                  title="点击复用此提示词"
-                                >
-                                  📋 复用
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => copyText(record.prompt)}
+                                    className="flex-shrink-0 text-gray-700 hover:text-gray-900 text-xs px-2 py-0.5 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                                    title="复制提示词到剪贴板"
+                                  >
+                                    复制
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setPrompt(record.prompt);
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    className="flex-shrink-0 text-blue-600 hover:text-blue-800 text-xs px-2 py-0.5 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                                    title="点击复用此提示词"
+                                  >
+                                    复用
+                                  </button>
+                                </div>
                               </div>
                               <p className="text-gray-600 line-clamp-2 text-left">
                                 {record.prompt}
@@ -2201,6 +2446,11 @@ const Studio = () => {
                       </div>
                     );
                   })}
+                    </div>
+                  );
+                })()}
+                <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-600">
+                  <span>第 {historyCurrentPage} / {totalHistoryPages} 页</span>
                 </div>
               </>
             ) : (
