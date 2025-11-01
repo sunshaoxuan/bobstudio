@@ -1784,6 +1784,9 @@ function computeStatsFromHistory(history) {
     totals.total += 1;
     dailyMap.set(dayKey, (dailyMap.get(dayKey) || 0) + 1);
     monthlyMap.set(monthKeyItem, (monthlyMap.get(monthKeyItem) || 0) + 1);
+    
+    // 调试日志：记录月度key
+    console.log(`🔍 历史记录 [${item.id || 'unknown'}]: 日期=${createdAt.toISOString()} | 月度Key=${monthKeyItem}`);
 
     if (dayKey === todayKey) {
       totals.today += 1;
@@ -1828,14 +1831,16 @@ function computeStatsFromHistory(history) {
   for (let i = 5; i >= 0; i--) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = formatMonthKey(date);
+    const count = monthlyMap.get(key) || 0;
     monthly.push({
       month: key,
-      label: date.toLocaleDateString("zh-CN", {
-        year: "numeric",
-        month: "2-digit",
-      }),
-      count: monthlyMap.get(key) || 0,
+      label: `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, '0')}月`,
+      count: count,
     });
+    // 调试日志：月度统计
+    if (count > 0) {
+      console.log(`📊 月度统计 [${key}]: ${count} 张 | 标签: ${monthly[monthly.length - 1].label}`);
+    }
   }
 
   const distribution = Object.entries(modeCounts).map(([key, count]) => {
