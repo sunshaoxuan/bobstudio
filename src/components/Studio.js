@@ -2331,30 +2331,13 @@ const Studio = () => {
                       },
                     ];
 
-                    const shouldUseGrid = actions.length >= 3;
-                    const overlayLayoutClass = shouldUseGrid
-                      ? "grid grid-cols-2 gap-3 justify-items-center"
-                      : "flex items-center gap-3";
-                    const mobileLayoutClass = shouldUseGrid
-                      ? "grid grid-cols-2 gap-2 md:hidden justify-items-center"
-                      : "flex md:hidden items-center justify-center gap-2";
+                    // 使用流式布局，按钮自动换行
+                    const overlayLayoutClass = "flex flex-wrap items-center justify-center gap-3";
+                    const mobileLayoutClass = "flex md:hidden flex-wrap items-center justify-center gap-2";
 
                     const preparedActions = [...actions];
-                    const needsPlaceholder = shouldUseGrid && preparedActions.length % 2 !== 0;
-                    if (needsPlaceholder) {
-                      preparedActions.push({ key: "placeholder", placeholder: true });
-                    }
 
                     const renderActionButton = (action, layout) => {
-                      if (action.placeholder) {
-                        return (
-                          <div
-                            key={`${action.key}-${layout}`}
-                            className="w-10 h-10"
-                            aria-hidden="true"
-                          ></div>
-                        );
-                      }
 
                       const baseClass = "w-10 h-10 flex items-center justify-center rounded-full transition-all";
                       const variantClass =
