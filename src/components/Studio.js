@@ -650,6 +650,19 @@ const Studio = () => {
         return { title, message, details };
       }
 
+      // 检查 finishReason = "STOP" 但没有图像的情况
+      if (candidate.finishReason === "STOP") {
+        // 检查是否有图像输出
+        const hasImage = candidate.content?.parts?.some(part => part.inlineData?.data);
+        
+        if (!hasImage) {
+          title = "提示词需要优化";
+          message = "AI 理解了您的请求，但无法生成相应的图像\n\n💡 可能的原因：\n• 提示词过于简短或模糊\n• 描述不够具体和详细\n• 缺少视觉相关的描述\n\n✨ 建议：\n• 增加更多细节描述（场景、颜色、风格等）\n• 使用更具体的形容词\n• 参考示例：\"一只橘色的猫咪坐在窗台上，阳光透过窗户洒在它身上，温馨的室内场景\"";
+          details = `API 正常结束但未返回图像\n\n完整响应：\n${JSON.stringify(candidate, null, 2)}`;
+          return { title, message, details };
+        }
+      }
+      
       // 检查其他finish原因
       if (candidate.finishReason && candidate.finishReason !== "STOP") {
         switch (candidate.finishReason) {
