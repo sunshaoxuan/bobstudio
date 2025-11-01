@@ -391,6 +391,7 @@ const Studio = () => {
       const res = await fetch(`${API_BASE_URL}/api/friends`, { credentials: 'include' });
       if (!res.ok) throw new Error('加载好友失败');
       const data = await res.json();
+      console.log('加载的好友数据:', data.friends);
       setFriends(Array.isArray(data.friends) ? data.friends : []);
     } catch (e) {
       console.error('加载好友失败:', e);
@@ -2741,28 +2742,58 @@ const Studio = () => {
         {shareModal.open && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={closeShareModal}>
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b">
-                <h3 className="text-lg font-semibold">分享给好友</h3>
+              <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-purple-50">
+                <h3 className="text-lg font-semibold text-gray-800">分享给好友</h3>
               </div>
-              <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
+              <div className="p-6 space-y-2 max-h-[60vh] overflow-y-auto">
                 {friends.length === 0 ? (
-                  <div className="text-sm text-gray-500">暂无好友</div>
+                  <div className="text-center py-8 text-gray-500">
+                    <p>暂无好友</p>
+                    <p className="text-xs mt-2">添加好友后即可分享图片</p>
+                  </div>
                 ) : (
-                  friends.map(f => (
-                    <label key={f.id} className="flex items-center gap-3 py-1">
-                      <input
-                        type="checkbox"
-                        checked={shareModal.targets.includes(f.id)}
-                        onChange={() => toggleShareTarget(f.id)}
-                      />
-                       <span className="text-gray-700">{f.username} {f.isSuperAdmin && <span className="text-yellow-600">(管理员)</span>}</span>
-                    </label>
-                  ))
+                  friends.map(f => {
+                    const displayText = f.displayName || f.username || f.id;
+                    const usernameText = f.username || '';
+                    return (
+                      <label 
+                        key={f.id} 
+                        className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={shareModal.targets.includes(f.id)}
+                          onChange={() => toggleShareTarget(f.id)}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-800">
+                            {displayText}
+                            {f.isSuperAdmin && <span className="ml-1 text-yellow-600">👑</span>}
+                          </div>
+                          {usernameText && usernameText !== displayText && (
+                            <div className="text-xs text-gray-500">@{usernameText}</div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
                 )}
               </div>
-              <div className="px-6 py-4 border-t flex justify-end gap-2">
-                <button onClick={closeShareModal} className="px-3 py-2 text-sm border rounded hover:bg-gray-50">取消</button>
-                <button onClick={saveShareTargets} className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
+              <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2">
+                <button 
+                  onClick={closeShareModal} 
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={saveShareTargets} 
+                  disabled={shareModal.targets.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  保存 ({shareModal.targets.length})
+                </button>
               </div>
             </div>
           </div>
