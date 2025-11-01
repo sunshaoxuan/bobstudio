@@ -26,6 +26,7 @@ const AdminDashboard = () => {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const EMPTY_FORM = {
     username: "",
+    displayName: "",
     email: "",
     password: "",
     newPassword: "",
@@ -132,6 +133,7 @@ const AdminDashboard = () => {
     setSelectedUserId(user.id);
     setForm({
       username: user.username || "",
+      displayName: user.displayName || "",
       email: user.email || "",
       password: "",
       newPassword: "",
@@ -223,6 +225,7 @@ const AdminDashboard = () => {
 
     const payload = {
       username: form.username,
+      displayName: form.displayName || form.username,
       email: form.email,
       isActive: form.isActive,
       isSuperAdmin: form.isSuperAdmin,
@@ -480,141 +483,102 @@ const AdminDashboard = () => {
             <h3 className="text-md font-semibold text-gray-800 mb-4">
               {formMode === "create" ? "创建新用户" : "编辑用户"}
             </h3>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    用户名
-                  </label>
-                  <input
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="请输入用户名"
-                    value={form.username}
-                    onChange={(e) =>
-                      setForm((v) => ({ ...v, username: e.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 items-end">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={form.freeLimitEnabled}
-                      onChange={(e) => setForm((v) => ({ ...v, freeLimitEnabled: e.target.checked }))}
-                    />
-                    启用免费额度限制（仅管理员分配的 API Key 生效）
-                  </label>
-                  <p className="text-xs text-gray-500 mt-1">
-                    ✓ 勾选：限制用户使用次数（下方设置具体额度）<br/>
-                    ✗ 不勾选：无限制使用
-                  </p>
-                  <div className={!form.freeLimitEnabled ? 'opacity-50' : ''}>
+            <div className="space-y-6">
+              {/* 基本信息 */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-800 mb-4">基本信息</h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      额度上限（张）{!form.freeLimitEnabled && <span className="text-gray-400">（已禁用）</span>}
+                      用户名 <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="number"
-                      min="1"
                       className="w-full border rounded px-3 py-2"
-                      value={form.freeLimit}
-                      onChange={(e) => setForm((v) => ({ ...v, freeLimit: e.target.value }))}
-                      disabled={!form.freeLimitEnabled}
+                      placeholder="请输入用户名（用于登录）"
+                      value={form.username}
+                      onChange={(e) =>
+                        setForm((v) => ({ ...v, username: e.target.value }))
+                      }
                     />
                   </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    邮箱
-                  </label>
-                  <input
-                    className="w-full border rounded px-3 py-2"
-                    placeholder="请输入邮箱"
-                    value={form.email}
-                    onChange={(e) =>
-                      setForm((v) => ({ ...v, email: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-3 text-sm text-gray-700">
-                  <label className="flex items-center gap-2">
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      显示名称
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={form.isActive}
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="留空则使用用户名"
+                      value={form.displayName}
                       onChange={(e) =>
-                        setForm((v) => ({ ...v, isActive: e.target.checked }))
+                        setForm((v) => ({ ...v, displayName: e.target.value }))
                       }
                     />
-                    激活
-                  </label>
-                  <label className="flex items-center gap-2">
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      邮箱 <span className="text-red-500">*</span>
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={form.isSuperAdmin}
+                      type="email"
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="请输入邮箱"
+                      value={form.email}
                       onChange={(e) =>
-                        setForm((v) => ({
-                          ...v,
-                          isSuperAdmin: e.target.checked,
-                        }))
+                        setForm((v) => ({ ...v, email: e.target.value }))
                       }
                     />
-                    超级管理员
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={form.showApiConfig}
-                      onChange={(e) =>
-                        setForm((v) => ({
-                          ...v,
-                          showApiConfig: e.target.checked,
-                        }))
-                      }
-                    />
-                    允许用户自行配置 API Key
-                  </label>
+                  </div>
+                  
+                  <div>
+                    {formMode === "create" ? (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          初始密码 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          className="w-full border rounded px-3 py-2"
+                          placeholder="请输入初始密码"
+                          value={form.password}
+                          onChange={(e) =>
+                            setForm((v) => ({ ...v, password: e.target.value }))
+                          }
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          新密码（可选）
+                        </label>
+                        <input
+                          type="password"
+                          className="w-full border rounded px-3 py-2"
+                          placeholder="留空则不修改密码"
+                          value={form.newPassword}
+                          onChange={(e) =>
+                            setForm((v) => ({ ...v, newPassword: e.target.value }))
+                          }
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          留空则不修改密码
+                        </p>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                {formMode === "create" ? (
+              {/* API Key 配置 */}
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <h4 className="font-medium text-gray-800 mb-4">API Key 配置</h4>
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      初始密码
+                      API Key（可选）
                     </label>
-                    <input
-                      className="w-full border rounded px-3 py-2"
-                      placeholder="请输入初始密码"
-                      value={form.password}
-                      onChange={(e) =>
-                        setForm((v) => ({ ...v, password: e.target.value }))
-                      }
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      新密码（可选）
-                    </label>
-                    <input
-                      className="w-full border rounded px-3 py-2"
-                      placeholder="留空则不修改密码"
-                      value={form.newPassword}
-                      onChange={(e) =>
-                        setForm((v) => ({ ...v, newPassword: e.target.value }))
-                      }
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      若需要强制重置密码，可在此输入新密码。
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    API Key （可选）
-                  </label>
-                  <div className="relative">
+                    <div className="relative">
                     <input
                       type={showAdminApiKey ? 'text' : 'password'}
                       className="w-full border rounded px-3 py-2 pr-10"
@@ -664,8 +628,95 @@ const AdminDashboard = () => {
                     </p>
                   )}
                 </div>
+                
+                {/* 额度限制配置 */}
+                <div>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={form.freeLimitEnabled}
+                      onChange={(e) => setForm((v) => ({ ...v, freeLimitEnabled: e.target.checked }))}
+                    />
+                    <span className="font-medium">启用免费额度限制</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">
+                    仅对管理员分配的 API Key 生效
+                  </p>
+                </div>
+                
+                <div className={!form.freeLimitEnabled ? 'opacity-50' : ''}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    额度上限（张）{!form.freeLimitEnabled && <span className="text-gray-400 ml-2">（已禁用）</span>}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full border rounded px-3 py-2"
+                    value={form.freeLimit}
+                    onChange={(e) => setForm((v) => ({ ...v, freeLimit: e.target.value }))}
+                    disabled={!form.freeLimitEnabled}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {form.freeLimitEnabled ? '达到额度后自动清除 API Key' : '不勾选则无限制使用'}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={form.showApiConfig}
+                      onChange={(e) =>
+                        setForm((v) => ({
+                          ...v,
+                          showApiConfig: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span className="font-medium">允许用户自行配置 API Key</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">
+                    勾选后用户可在工作室自行配置和管理 API Key
+                  </p>
+                </div>
+              </div>
+              </div>
+
+              {/* 权限设置 */}
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <h4 className="font-medium text-gray-800 mb-4">权限设置</h4>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={form.isActive}
+                      onChange={(e) =>
+                        setForm((v) => ({ ...v, isActive: e.target.checked }))
+                      }
+                    />
+                    <span className="font-medium">激活账户</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={form.isSuperAdmin}
+                      onChange={(e) =>
+                        setForm((v) => ({
+                          ...v,
+                          isSuperAdmin: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span className="font-medium text-yellow-700">超级管理员</span>
+                  </label>
+                  <p className="text-xs text-gray-500 ml-6">
+                    超级管理员拥有所有权限且不受额度限制
+                  </p>
+                </div>
               </div>
             </div>
+            
+            {/* 操作按钮 */}
             <div className="mt-6 flex items-center justify-end gap-3">
               {formMode === "edit" && (
                 <button
