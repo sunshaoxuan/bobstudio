@@ -34,7 +34,7 @@ const MODE_COLORS = {
 const EMPTY_TOTALS = { today: 0, thisMonth: 0, total: 0 };
 
 const Stats = () => {
-  const { currentUser, logout, fetchStats, statsState } = useAuth();
+  const { currentUser, fetchStats, statsState } = useAuth();
   const navigate = useNavigate();
 
   const [scope, setScope] = useState('self');

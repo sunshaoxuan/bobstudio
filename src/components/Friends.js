@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 const Friends = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
   
   const [friends, setFriends] = useState([]);

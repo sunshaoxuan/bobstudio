@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 const Profile = () => {
-  const { currentUser, logout, changePassword, refreshUser } = useAuth();
+  const { currentUser, changePassword, refreshUser } = useAuth();
   const navigate = useNavigate();
   
   const [notifications, setNotifications] = useState([]);
