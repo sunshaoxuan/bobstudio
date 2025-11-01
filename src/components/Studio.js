@@ -26,6 +26,7 @@ import {
   EyeOff,
   Shield,
   Key,
+  Share2,
 } from "lucide-react";
 
 const Studio = () => {
@@ -82,6 +83,11 @@ const Studio = () => {
   useEffect(() => {
     setHistoryCurrentPage((p) => Math.min(p, totalHistoryPages));
   }, [totalHistoryPages]);
+  
+  // 好友与分享
+  const [friends, setFriends] = useState([]);
+  const [shareModal, setShareModal] = useState({ open: false, recordId: null, targets: [] });
+  const [incomingShares, setIncomingShares] = useState([]);
   
   // 统计数据状态
   const [stats, setStats] = useState({
@@ -375,6 +381,36 @@ const Studio = () => {
 
     // 历史记录状态监控完成
   }, [imageHistory, currentUser]);
+  
+  // 好友与分享：加载好友和共享记录
+  const loadFriends = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/friends`, { credentials: 'include' });
+      if (!res.ok) throw new Error('加载好友失败');
+      const data = await res.json();
+      setFriends(Array.isArray(data.friends) ? data.friends : []);
+    } catch (e) {
+      console.error('加载好友失败:', e);
+    }
+  }, []);
+
+  const loadIncomingShares = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/shares/incoming`, { credentials: 'include' });
+      if (!res.ok) throw new Error('加载共享失败');
+      const data = await res.json();
+      setIncomingShares(Array.isArray(data.items) ? data.items : []);
+    } catch (e) {
+      console.error('加载共享失败:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      loadFriends();
+      loadIncomingShares();
+    }
+  }, [currentUser, loadFriends, loadIncomingShares]);
   const fileInputRef = useRef(null);
   const uploadAreaRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
@@ -450,6 +486,40 @@ const Studio = () => {
   const closeErrorModal = useCallback(() => {
     setErrorModal({ show: false, title: "", message: "", details: "", showRetry: false });
   }, []);
+
+  // 分享弹窗控制
+  const openShareModal = useCallback((record) => {
+    const targets = Array.isArray(record.shareTargets) ? record.shareTargets : [];
+    setShareModal({ open: true, recordId: record.id, targets: [...targets] });
+  }, []);
+
+  const closeShareModal = useCallback(() => setShareModal({ open: false, recordId: null, targets: [] }), []);
+
+  const toggleShareTarget = useCallback((userId) => {
+    setShareModal((prev) => {
+      const exists = prev.targets.includes(userId);
+      return { ...prev, targets: exists ? prev.targets.filter(id => id !== userId) : [...prev.targets, userId] };
+    });
+  }, []);
+
+  const saveShareTargets = useCallback(async () => {
+    try {
+      if (!currentUser || !shareModal.recordId) return;
+      const res = await fetch(`${API_BASE_URL}/api/share/${currentUser.id}/${shareModal.recordId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ targets: shareModal.targets })
+      });
+      if (!res.ok) throw new Error('保存分享失败');
+      setImageHistory(prev => prev.map(it => it.id === shareModal.recordId ? { ...it, shareTargets: [...shareModal.targets] } : it));
+      closeShareModal();
+      alert('分享设置已更新');
+    } catch (e) {
+      console.error(e);
+      alert('保存分享失败，请重试');
+    }
+  }, [shareModal, currentUser, closeShareModal]);
 
   // 智能分析API委婉拒绝模式
   const analyzeRefusalPatterns = (text) => {
@@ -2206,11 +2276,11 @@ const Studio = () => {
                   <Plus className="w-4 h-4" /> 加入上传区
                 </button>
               </div>
-            )}
-          </div>
+        )}
+      </div>
 
-        {/* 历史记录 - 全宽显示 */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mt-6 lg:col-span-2">
+      {/* 历史记录 - 全宽显示 */}
+      <div className="bg-white rounded-lg shadow-lg p-6 mt-6 lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 📸 本次会话记录
@@ -2352,7 +2422,17 @@ const Studio = () => {
                     const overlayLayoutClass = "flex flex-wrap items-center justify-center gap-3";
                     const mobileLayoutClass = "flex md:hidden flex-wrap items-center justify-center gap-2";
 
-                    const preparedActions = [...actions];
+                    const preparedActions = [
+                      {
+                        key: "share",
+                        icon: Share2,
+                        title: "分享给好友",
+                        variant: "default",
+                        onPress: () => openShareModal(record),
+                        stopPropagation: true,
+                      },
+                      ...actions,
+                    ];
 
                     const renderActionButton = (action, layout) => {
 
@@ -2479,7 +2559,70 @@ const Studio = () => {
                 </p>
               </div>
             )}
+      </div>
+
+      {/* 与我共享 - 全宽显示 */}
+      <div className="bg-white rounded-lg shadow-lg p-6 mt-6 lg:col-span-2">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">与我共享</h3>
+          <button
+            onClick={loadIncomingShares}
+            className="px-3 py-1 text-sm text-gray-700 border rounded hover:bg-gray-50"
+          >刷新</button>
+        </div>
+        {incomingShares.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {incomingShares.map(item => (
+              <div key={`${item.owner.id}-${item.id}`} className="group">
+                <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative">
+                  <img
+                    src={item.imageUrl}
+                    alt={item.fileName}
+                    className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                    onClick={() => setFullscreenImage(item.imageUrl)}
+                    title={`来自 ${item.owner.username} - 点击放大`}
+                  />
+                </div>
+                <div className="mt-2 text-xs text-gray-600">
+                  <div className="text-center text-gray-500 mb-1">来自：{item.owner.username}</div>
+                  {item.prompt && (
+                    <div className="bg-gray-50 rounded p-2 border border-gray-200">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className="font-medium text-gray-700 flex-shrink-0">提示词:</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => copyText(item.prompt)}
+                            className="text-gray-700 hover:text-gray-900 text-xs px-2 py-0.5 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                            title="复制提示词到剪贴板"
+                          >复制</button>
+                          <button
+                            onClick={() => {
+                              setPrompt(item.prompt);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-xs px-2 py-0.5 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                            title="复用此提示词"
+                          >复用</button>
+                        </div>
+                      </div>
+                      <p className="text-gray-600 line-clamp-2 text-left">{item.prompt}</p>
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => addHistoryRecordToUpload(item)}
+                      className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                      title="加入上传区"
+                    >加入上传区</button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
+        ) : (
+          <div className="text-gray-500 text-sm">暂无共享内容</div>
+        )}
+      </div>
         </div>
 
         {/* 使用说明 */}
@@ -2655,6 +2798,37 @@ const Studio = () => {
             
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white text-sm bg-black bg-opacity-50 px-4 py-2 rounded">
               点击背景或按 ESC 关闭
+            </div>
+          </div>
+        )}
+
+        {/* 分享弹窗 */}
+        {shareModal.open && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={closeShareModal}>
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b">
+                <h3 className="text-lg font-semibold">分享给好友</h3>
+              </div>
+              <div className="p-6 space-y-3 max-h-[60vh] overflow-y-auto">
+                {friends.length === 0 ? (
+                  <div className="text-sm text-gray-500">暂无好友</div>
+                ) : (
+                  friends.map(f => (
+                    <label key={f.id} className="flex items-center gap-3 py-1">
+                      <input
+                        type="checkbox"
+                        checked={shareModal.targets.includes(f.id)}
+                        onChange={() => toggleShareTarget(f.id)}
+                      />
+                      <span className="text-gray-700">{f.username} {f.isSuperAdmin && <span className=\"text-yellow-600\">(管理员)</span>}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+              <div className="px-6 py-4 border-t flex justify-end gap-2">
+                <button onClick={closeShareModal} className="px-3 py-2 text-sm border rounded hover:bg-gray-50">取消</button>
+                <button onClick={saveShareTargets} className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
+              </div>
             </div>
           </div>
         )}

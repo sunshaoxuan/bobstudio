@@ -262,6 +262,58 @@ const saveUsers = () => {
   );
 };
 
+// ===== 社交关系与共享逻辑 =====
+const getSuperAdminIds = () => users.filter(u => u && u.isSuperAdmin).map(u => u.id);
+const getFirstSuperAdminId = () => {
+  const ids = getSuperAdminIds();
+  return ids.length ? ids[0] : null;
+};
+
+// 计算用户的好友列表（包含默认关系：管理员<->所有人）
+const computeFriends = (user) => {
+  if (!user) return [];
+  const base = Array.isArray(user.friends) ? [...user.friends] : [];
+  const adminId = getFirstSuperAdminId();
+  if (!adminId) return base;
+
+  if (user.id === adminId) {
+    // 管理员默认与所有人互为好友
+    const all = users.filter(u => u.id !== adminId).map(u => u.id);
+    return Array.from(new Set([...base, ...all]));
+  }
+  // 普通用户默认与管理员互为好友
+  return Array.from(new Set([ ...base, adminId ]));
+};
+
+// 双向添加好友（不覆盖默认规则）
+const addFriendship = (userId, friendId) => {
+  if (userId === friendId) return;
+  const a = users.find(u => u.id === userId);
+  const b = users.find(u => u.id === friendId);
+  if (!a || !b) return;
+  a.friends = Array.isArray(a.friends) ? a.friends : [];
+  b.friends = Array.isArray(b.friends) ? b.friends : [];
+  if (!a.friends.includes(friendId)) a.friends.push(friendId);
+  if (!b.friends.includes(userId)) b.friends.push(userId);
+  saveUsers();
+};
+
+// 双向移除好友（管理员默认关系不可移除）
+const removeFriendship = (userId, friendId) => {
+  const adminId = getFirstSuperAdminId();
+  if (!adminId) return;
+  if (userId === adminId || friendId === adminId) {
+    // 管理员与任何人的默认好友关系不可移除
+    return;
+  }
+  const a = users.find(u => u.id === userId);
+  const b = users.find(u => u.id === friendId);
+  if (!a || !b) return;
+  a.friends = (Array.isArray(a.friends) ? a.friends : []).filter(id => id !== friendId);
+  b.friends = (Array.isArray(b.friends) ? b.friends : []).filter(id => id !== userId);
+  saveUsers();
+};
+
 // 更新用户统计数据
 const updateUserStats = async (userId, historyData) => {
   try {
@@ -1059,6 +1111,157 @@ app.get("/api/admin/users", requireAdmin, (req, res) => {
   } catch (error) {
     console.error("获取用户列表失败:", error);
     res.status(500).json({ error: "Failed to list users" });
+  }
+});
+
+// ===== 好友关系 API =====
+app.get('/api/friends', requireAuth, (req, res) => {
+  try {
+    const me = users.find(u => u.id === req.session.user.id);
+    if (!me) return res.status(404).json({ error: '用户不存在' });
+    const friendIds = computeFriends(me);
+    const friendSummaries = friendIds
+      .map(id => users.find(u => u.id === id))
+      .filter(Boolean)
+      .map(u => ({ id: u.id, username: u.username, email: u.email, isSuperAdmin: !!u.isSuperAdmin }));
+    res.json({ friends: friendSummaries });
+  } catch (error) {
+    console.error('获取好友列表失败:', error);
+    res.status(500).json({ error: 'Failed to get friends' });
+  }
+});
+
+app.post('/api/friends/:friendId', requireAuth, (req, res) => {
+  try {
+    const meId = req.session.user.id;
+    const { friendId } = req.params;
+    const target = users.find(u => u.id === friendId);
+    if (!target) return res.status(404).json({ error: '好友不存在' });
+    addFriendship(meId, friendId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('添加好友失败:', error);
+    res.status(500).json({ error: 'Failed to add friend' });
+  }
+});
+
+app.delete('/api/friends/:friendId', requireAuth, (req, res) => {
+  try {
+    const meId = req.session.user.id;
+    const { friendId } = req.params;
+    const adminId = getFirstSuperAdminId();
+    if (friendId === adminId || meId === adminId) {
+      return res.status(400).json({ error: '无法移除与管理员的默认好友关系' });
+    }
+    removeFriendship(meId, friendId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('移除好友失败:', error);
+    res.status(500).json({ error: 'Failed to remove friend' });
+  }
+});
+
+// ===== 分享 API =====
+// 设置（替换）某条历史记录的分享目标用户列表
+app.post('/api/share/:ownerId/:imageId', requireAuth, async (req, res) => {
+  try {
+    const { ownerId, imageId } = req.params;
+    const { targets } = req.body || {};
+    const actorId = req.session.user.id;
+    if (!Array.isArray(targets)) return res.status(400).json({ error: 'targets 必须为数组' });
+    const owner = users.find(u => u.id === ownerId);
+    if (!owner) return res.status(404).json({ error: '所有者不存在' });
+    const isAdmin = !!req.session.user.isSuperAdmin;
+    if (actorId !== ownerId && !isAdmin) return res.status(403).json({ error: '无权限修改分享' });
+
+    const filePath = path.join(HISTORY_DIR, `history-${ownerId}.json`);
+    let history = [];
+    try {
+      const data = await fs.readFile(filePath, 'utf8');
+      history = JSON.parse(data);
+    } catch (e) {
+      // ignore if not exists
+      history = [];
+    }
+    let found = false;
+    history = history.map(item => {
+      if (String(item.id) === String(imageId)) {
+        found = true;
+        return { ...item, shareTargets: targets.filter(Boolean) };
+      }
+      return item;
+    });
+    if (!found) return res.status(404).json({ error: '记录不存在' });
+    await fs.writeFile(filePath, JSON.stringify(history, null, 2), 'utf8');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('设置分享失败:', error);
+    res.status(500).json({ error: 'Failed to set share' });
+  }
+});
+
+// 获取分享给我的记录
+app.get('/api/shares/incoming', requireAuth, async (req, res) => {
+  try {
+    const meId = req.session.user.id;
+    const results = [];
+    for (const u of users) {
+      const filePath = path.join(HISTORY_DIR, `history-${u.id}.json`);
+      try {
+        const data = await fs.readFile(filePath, 'utf8');
+        const history = JSON.parse(data);
+        for (const item of history) {
+          if (item && item.shareTargets && Array.isArray(item.shareTargets) && item.shareTargets.includes(meId)) {
+            if (item.deleted) continue;
+            results.push({
+              owner: { id: u.id, username: u.username },
+              id: item.id,
+              imageUrl: item.imageUrl,
+              fileName: item.fileName,
+              prompt: item.prompt,
+              createdAt: item.createdAt,
+              mode: item.mode,
+              duration: item.duration || null,
+            });
+          }
+        }
+      } catch (e) {
+        // skip if file not found
+      }
+    }
+    // 按时间倒序
+    results.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    res.json({ items: results, total: results.length });
+  } catch (error) {
+    console.error('获取共享给我的记录失败:', error);
+    res.status(500).json({ error: 'Failed to get incoming shares' });
+  }
+});
+
+// 我分享出去的记录
+app.get('/api/shares/mine', requireAuth, async (req, res) => {
+  try {
+    const meId = req.session.user.id;
+    const filePath = path.join(HISTORY_DIR, `history-${meId}.json`);
+    let results = [];
+    let history = [];
+    try {
+      const data = await fs.readFile(filePath, 'utf8');
+      history = JSON.parse(data);
+      results = history.filter(it => Array.isArray(it.shareTargets) && it.shareTargets.length > 0 && !it.deleted)
+        .map(it => ({ id: it.id, imageUrl: it.imageUrl, fileName: it.fileName, prompt: it.prompt, createdAt: it.createdAt, mode: it.mode }));
+    } catch (e) {
+      results = [];
+    }
+    // 解析出目标用户明细
+    const expandTargets = results.map(r => ({
+      ...r,
+      targets: (history || []).find(h => h.id === r.id)?.shareTargets || []
+    }));
+    res.json({ items: expandTargets, total: expandTargets.length });
+  } catch (error) {
+    console.error('获取我分享的记录失败:', error);
+    res.status(500).json({ error: 'Failed to get my shares' });
   }
 });
 
