@@ -1732,8 +1732,18 @@ const safeParseDate = (value) => {
   return date;
 };
 
-const formatDateKey = (date) => date.toISOString().slice(0, 10);
-const formatMonthKey = (date) => date.toISOString().slice(0, 7);
+const formatDateKey = (date) => {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatMonthKey = (date) => {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+};
 
 async function loadUserHistory(userId) {
   const filePath = path.join(HISTORY_DIR, `history-${userId}.json`);
