@@ -34,10 +34,17 @@ const MODE_COLORS = {
 const EMPTY_TOTALS = { today: 0, thisMonth: 0, total: 0 };
 
 const Stats = () => {
-  const { currentUser, fetchStats, statsState } = useAuth();
+  console.log('=== Stats 组件开始渲染 ===');
+  
+  const authContext = useAuth();
+  console.log('authContext:', authContext);
+  
+  const { currentUser, fetchStats, statsState } = authContext;
   const navigate = useNavigate();
   
   console.log('Stats 组件渲染，currentUser:', currentUser);
+  console.log('fetchStats:', fetchStats);
+  console.log('statsState:', statsState);
 
   const [scope, setScope] = useState('self');
   const [selectedUser, setSelectedUser] = useState(null);

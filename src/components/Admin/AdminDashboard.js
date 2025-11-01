@@ -771,17 +771,18 @@ const AdminDashboard = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="text-left px-3 py-2">用户名</th>
+                    <th className="text-left px-3 py-2">显示名</th>
                     <th className="text-left px-3 py-2">邮箱</th>
                     <th className="text-left px-3 py-2">状态</th>
                     <th className="text-left px-3 py-2">角色</th>
-                    <th className="text-left px-3 py-2">API Key 状态</th>
+                    <th className="text-left px-3 py-2">API Key</th>
                     <th className="text-left px-3 py-2">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.length === 0 && (
                     <tr>
-                      <td className="px-3 py-3 text-gray-500" colSpan={6}>
+                      <td className="px-3 py-3 text-gray-500" colSpan={7}>
                         暂无用户
                       </td>
                     </tr>
@@ -805,10 +806,18 @@ const AdminDashboard = () => {
                             {u.username}
                           </button>
                         </td>
-                        <td className="px-3 py-2 font-medium text-gray-800">
+                        <td className="px-3 py-2">
                           <button
                             onClick={() => handleSelectUser(u)}
                             className="text-left w-full text-gray-600 hover:text-gray-800"
+                          >
+                            {u.displayName || u.username}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => handleSelectUser(u)}
+                            className="text-left w-full text-gray-600 hover:text-gray-800 text-xs"
                           >
                             {u.email}
                           </button>
