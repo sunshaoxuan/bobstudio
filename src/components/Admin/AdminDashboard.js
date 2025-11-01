@@ -549,14 +549,21 @@ const AdminDashboard = () => {
                     />
                     启用免费额度限制（仅管理员分配的 API Key 生效）
                   </label>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">额度上限（张）</label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    ✓ 勾选：限制用户使用次数（下方设置具体额度）<br/>
+                    ✗ 不勾选：无限制使用
+                  </p>
+                  <div className={!form.freeLimitEnabled ? 'opacity-50' : ''}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      额度上限（张）{!form.freeLimitEnabled && <span className="text-gray-400">（已禁用）</span>}
+                    </label>
                     <input
                       type="number"
                       min="1"
                       className="w-full border rounded px-3 py-2"
                       value={form.freeLimit}
                       onChange={(e) => setForm((v) => ({ ...v, freeLimit: e.target.value }))}
+                      disabled={!form.freeLimitEnabled}
                     />
                   </div>
                 </div>

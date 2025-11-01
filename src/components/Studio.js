@@ -103,10 +103,17 @@ const Studio = () => {
 
   // 体验额度（管理员分配的 API Key 情况下显示剩余）
   const remainingQuota = useMemo(() => {
-    if (!currentUser?.showApiConfig && currentUser?.hasApiKey && currentUser?.freeLimitEnabled) {
+    if (!currentUser?.showApiConfig && currentUser?.hasApiKey) {
       const total = Number(currentUser?.generationStats?.total || 0);
+      
+      // 如果未启用限制，返回无限制标记
+      if (!currentUser?.freeLimitEnabled) {
+        return { unlimited: true, total };
+      }
+      
+      // 启用限制时显示剩余额度
       const limit = Number.isFinite(currentUser?.freeLimit) && currentUser.freeLimit > 0 ? Math.floor(currentUser.freeLimit) : 30;
-      return { remaining: Math.max(0, limit - total), limit };
+      return { remaining: Math.max(0, limit - total), limit, total };
     }
     return null;
   }, [currentUser]);
@@ -1910,9 +1917,19 @@ const Studio = () => {
               </div>
               {remainingQuota !== null && (
                 <div className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded">
-                  体验额度剩余：
-                  <span className="font-semibold"> {remainingQuota.remaining} / {remainingQuota.limit} </span>
-                  （由管理员分配的 API Key）
+                  {remainingQuota.unlimited ? (
+                    <>
+                      使用管理员分配的 API Key：
+                      <span className="font-semibold text-green-600"> 无限制使用 </span>
+                      （已生成 {remainingQuota.total} 张）
+                    </>
+                  ) : (
+                    <>
+                      体验额度剩余：
+                      <span className="font-semibold"> {remainingQuota.remaining} / {remainingQuota.limit} </span>
+                      （由管理员分配的 API Key）
+                    </>
+                  )}
                 </div>
               )}
               {!hasApiKeyConfigured && (
