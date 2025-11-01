@@ -28,6 +28,7 @@ import {
   Key,
   Share2,
   Users,
+  User,
 } from "lucide-react";
 
 const Studio = () => {
