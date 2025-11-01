@@ -1905,11 +1905,23 @@ async function buildSummaryStats() {
     if (userStats.totals.total > 0) {
       summary.users.activeWithGenerations += 1;
     }
+    // 计算剩余额度
+    const isSuperAdmin = Boolean(user.isSuperAdmin);
+    const limitEnabled = !isSuperAdmin && (typeof user.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true);
+    const limit = (Number.isFinite(user.freeLimit) && user.freeLimit > 0) ? Math.floor(user.freeLimit) : 30;
+    const remaining = limitEnabled ? Math.max(0, limit - userStats.totals.total) : null;
+    
     summary.perUser.push({
       ...userStats.user,
+      displayName: user.displayName || user.username,  // 添加显示名
       totals: userStats.totals,
       lastGeneratedAt: userStats.lastGeneratedAt,
       historyCount: userStats.historyCount,
+      // 额度信息
+      limitEnabled: limitEnabled,
+      limit: limitEnabled ? limit : null,
+      remaining: remaining,
+      unlimited: !limitEnabled || isSuperAdmin
     });
   }
 

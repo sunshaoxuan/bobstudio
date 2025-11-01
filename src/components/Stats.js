@@ -236,7 +236,7 @@ const Stats = () => {
   };
 
   const selectedUserLabel = scope === 'user' && selectedUserInfo
-    ? `用户：${selectedUserInfo.username}`
+    ? `用户：${selectedUserInfo.displayName || selectedUserInfo.username}`
     : '选择用户';
 
   const displayUserInfo = effectiveScope === 'user'
@@ -436,6 +436,7 @@ const Stats = () => {
                           <th className="text-right py-2 pr-4">今日</th>
                           <th className="text-right py-2 pr-4">本月</th>
                           <th className="text-right py-2 pr-4">总计</th>
+                          <th className="text-right py-2 pr-4">剩余额度</th>
                           <th className="text-right py-2">最近创作时间</th>
                         </tr>
                       </thead>
@@ -445,13 +446,27 @@ const Stats = () => {
                             <td className="py-2 pr-4 text-gray-700">
                               <div className="flex items-center gap-2">
                                 {user.isSuperAdmin && <span className="text-yellow-500">👑</span>}
-                                <span>{user.username}</span>
+                                <span className="font-medium">{user.displayName || user.username}</span>
                               </div>
-                              <div className="text-xs text-gray-400">{user.email}</div>
+                              <div className="text-xs text-gray-400">
+                                @{user.username}
+                                {user.email && ` · ${user.email}`}
+                              </div>
                             </td>
                             <td className="py-2 pr-4 text-right text-purple-600 font-medium">{user.totals.today}</td>
                             <td className="py-2 pr-4 text-right text-blue-600 font-medium">{user.totals.thisMonth}</td>
                             <td className="py-2 pr-4 text-right text-gray-700 font-semibold">{user.totals.total}</td>
+                            <td className="py-2 pr-4 text-right">
+                              {user.unlimited ? (
+                                <span className="text-green-600 font-medium">无限制</span>
+                              ) : user.limitEnabled ? (
+                                <span className={`font-medium ${user.remaining > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                  {user.remaining} / {user.limit}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
                             <td className="py-2 text-right text-gray-500">
                               {user.lastGeneratedAt ? new Date(user.lastGeneratedAt).toLocaleString('zh-CN') : '无记录'}
                             </td>
@@ -459,7 +474,7 @@ const Stats = () => {
                         ))}
                         {(summaryData?.perUser?.length || 0) === 0 && (
                           <tr>
-                            <td colSpan={5} className="py-6 text-center text-sm text-gray-500">
+                            <td colSpan={6} className="py-6 text-center text-sm text-gray-500">
                               暂无用户统计数据
                             </td>
                           </tr>
@@ -584,16 +599,30 @@ const Stats = () => {
                   onClick={() => handleSelectUser(user)}
                   className={`w-full flex items-center justify-between gap-4 py-3 px-3 text-left hover:bg-purple-50 transition-colors ${selectedUser === user.id ? 'bg-purple-50' : ''}`}
                 >
-                  <div>
+                  <div className="flex-1">
                     <div className="flex items-center gap-2 font-medium text-gray-800">
-                      {user.username}
                       {user.isSuperAdmin && <span className="text-yellow-500">👑</span>}
+                      {user.displayName || user.username}
                     </div>
-                    <div className="text-xs text-gray-500">{user.email}</div>
+                    <div className="text-xs text-gray-500">
+                      @{user.username}
+                      {user.email && ` · ${user.email}`}
+                    </div>
                   </div>
-                  <div className="text-right text-sm text-gray-600 min-w-[150px]">
+                  <div className="text-right text-sm min-w-[180px]">
                     <div className="font-semibold text-gray-700">总计 {user.totals.total}</div>
                     <div className="text-xs text-gray-400">本月 {user.totals.thisMonth} · 今日 {user.totals.today}</div>
+                    <div className="text-xs mt-1">
+                      {user.unlimited ? (
+                        <span className="text-green-600">额度：无限制</span>
+                      ) : user.limitEnabled ? (
+                        <span className={user.remaining > 0 ? 'text-blue-600' : 'text-red-600'}>
+                          剩余：{user.remaining} / {user.limit}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </div>
                   </div>
                 </button>
               ))}
