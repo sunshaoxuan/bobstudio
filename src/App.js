@@ -13,6 +13,7 @@ import ResetPassword from './components/Auth/ResetPassword';
 import Studio from './components/Studio';
 import Stats from './components/Stats';
 import AdminDashboard from './components/Admin/AdminDashboard';
+import Friends from './components/Friends';
 
 const App = () => {
   return (
@@ -42,6 +43,14 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Stats />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/friends"
+              element={
+                <ProtectedRoute>
+                  <Friends />
                 </ProtectedRoute>
               }
             />

@@ -27,6 +27,7 @@ import {
   Shield,
   Key,
   Share2,
+  Users,
 } from "lucide-react";
 
 const Studio = () => {
@@ -1825,6 +1826,14 @@ const Studio = () => {
               <span className="text-sm sm:text-base text-gray-600">工作室</span>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+              <Link
+                to="/friends"
+                className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-800 transition-colors text-sm sm:text-base"
+                title="好友管理"
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">好友</span>
+              </Link>
               <Link
                 to="/stats"
                 className="flex items-center gap-1 sm:gap-2 text-gray-600 hover:text-gray-800 transition-colors text-sm sm:text-base"

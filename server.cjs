@@ -1114,6 +1114,24 @@ app.get("/api/admin/users", requireAdmin, (req, res) => {
   }
 });
 
+// ===== 用户列表 API（用于添加好友）=====
+app.get('/api/users/list', requireAuth, (req, res) => {
+  try {
+    const userList = users
+      .filter(u => u.isActive) // 只返回激活的用户
+      .map(u => ({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        isSuperAdmin: !!u.isSuperAdmin
+      }));
+    res.json({ users: userList });
+  } catch (error) {
+    console.error('获取用户列表失败:', error);
+    res.status(500).json({ error: 'Failed to get users' });
+  }
+});
+
 // ===== 好友关系 API =====
 app.get('/api/friends', requireAuth, (req, res) => {
   try {
