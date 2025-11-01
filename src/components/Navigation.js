@@ -1,13 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  LogOut,
-  Shield,
-  BarChart3,
-  Users,
-  User,
-} from 'lucide-react';
+import * as Icons from 'lucide-react';
+
+const { LogOut, Shield, BarChart3, Users, User } = Icons;
 
 const Navigation = () => {
   const { currentUser, logout } = useAuth();
