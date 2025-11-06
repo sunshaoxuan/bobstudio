@@ -102,58 +102,6 @@ const Studio = () => {
   const [suggestedPrompt, setSuggestedPrompt] = useState(''); // AI建议的提示词
   const [loadingSuggestion, setLoadingSuggestion] = useState(false); // 正在生成建议
   
-  // 提示词优化函数
-  const optimizePrompt = useCallback(async () => {
-    if (!prompt.trim()) {
-      showError('提示词为空', '请先输入提示词');
-      return;
-    }
-    
-    const check = checkApiKeyAvailable();
-    if (!check.isValid) {
-      showError('无法优化提示词', check.errorMessage);
-      return;
-    }
-    
-    try {
-      setLoadingSuggestion(true);
-      setSuggestedPrompt('');
-      
-      const response = await fetch(`${API_BASE_URL}/api/gemini/optimize-prompt`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          userPrompt: prompt,
-          apiKey: currentUser?.showApiConfig ? apiKey : undefined,
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '优化失败');
-      }
-      
-      const result = await response.json();
-      setSuggestedPrompt(result.optimizedPrompt);
-    } catch (error) {
-      console.error('提示词优化失败:', error);
-      showError('优化失败', error.message || '提示词优化失败，请稍后重试');
-    } finally {
-      setLoadingSuggestion(false);
-    }
-  }, [prompt, apiKey, currentUser, checkApiKeyAvailable, showError]);
-  
-  // 使用建议的提示词
-  const useSuggestedPrompt = useCallback(() => {
-    if (suggestedPrompt) {
-      setPrompt(suggestedPrompt);
-      setSuggestedPrompt(''); // 清空建议
-    }
-  }, [suggestedPrompt]);
-  
   // 本地缓存和服务器状态
   const [pendingSync, setPendingSync] = useState([]); // 待同步的历史记录
   const [serverAvailable, setServerAvailable] = useState(true); // 服务器是否可用
@@ -518,6 +466,58 @@ const Studio = () => {
       showRetry: false,
     });
   }, []);
+
+  // 提示词优化函数
+  const optimizePrompt = useCallback(async () => {
+    if (!prompt.trim()) {
+      showError('提示词为空', '请先输入提示词');
+      return;
+    }
+    
+    const check = checkApiKeyAvailable();
+    if (!check.isValid) {
+      showError('无法优化提示词', check.errorMessage);
+      return;
+    }
+    
+    try {
+      setLoadingSuggestion(true);
+      setSuggestedPrompt('');
+      
+      const response = await fetch(`${API_BASE_URL}/api/gemini/optimize-prompt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          userPrompt: prompt,
+          apiKey: currentUser?.showApiConfig ? apiKey : undefined,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '优化失败');
+      }
+      
+      const result = await response.json();
+      setSuggestedPrompt(result.optimizedPrompt);
+    } catch (error) {
+      console.error('提示词优化失败:', error);
+      showError('优化失败', error.message || '提示词优化失败，请稍后重试');
+    } finally {
+      setLoadingSuggestion(false);
+    }
+  }, [prompt, apiKey, currentUser, checkApiKeyAvailable, showError]);
+  
+  // 使用建议的提示词
+  const useSuggestedPrompt = useCallback(() => {
+    if (suggestedPrompt) {
+      setPrompt(suggestedPrompt);
+      setSuggestedPrompt(''); // 清空建议
+    }
+  }, [suggestedPrompt]);
 
   // 显示带重试按钮的错误
   const showErrorWithRetry = useCallback((title, message, details = "") => {
