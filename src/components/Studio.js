@@ -1478,7 +1478,12 @@ const Studio = () => {
         if (response.status === 400) {
           throw new Error("请求格式错误或API密钥无效");
         } else if (response.status === 403) {
-          throw new Error("API密钥权限不足或配额已用完");
+          // 针对超级管理员给出更明确的提示
+          if (currentUser?.isSuperAdmin) {
+            throw new Error("Google API配额已用完\n\n这是Google API的限制，与应用内部的生成次数无关。\n\n💡 解决方法：\n• 检查API Key在Google Cloud的配额限制\n• 更换新的API Key\n• 等待配额重置（通常每日或每月重置）");
+          } else {
+            throw new Error("API密钥权限不足或配额已用完");
+          }
         } else if (response.status === 429) {
           throw new Error("请求过于频繁，请稍后再试");
         } else {
