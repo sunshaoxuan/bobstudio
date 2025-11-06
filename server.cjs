@@ -2637,6 +2637,42 @@ app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
   }
 });
 
+// 管理员诊断工具：列出images目录结构
+app.get("/api/admin/diagnose-images", requireAdmin, async (req, res) => {
+  try {
+    const result = {
+      imagesDir: IMAGES_DIR,
+      userDirs: [],
+      sampleFiles: []
+    };
+    
+    // 列出所有用户目录
+    const entries = await fs.readdir(IMAGES_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        result.userDirs.push(entry.name);
+        
+        // 列出该用户目录的前5个文件
+        try {
+          const userFiles = await fs.readdir(path.join(IMAGES_DIR, entry.name));
+          result.sampleFiles.push({
+            userId: entry.name,
+            files: userFiles.slice(0, 5),
+            total: userFiles.length
+          });
+        } catch (e) {
+          console.error(`读取用户目录失败: ${entry.name}`, e);
+        }
+      }
+    }
+    
+    res.json(result);
+  } catch (error) {
+    console.error('诊断失败:', error);
+    res.status(500).json({ error: '诊断失败: ' + error.message });
+  }
+});
+
 // 统计 API
 app.get("/api/stats", requireAuth, async (req, res) => {
   try {
