@@ -52,6 +52,11 @@ const Stats = () => {
   const [userPickerOpen, setUserPickerOpen] = useState(false);
   const [userSearch, setUserSearch] = useState('');
 
+  // 日期范围筛选状态
+  const [dateRange, setDateRange] = useState('all'); // 'all', 'lastMonth', 'thisMonth', 'custom'
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
   const [selfStatsCache, setSelfStatsCache] = useState(null);
   const [summaryStatsCache, setSummaryStatsCache] = useState(null);
   const [userStatsCache, setUserStatsCache] = useState({});
@@ -100,15 +105,36 @@ const Stats = () => {
       return;
     }
 
+    // 构建日期范围参数
+    const dateParams = {};
+    if (scope === 'summary') {
+      // 只有平台概览才应用日期筛选
+      if (dateRange === 'lastMonth') {
+        const now = new Date();
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        dateParams.startDate = lastMonth.toISOString().split('T')[0];
+        dateParams.endDate = lastMonthEnd.toISOString().split('T')[0];
+      } else if (dateRange === 'thisMonth') {
+        const now = new Date();
+        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        dateParams.startDate = thisMonthStart.toISOString().split('T')[0];
+        dateParams.endDate = now.toISOString().split('T')[0];
+      } else if (dateRange === 'custom' && customStartDate && customEndDate) {
+        dateParams.startDate = customStartDate;
+        dateParams.endDate = customEndDate;
+      }
+    }
+
     // 每次切换模式都重新请求数据，确保数据实时更新
     if (scope === 'summary') {
-      fetchStats({ scope: 'summary' });
+      fetchStats({ scope: 'summary', ...dateParams });
     } else if (scope === 'self') {
       fetchStats({ scope: 'self' });
     } else if (scope === 'user' && selectedUser) {
       fetchStats({ scope: 'user', userId: selectedUser });
     }
-  }, [scope, selectedUser, currentUser, fetchStats]);
+  }, [scope, selectedUser, currentUser, fetchStats, dateRange, customStartDate, customEndDate]);
 
   useEffect(() => {
     if (!selectedUser || !summaryStatsCache) return;
@@ -278,6 +304,67 @@ const Stats = () => {
               >
                 {selectedUserLabel}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 日期范围筛选（仅平台概览显示） */}
+        {isAdmin && scope === 'summary' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">日期范围</h2>
+              <p className="text-sm text-gray-500 mt-1">筛选指定时间段的统计数据</p>
+            </div>
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setDateRange('all')}
+                  className={`px-4 py-2 rounded-lg border ${dateRange === 'all' ? 'bg-blue-600 text-white border-transparent' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                >
+                  全部
+                </button>
+                <button
+                  onClick={() => setDateRange('lastMonth')}
+                  className={`px-4 py-2 rounded-lg border ${dateRange === 'lastMonth' ? 'bg-blue-600 text-white border-transparent' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                >
+                  上月
+                </button>
+                <button
+                  onClick={() => setDateRange('thisMonth')}
+                  className={`px-4 py-2 rounded-lg border ${dateRange === 'thisMonth' ? 'bg-blue-600 text-white border-transparent' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                >
+                  本月
+                </button>
+                <button
+                  onClick={() => setDateRange('custom')}
+                  className={`px-4 py-2 rounded-lg border ${dateRange === 'custom' ? 'bg-blue-600 text-white border-transparent' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                >
+                  指定期间
+                </button>
+              </div>
+              
+              {dateRange === 'custom' && (
+                <div className="flex flex-wrap items-center gap-4 pt-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">开始日期:</label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">结束日期:</label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

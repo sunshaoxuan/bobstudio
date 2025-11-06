@@ -1929,8 +1929,23 @@ function computeStatsFromHistory(history) {
   };
 }
 
-async function buildUserStatsPayload(user) {
-  const stats = computeStatsFromHistory(await loadUserHistory(user.id));
+async function buildUserStatsPayload(user, startDate, endDate) {
+  let history = await loadUserHistory(user.id);
+  
+  // 如果指定了日期范围，过滤历史记录
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999); // 包含结束日期的全天
+    
+    history = history.filter(item => {
+      if (!item.createdAt) return false;
+      const itemDate = new Date(item.createdAt);
+      return itemDate >= start && itemDate <= end;
+    });
+  }
+  
+  const stats = computeStatsFromHistory(history);
   return {
     user: {
       id: user.id,
@@ -1953,7 +1968,7 @@ async function buildUserStatsPayload(user) {
   };
 }
 
-async function buildSummaryStats() {
+async function buildSummaryStats(startDate, endDate) {
   const summary = {
     totals: { today: 0, thisMonth: 0, total: 0 },
     users: {
@@ -1966,10 +1981,11 @@ async function buildSummaryStats() {
       ).length,
     },
     perUser: [],
+    dateRange: startDate && endDate ? { startDate, endDate } : null,
   };
 
   for (const user of users) {
-    const userStats = await buildUserStatsPayload(user);
+    const userStats = await buildUserStatsPayload(user, startDate, endDate);
     summary.totals.today += userStats.totals.today;
     summary.totals.thisMonth += userStats.totals.thisMonth;
     summary.totals.total += userStats.totals.total;
@@ -2213,13 +2229,13 @@ app.delete("/api/history/:userId", async (req, res) => {
 app.get("/api/stats", requireAuth, async (req, res) => {
   try {
     const { user: sessionUser } = req.session;
-    const { scope = "self", userId } = req.query;
+    const { scope = "self", userId, startDate, endDate } = req.query;
 
     if (scope === "summary") {
       if (!sessionUser.isSuperAdmin) {
         return res.status(403).json({ error: "Forbidden" });
       }
-      const summary = await buildSummaryStats();
+      const summary = await buildSummaryStats(startDate, endDate);
       return res.json({ scope: "summary", summary });
     }
 
