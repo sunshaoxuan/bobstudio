@@ -1354,10 +1354,17 @@ const AdminDashboard = () => {
                     </div>
                   )}
 
-                  {selectedImage.fileDeleted && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <label className="text-sm font-semibold text-red-700">⚠️ 文件状态</label>
-                      <p className="text-red-600 text-sm">图片文件已被删除，仅保留记录用于统计</p>
+                  {selectedImage.archived && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <label className="text-sm font-semibold text-orange-700">📦 文件状态</label>
+                      <p className="text-orange-600 text-sm">
+                        图片已归档至隐藏目录，用户无法访问
+                      </p>
+                      {selectedImage.archivedPath && (
+                        <p className="text-xs text-gray-500 mt-1 font-mono break-all">
+                          归档路径: {selectedImage.archivedPath}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1430,11 +1437,10 @@ const AdminDashboard = () => {
                     
                     <button
                       onClick={async () => {
-                        if (!window.confirm('⚠️ 确定要删除图片文件吗？\n\n• 物理文件将被删除\n• 历史记录将保留（用于统计）\n• 此操作不可恢复！')) return;
-                        if (!window.confirm('⚠️⚠️ 再次确认：删除图片文件后无法恢复！\n\n记录会保留用于统计数据')) return;
+                        if (!window.confirm('📦 确定要归档这张图片吗？\n\n✅ 文件将移至归档目录（用于取证）\n✅ 用户无法访问，但管理员可追溯\n✅ 历史记录完整保留\n✅ 符合安全审核要求')) return;
                         try {
                           const res = await fetch(
-                            `${API_BASE_URL}/api/admin/history/${selectedImage.user.id}/${selectedImage.id}?deleteFile=true`,
+                            `${API_BASE_URL}/api/admin/history/${selectedImage.user.id}/${selectedImage.id}?archiveFile=true`,
                             {
                               method: 'DELETE',
                               credentials: 'include',
@@ -1442,20 +1448,20 @@ const AdminDashboard = () => {
                           );
                           if (!res.ok) {
                             const data = await res.json();
-                            throw new Error(data.error || '删除文件失败');
+                            throw new Error(data.error || '归档失败');
                           }
                           const result = await res.json();
                           alert('✅ ' + result.message);
                           setSelectedImage(null);
                           fetchAllHistory(); // 刷新列表
                         } catch (error) {
-                          alert('❌ 删除文件失败: ' + error.message);
+                          alert('❌ 归档失败: ' + error.message);
                         }
                       }}
-                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
+                      className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 flex items-center gap-2"
                     >
-                      <span>🗂️</span>
-                      删除文件
+                      <span>📦</span>
+                      归档文件
                     </button>
                   </div>
                   

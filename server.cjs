@@ -2268,14 +2268,14 @@ app.post("/api/admin/history/:userId/:historyId/restore", requireAdmin, async (r
   }
 });
 
-// 管理员删除用户的图片（标记删除或删除物理文件）
+// 管理员删除用户的图片（标记删除或归档文件）
 app.delete("/api/admin/history/:userId/:historyId", requireAdmin, async (req, res) => {
   try {
     const { userId, historyId } = req.params;
-    const { deleteFile } = req.query; // deleteFile=true 表示删除物理图片文件
+    const { archiveFile } = req.query; // archiveFile=true 表示归档图片文件
     const filePath = path.join(HISTORY_DIR, `history-${userId}.json`);
     
-    console.log(`🗑️ 管理员${deleteFile === 'true' ? '删除图片文件' : '标记删除'}用户 ${userId} 的图片 ${historyId}`);
+    console.log(`🗑️ 管理员${archiveFile === 'true' ? '归档图片文件' : '标记删除'}用户 ${userId} 的图片 ${historyId}`);
     
     let history = [];
     try {
@@ -2295,28 +2295,51 @@ app.delete("/api/admin/history/:userId/:historyId", requireAdmin, async (req, re
     
     const item = history[itemIndex];
     
-    if (deleteFile === 'true') {
-      // 删除物理图片文件，但保留历史记录（用于统计）
+    if (archiveFile === 'true') {
+      // 归档图片文件到隐藏目录，但保留历史记录（用于统计和取证）
       if (item.imageUrl) {
         try {
           const imagePath = path.join(__dirname, 'public', item.imageUrl);
-          await fs.unlink(imagePath);
-          console.log(`✅ 已删除图片文件: ${imagePath}`);
-        } catch (unlinkError) {
-          if (unlinkError.code !== 'ENOENT') {
-            console.warn(`⚠️ 删除图片文件失败: ${unlinkError.message}`);
+          
+          // 创建归档目录（隐藏目录，不对外访问）
+          const archiveDir = path.join(__dirname, 'data', 'archived-images', userId);
+          await fs.mkdir(archiveDir, { recursive: true });
+          
+          // 归档文件名包含时间戳和原因
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const fileName = path.basename(item.imageUrl);
+          const archivePath = path.join(archiveDir, `${timestamp}_${fileName}`);
+          
+          // 移动文件到归档目录（而不是删除）
+          try {
+            await fs.rename(imagePath, archivePath);
+            console.log(`📦 已归档图片文件: ${imagePath} -> ${archivePath}`);
+          } catch (renameError) {
+            // 如果 rename 失败（可能跨文件系统），则复制后删除
+            await fs.copyFile(imagePath, archivePath);
+            await fs.unlink(imagePath);
+            console.log(`📦 已复制并归档图片文件: ${imagePath} -> ${archivePath}`);
+          }
+          
+          // 记录归档路径（用于后续取证）
+          item.archivedPath = path.relative(__dirname, archivePath);
+          
+        } catch (archiveError) {
+          if (archiveError.code !== 'ENOENT') {
+            console.error(`⚠️ 归档图片文件失败: ${archiveError.message}`);
+            throw new Error('归档文件失败: ' + archiveError.message);
           }
         }
       }
       
-      // 标记为已删除文件
+      // 标记为已归档
       item.deleted = true;
-      item.fileDeleted = true; // 新增：标记物理文件已删除
+      item.archived = true; // 新增：标记文件已归档
       item.deletedAt = new Date().toISOString();
       item.deletedBy = req.session.user.id;
-      item.imageUrl = null; // 清空图片URL，因为文件已删除
+      item.imageUrl = null; // 清空公开访问的图片URL
       
-      console.log(`✅ 已删除图片文件并标记记录 ${historyId}`);
+      console.log(`✅ 已归档图片文件并标记记录 ${historyId}`);
     } else {
       // 仅标记删除（逻辑删除）
       item.deleted = true;
@@ -2329,7 +2352,7 @@ app.delete("/api/admin/history/:userId/:historyId", requireAdmin, async (req, re
     
     res.json({ 
       success: true, 
-      message: deleteFile === 'true' ? '图片文件已删除（记录保留用于统计）' : '图片已标记删除' 
+      message: archiveFile === 'true' ? '图片已归档（记录保留，文件备份用于取证）' : '图片已标记删除' 
     });
   } catch (error) {
     console.error('❌ 删除图片失败:', error);
