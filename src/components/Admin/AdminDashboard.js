@@ -1266,7 +1266,7 @@ const AdminDashboard = () => {
                             </div>
                           )}
                           {record.archived ? (
-                            // 归档图片显示占位符
+                            // 归档图片显示占位符（不自动加载）
                             <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-orange-50">
                               <div className="text-5xl mb-2">📦</div>
                               <div className="text-sm text-gray-600">已归档</div>
@@ -1529,15 +1529,22 @@ const AdminDashboard = () => {
                 {/* 图片 */}
                 <div className="bg-gray-100 rounded-lg overflow-hidden relative">
                   {selectedImage.archived ? (
-                    // 归档图片
-                    viewingArchivedImage && archivedImageUrl ? (
-                      // 显示从归档加载的图片
-                      <div>
-                        <img
-                          src={archivedImageUrl}
-                          alt={selectedImage.fileName}
-                          className="w-full h-auto"
-                        />
+                    // 归档图片：默认显示占位符，按需加载
+                    viewingArchivedImage ? (
+                      // 点击"查看归档"后显示图片
+                      <div className="relative">
+                        {selectedImage.imageUrl ? (
+                          <img
+                            src={`${API_BASE_URL}${selectedImage.imageUrl}`}
+                            alt={selectedImage.fileName}
+                            className="w-full h-auto"
+                          />
+                        ) : (
+                          <div className="w-full h-64 flex items-center justify-center text-gray-400">
+                            <ImageIcon className="w-32 h-32" />
+                            <div className="absolute text-sm text-gray-500">图片文件丢失</div>
+                          </div>
+                        )}
                         <div className="absolute top-2 right-2 bg-orange-600 text-white text-xs px-3 py-2 rounded-md shadow-lg">
                           📦 归档图片（管理员查看）
                         </div>
@@ -1548,24 +1555,11 @@ const AdminDashboard = () => {
                         <div className="text-6xl mb-4">📦</div>
                         <div className="text-lg font-semibold text-gray-700 mb-2">图片已归档</div>
                         <div className="text-sm text-gray-500 mb-4">
-                          文件已移至归档目录，用户无法访问
+                          文件仍在原位，但用户无法访问
                         </div>
-                        {selectedImage.archivedPath ? (
+                        {selectedImage.imageUrl ? (
                           <button
-                            onClick={async () => {
-                              try {
-                                // 从归档路径提取文件名
-                                const pathParts = selectedImage.archivedPath.split('/');
-                                const filename = pathParts[pathParts.length - 1];
-                                const userId = selectedImage.user.id;
-                                
-                                const url = `${API_BASE_URL}/api/admin/archived-image/${userId}/${filename}`;
-                                setArchivedImageUrl(url);
-                                setViewingArchivedImage(true);
-                              } catch (error) {
-                                alert('❌ 加载归档图片失败: ' + error.message);
-                              }
-                            }}
+                            onClick={() => setViewingArchivedImage(true)}
                             className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 font-semibold"
                           >
                             <span>👁️</span>
@@ -1574,11 +1568,11 @@ const AdminDashboard = () => {
                         ) : (
                           <div className="text-center">
                             <div className="text-sm text-red-600 mb-2">
-                              ⚠️ 归档路径缺失
+                              ⚠️ 图片文件丢失
                             </div>
                             <div className="text-xs text-gray-500">
-                              此图片在归档功能实现前被删除，<br/>
-                              没有归档路径信息，无法查看
+                              图片文件已真的丢失，<br/>
+                              无法查看，仅保留记录用于统计
                             </div>
                           </div>
                         )}
@@ -1593,6 +1587,9 @@ const AdminDashboard = () => {
                   ) : (
                     <div className="w-full h-64 flex items-center justify-center text-gray-400">
                       <ImageIcon className="w-32 h-32" />
+                      <div className="absolute text-sm text-gray-500">
+                        图片文件丢失
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1632,15 +1629,13 @@ const AdminDashboard = () => {
 
                   {selectedImage.archived && (
                     <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                      <label className="text-sm font-semibold text-orange-700">📦 文件状态</label>
+                      <label className="text-sm font-semibold text-orange-700">📦 归档状态</label>
                       <p className="text-orange-600 text-sm">
-                        图片已归档至隐藏目录，用户无法访问
+                        此图片已归档，仅管理员可查看（用户不可见）
                       </p>
-                      {selectedImage.archivedPath && (
-                        <p className="text-xs text-gray-500 mt-1 font-mono break-all">
-                          归档路径: {selectedImage.archivedPath}
-                        </p>
-                      )}
+                      <p className="text-xs text-gray-500 mt-1">
+                        文件保留在原位用于取证，点击"查看归档图片"可查看
+                      </p>
                     </div>
                   )}
 

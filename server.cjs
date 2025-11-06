@@ -2386,43 +2386,9 @@ app.post("/api/admin/history/:userId/:historyId/restore", requireAdmin, async (r
       return res.status(400).json({ error: '该记录未被删除' });
     }
     
-    // 如果是归档的图片，需要从归档目录移回来
-    if (item.archived && item.archivedPath) {
-      try {
-        const archivedFilePath = path.join(__dirname, item.archivedPath);
-        
-        // 检查归档文件是否存在
-        try {
-          await fs.access(archivedFilePath);
-        } catch {
-          console.warn(`⚠️ 归档文件不存在: ${archivedFilePath}`);
-          return res.status(404).json({ error: '归档文件不存在，无法恢复' });
-        }
-        
-        // 恢复文件到原位置
-        const originalFileName = path.basename(item.archivedPath).split('_').slice(1).join('_'); // 去掉时间戳前缀
-        const restorePath = path.join(__dirname, 'public', 'images', originalFileName);
-        
-        await fs.copyFile(archivedFilePath, restorePath);
-        
-        // 更新记录
-        item.imageUrl = `/images/${originalFileName}`;
-        item.archived = false;
-        item.archivedPath = null;
-        
-        console.log(`📦 已从归档恢复文件: ${archivedFilePath} -> ${restorePath}`);
-      } catch (restoreError) {
-        console.error('❌ 从归档恢复文件失败:', restoreError);
-        return res.status(500).json({ error: '从归档恢复文件失败: ' + restoreError.message });
-      }
-    } else if (item.archived && !item.archivedPath) {
-      // 旧数据：标记为归档但没有归档路径
-      console.warn(`⚠️ 图片 ${historyId} 标记为归档但缺少归档路径`);
-      return res.status(400).json({ error: '此图片在归档功能实现前被删除，缺少归档路径，无法恢复' });
-    }
-    
-    // 恢复记录
+    // 恢复记录（归档只是标记，文件从未移动，所以直接恢复标记即可）
     item.deleted = false;
+    item.archived = false; // 取消归档标记
     item.restoredAt = new Date().toISOString();
     item.restoredBy = req.session.user.id;
     
@@ -2464,50 +2430,27 @@ app.delete("/api/admin/history/:userId/:historyId", requireAdmin, async (req, re
     const item = history[itemIndex];
     
     if (archiveFile === 'true') {
-      // 归档图片文件到隐藏目录，但保留历史记录（用于统计和取证）
-      if (item.imageUrl) {
-        try {
-          const imagePath = path.join(__dirname, 'public', item.imageUrl);
-          
-          // 创建归档目录（隐藏目录，不对外访问）
-          const archiveDir = path.join(__dirname, 'data', 'archived-images', userId);
-          await fs.mkdir(archiveDir, { recursive: true });
-          
-          // 归档文件名包含时间戳和原因
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const fileName = path.basename(item.imageUrl);
-          const archivePath = path.join(archiveDir, `${timestamp}_${fileName}`);
-          
-          // 移动文件到归档目录（而不是删除）
-          try {
-            await fs.rename(imagePath, archivePath);
-            console.log(`📦 已归档图片文件: ${imagePath} -> ${archivePath}`);
-          } catch (renameError) {
-            // 如果 rename 失败（可能跨文件系统），则复制后删除
-            await fs.copyFile(imagePath, archivePath);
-            await fs.unlink(imagePath);
-            console.log(`📦 已复制并归档图片文件: ${imagePath} -> ${archivePath}`);
-          }
-          
-          // 记录归档路径（用于后续取证）
-          item.archivedPath = path.relative(__dirname, archivePath);
-          
-        } catch (archiveError) {
-          if (archiveError.code !== 'ENOENT') {
-            console.error(`⚠️ 归档图片文件失败: ${archiveError.message}`);
-            throw new Error('归档文件失败: ' + archiveError.message);
-          }
-        }
-      }
+      // 归档：只打标记，文件保留在原位（便于取证和恢复）
+      // 不移动文件，只是标记为归档状态，用户无法访问
       
       // 标记为已归档
       item.deleted = true;
-      item.archived = true; // 新增：标记文件已归档
-      item.deletedAt = new Date().toISOString();
-      item.deletedBy = req.session.user.id;
-      item.imageUrl = null; // 清空公开访问的图片URL
+      item.archived = true;
+      item.archivedAt = new Date().toISOString(); // 记录归档时间
+      item.archivedBy = req.session.user.id; // 记录操作者
       
-      console.log(`✅ 已归档图片文件并标记记录 ${historyId}`);
+      // 保持deletedAt和deletedBy（如果已经删除过）
+      if (!item.deletedAt) {
+        item.deletedAt = new Date().toISOString();
+      }
+      if (!item.deletedBy) {
+        item.deletedBy = req.session.user.id;
+      }
+      
+      // 🔑 关键：imageUrl保留不变！文件还在原位
+      // item.imageUrl 保持原值，便于管理员查看和取证
+      
+      console.log(`📦 已归档图片记录 ${historyId}（文件保留在原位）`);
     } else {
       // 仅标记删除（逻辑删除）
       item.deleted = true;
@@ -2585,24 +2528,17 @@ app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
         let changed = false;
         
         for (const item of history) {
-          // 修复1：如果标记为archived但没有archivedPath，说明是旧数据
-          if (item.archived && !item.archivedPath) {
-            console.log(`  🔧 修复 ${fileName} 中的记录 ${item.id}`);
-            item.archived = false; // 改回普通删除状态
-            changed = true;
-            fixedCount++;
-          }
-          
-          // 修复2：如果imageUrl为null但fileName存在，尝试恢复imageUrl
+          // 修复：如果imageUrl为null但fileName存在，尝试恢复imageUrl
+          // 注意：保持archived状态不变，只恢复URL
           if (!item.imageUrl && item.fileName) {
             // 图片文件按用户ID分目录存储: images/{userId}/{fileName}
             const possibleImagePath = path.join(IMAGES_DIR, userId, item.fileName);
             console.log(`  🔍 检查图片文件: ${possibleImagePath}`);
             try {
               await fs.access(possibleImagePath);
-              // 文件存在！恢复imageUrl
+              // 文件存在！恢复imageUrl（保持archived状态）
               item.imageUrl = `/images/${userId}/${item.fileName}`;
-              console.log(`  ✅ 恢复imageUrl: /images/${userId}/${item.fileName} (文件存在)`);
+              console.log(`  ✅ 恢复imageUrl: /images/${userId}/${item.fileName} (archived=${item.archived})`);
               changed = true;
               restoredUrlCount++;
             } catch (accessError) {
