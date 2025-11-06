@@ -1478,9 +1478,19 @@ const Studio = () => {
         if (response.status === 400) {
           throw new Error("请求格式错误或API密钥无效");
         } else if (response.status === 403) {
-          // 针对超级管理员给出更明确的提示
+          // 检查是否是API Key泄露
+          let errorDetail = "";
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData?.error?.message?.includes('leaked')) {
+              throw new Error("🚨 API密钥已泄露\n\nGoogle检测到您的API Key已被公开泄露，已自动封禁该Key。\n\n🔒 紧急措施：\n1. 立即前往Google Cloud Console删除旧Key\n2. 创建新的API Key并设置IP限制\n3. 在设置中更新新的API Key\n4. 检查GitHub等公开场所是否泄露了Key\n\n⚠️ 注意：这不是配额问题，必须更换新Key才能继续使用！");
+            }
+            errorDetail = errorData?.error?.message || "";
+          } catch {}
+          
+          // 其他403错误
           if (currentUser?.isSuperAdmin) {
-            throw new Error("Google API配额已用完\n\n这是Google API的限制，与应用内部的生成次数无关。\n\n💡 解决方法：\n• 检查API Key在Google Cloud的配额限制\n• 更换新的API Key\n• 等待配额重置（通常每日或每月重置）");
+            throw new Error(`Google API权限错误\n\n${errorDetail || '请检查API Key配置'}\n\n💡 可能原因：\n• API Key无效或已过期\n• API Key没有访问该模型的权限\n• 配额已用完\n• API Key被限制访问`);
           } else {
             throw new Error("API密钥权限不足或配额已用完");
           }

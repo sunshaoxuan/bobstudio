@@ -2251,10 +2251,10 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
     // 优先使用前端传来的 apiKey（用户自己配置的情况）
     // 如果前端没有 apiKey，则从用户的 session 中获取（管理员配置的情况）
     let effectiveApiKey = apiKey;
-    const dbUser = users.find(u => u.id === userId); // 提前获取用户信息用于后续日志
     
     if (!effectiveApiKey) {
       // 尝试从数据库获取用户的实际 API Key
+      const dbUser = users.find(u => u.id === userId);
       console.log(`[${timestamp}] 🔍 调试信息 | 用户: ${username}(${userId})`);
       console.log(`  - isSuperAdmin: ${dbUser?.isSuperAdmin}`);
       console.log(`  - hasApiKeyEncrypted: ${!!dbUser?.apiKeyEncrypted}`);
@@ -2266,7 +2266,7 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
           console.log(`[${timestamp}] 📝 使用管理员配置的 API Key | 用户: ${username}(${userId})`);
           console.log(`  - 解密成功: ${!!effectiveApiKey}`);
           console.log(`  - API Key长度: ${effectiveApiKey?.length || 0}`);
-          console.log(`  - API Key前8字符: ${effectiveApiKey?.substring(0, 8) || 'null'}`);
+          // 🔒 安全：不再显示API Key的任何部分，防止泄露
         } catch (decryptError) {
           console.error(`[${timestamp}] ❌ API Key解密失败 | 用户: ${username}(${userId})`, decryptError);
           return res.status(500).json({ error: "API密钥解密失败，请联系管理员重新配置" });
@@ -2356,17 +2356,6 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
     
     if (!response.ok) {
       console.error(`[${timestamp}] ❌ Google API返回错误 | 用户: ${username}(${userId}) | 状态码: ${response.status} | 耗时: ${duration}s`);
-      console.error(`[${timestamp}] 📋 Google API错误详情:`, JSON.stringify(data, null, 2));
-      
-      // 针对403错误，详细分析原因
-      if (response.status === 403) {
-        console.error(`[${timestamp}] 🔍 403错误分析:`);
-        console.error(`  - API Key前8字符: ${effectiveApiKey?.substring(0, 8)}`);
-        console.error(`  - API Key长度: ${effectiveApiKey?.length}`);
-        console.error(`  - 用户是否为超级管理员: ${dbUser?.isSuperAdmin || false}`);
-        console.error(`  - 错误响应: ${JSON.stringify(data)}`);
-      }
-      
       return res.status(response.status).json(data);
     }
     
