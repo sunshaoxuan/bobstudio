@@ -1755,7 +1755,26 @@ const Studio = () => {
         throw new Error(data.error || "保存失败");
       }
 
-      showError("保存成功", "API 密钥已更新", "");
+      const result = await response.json();
+      
+      // 如果是超级管理员批量更新，显示详细信息
+      if (result.batchUpdated && result.updatedUsersCount !== undefined) {
+        if (result.updatedUsersCount > 0) {
+          showError(
+            "批量更新成功", 
+            `✅ 已更新您和其他 ${result.updatedUsersCount} 个使用相同Key的用户\n\n所有受影响的用户将自动使用新的API Key`,
+            ""
+          );
+        } else {
+          showError(
+            "保存成功", 
+            "✅ API 密钥已更新\n\n未发现其他用户使用相同的旧Key",
+            ""
+          );
+        }
+      } else {
+        showError("保存成功", "API 密钥已更新", "");
+      }
     } catch (error) {
       console.error("保存 API Key 失败:", error);
       showError("保存失败", error.message || "API 密钥保存失败，请稍后重试");

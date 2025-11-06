@@ -1689,6 +1689,62 @@ app.post("/api/me/api-key", requireAuth, (req, res) => {
     if (!target.showApiConfig && !target.isSuperAdmin) {
       return res.status(403).json({ error: "该用户未开放自助配置" });
     }
+    
+    // 🔑 超级管理员更新API Key时，批量更新所有使用相同旧Key的用户
+    if (target.isSuperAdmin && typeof apiKey === "string" && apiKey.trim()) {
+      const oldEncryptedKey = target.apiKeyEncrypted;
+      const oldPlainKey = oldEncryptedKey ? decryptSensitiveValue(oldEncryptedKey) : "";
+      const newEncryptedKey = encryptSensitiveValue(apiKey);
+      
+      if (oldPlainKey) {
+        console.log(`\n${"=".repeat(60)}`);
+        console.log(`🔄 超级管理员更新API Key，开始批量同步...`);
+        console.log(`${"=".repeat(60)}\n`);
+        
+        let updatedCount = 0;
+        users.forEach((user) => {
+          if (user.id === target.id) {
+            // 跳过自己，稍后单独更新
+            return;
+          }
+          
+          if (user.apiKeyEncrypted) {
+            try {
+              const userPlainKey = decryptSensitiveValue(user.apiKeyEncrypted);
+              // 如果用户的Key与管理员旧Key相同，则更新
+              if (userPlainKey === oldPlainKey) {
+                user.apiKeyEncrypted = newEncryptedKey;
+                delete user.apiKey;
+                updatedCount++;
+                console.log(`  ✅ 已更新用户: ${user.username} (${user.id})`);
+              }
+            } catch (decryptError) {
+              console.warn(`  ⚠️ 跳过用户 ${user.username} (${user.id}): 解密失败`);
+            }
+          }
+        });
+        
+        console.log(`\n${"=".repeat(60)}`);
+        console.log(`✨ 批量同步完成！共更新 ${updatedCount} 个用户的API Key`);
+        console.log(`${"=".repeat(60)}\n`);
+        
+        // 更新超级管理员自己的Key
+        target.apiKeyEncrypted = newEncryptedKey;
+        delete target.apiKey;
+        req.session.user = toSessionUser(target);
+        saveUsers();
+        
+        return res.json({ 
+          success: true, 
+          apiKeySet: true,
+          batchUpdated: true,
+          updatedUsersCount: updatedCount,
+          message: `已更新您和其他 ${updatedCount} 个使用相同Key的用户`
+        });
+      }
+    }
+    
+    // 普通用户或管理员首次设置Key
     target.apiKeyEncrypted =
       typeof apiKey === "string" ? encryptSensitiveValue(apiKey) : "";
     delete target.apiKey;
