@@ -102,6 +102,9 @@ const Studio = () => {
   const [suggestedPrompt, setSuggestedPrompt] = useState(''); // AI建议的提示词
   const [loadingSuggestion, setLoadingSuggestion] = useState(false); // 正在生成建议
   
+  // 超时对话框状态
+  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false);
+  
   // 本地缓存和服务器状态
   const [pendingSync, setPendingSync] = useState([]); // 待同步的历史记录
   const [serverAvailable, setServerAvailable] = useState(true); // 服务器是否可用
