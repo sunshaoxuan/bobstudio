@@ -2575,6 +2575,9 @@ app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
     for (const fileName of historyFiles) {
       if (!fileName.startsWith('history-') || !fileName.endsWith('.json')) continue;
       
+      // 从文件名提取userId: history-{userId}.json
+      const userId = fileName.replace('history-', '').replace('.json', '');
+      
       const filePath = path.join(HISTORY_DIR, fileName);
       try {
         const data = await fs.readFile(filePath, 'utf8');
@@ -2592,19 +2595,19 @@ app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
           
           // 修复2：如果imageUrl为null但fileName存在，尝试恢复imageUrl
           if (!item.imageUrl && item.fileName) {
-            // 图片文件在根目录的images文件夹
-            const possibleImagePath = path.join(IMAGES_DIR, item.fileName);
+            // 图片文件按用户ID分目录存储: images/{userId}/{fileName}
+            const possibleImagePath = path.join(IMAGES_DIR, userId, item.fileName);
             console.log(`  🔍 检查图片文件: ${possibleImagePath}`);
             try {
               await fs.access(possibleImagePath);
               // 文件存在！恢复imageUrl
-              item.imageUrl = `/images/${item.fileName}`;
-              console.log(`  ✅ 恢复imageUrl: ${item.fileName} (文件存在)`);
+              item.imageUrl = `/images/${userId}/${item.fileName}`;
+              console.log(`  ✅ 恢复imageUrl: /images/${userId}/${item.fileName} (文件存在)`);
               changed = true;
               restoredUrlCount++;
             } catch (accessError) {
               // 文件不存在，无法恢复
-              console.log(`  ❌ 文件不存在: ${item.fileName}，错误: ${accessError.code}`);
+              console.log(`  ❌ 文件不存在: ${possibleImagePath}`);
             }
           }
         }
