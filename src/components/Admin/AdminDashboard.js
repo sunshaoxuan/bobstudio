@@ -93,7 +93,7 @@ const AdminDashboard = () => {
     }
   }, [selectedImages]);
   
-  // 批量归档
+  // 批量归档（实现会在fetchAllHistory定义后）
   const batchArchiveImages = useCallback(async () => {
     if (selectedImages.length === 0) {
       alert('请先选择要归档的图片');
@@ -134,8 +134,22 @@ const AdminDashboard = () => {
     alert(`✅ 批量归档完成\n\n成功: ${successCount} 张\n失败: ${failCount} 张`);
     setSelectedImages([]);
     setBatchMode(false);
-    fetchAllHistory(); // 刷新列表
-  }, [selectedImages, allHistory, fetchAllHistory]);
+    
+    // 刷新列表
+    try {
+      setLoadingHistory(true);
+      const res = await fetch(`${API_BASE_URL}/api/admin/all-history`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("加载失败");
+      const data = await res.json();
+      setAllHistory(Array.isArray(data.history) ? data.history : []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [selectedImages, allHistory]);
   
   // 在线用户相关状态
   const [onlineUsers, setOnlineUsers] = useState([]);
