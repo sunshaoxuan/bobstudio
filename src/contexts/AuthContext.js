@@ -204,6 +204,8 @@ export const AuthProvider = ({ children }) => {
     const params = new URLSearchParams();
     if (options.scope) params.set('scope', options.scope);
     if (options.userId) params.set('userId', options.userId);
+    if (options.startDate) params.set('startDate', options.startDate);
+    if (options.endDate) params.set('endDate', options.endDate);
 
     setStats(prev => ({ ...prev, loading: true, requestedScope: options.scope || 'self' }));
     
