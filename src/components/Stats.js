@@ -174,12 +174,17 @@ const Stats = () => {
 
   const pieChartData = useMemo(() => {
     if (effectiveScope === 'summary') {
+      // 平台概览：显示每个用户的生成数量分布
       const list = summaryData?.perUser || [];
-      return list.map(user => ({
-        name: user.username,
-        value: user.totals.total,
-        color: MODE_COLORS.generate
-      }));
+      // 为每个用户生成不同的颜色
+      const colors = ['#8B5CF6', '#3B82F6', '#10B981', '#F97316', '#EC4899', '#14B8A6', '#F59E0B', '#EF4444', '#6366F1', '#8B5CF6'];
+      return list
+        .filter(user => user.totals.total > 0) // 只显示有生成记录的用户
+        .map((user, index) => ({
+          name: user.displayName || user.username,
+          value: user.totals.total,
+          color: colors[index % colors.length]
+        }));
     }
     const distribution = userStatsForView?.distribution || [];
     return distribution.map(item => ({
@@ -374,31 +379,29 @@ const Stats = () => {
                 </ResponsiveContainer>
               </div>
 
-              {effectiveScope !== 'summary' && (
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-lg font-semibold mb-4">生成数量分布</h2>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={pieChartData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value, percent }) =>
-                          value > 0 ? `${name}: ${value} (${(percent * 100).toFixed(0)}%)` : null
-                        }
-                        outerRadius={80}
-                        dataKey="value"
-                      >
-                        {pieChartData.map((entry, index) => (
-                          <Cell key={index} fill={entry.color || '#8B5CF6'} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [value, '生成数量']} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h2 className="text-lg font-semibold mb-4">生成数量分布</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={pieChartData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value, percent }) =>
+                        value > 0 ? `${name}: ${value} (${(percent * 100).toFixed(0)}%)` : null
+                      }
+                      outerRadius={80}
+                      dataKey="value"
+                    >
+                      {pieChartData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color || '#8B5CF6'} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => [value, '生成数量']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             {effectiveScope !== 'summary' && (
