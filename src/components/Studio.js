@@ -496,6 +496,8 @@ const Studio = () => {
         body: JSON.stringify({
           userPrompt: prompt,
           apiKey: currentUser?.showApiConfig ? apiKey : undefined,
+          mode: mode, // 传递当前模式（generate/edit/compose）
+          hasImages: uploadedImages.length > 0, // 是否有上传图片
         }),
       });
       
@@ -512,7 +514,7 @@ const Studio = () => {
     } finally {
       setLoadingSuggestion(false);
     }
-  }, [prompt, apiKey, currentUser, checkApiKeyAvailable, showError]);
+  }, [prompt, apiKey, currentUser, mode, uploadedImages, checkApiKeyAvailable, showError]);
   
   // 使用建议的提示词
   const useSuggestedPrompt = useCallback(() => {

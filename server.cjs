@@ -2726,7 +2726,7 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
   const username = user?.username || 'unknown';
   
   try {
-    const { userPrompt, apiKey } = req.body;
+    const { userPrompt, apiKey, mode, hasImages } = req.body;
     
     if (!userPrompt || !userPrompt.trim()) {
       return res.status(400).json({ error: '提示词不能为空' });
@@ -2746,7 +2746,7 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "API 密钥不能为空" });
     }
     
-    console.log(`[${timestamp}] 💡 提示词优化请求 | 用户: ${username}(${userId}) | 原始提示词长度: ${userPrompt.length}`);
+    console.log(`[${timestamp}] 💡 提示词优化请求 | 用户: ${username}(${userId}) | 模式: ${mode || 'generate'} | 原始提示词长度: ${userPrompt.length}`);
     
     // 使用 Gemini Flash 文本模型优化提示词
     let fetch;
@@ -2756,19 +2756,42 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
       fetch = require('node-fetch');
     }
     
-    const systemPrompt = `你是一个专业的AI图像生成提示词优化助手。用户会给你一个简短的提示词，你需要将其扩展为详细、具体的图像生成提示词。
+    // 根据模式调整系统提示词
+    let systemPrompt = `你是一个专业的AI图像生成提示词优化助手。用户会给你一个简短的提示词，你需要将其扩展为详细、具体的图像生成提示词。
 
-要求：
+基本要求：
 1. 保留用户的核心意图和关键词
 2. 添加具体的视觉细节（构图、光线、色彩、风格等）
 3. 使用专业的摄影和艺术术语
 4. 提示词长度控制在100-200字
 5. 直接输出优化后的提示词，不要有任何前缀或解释
-6. 使用中文输出
+6. 使用中文输出`;
 
-示例：
+    // 图像编辑或合成模式的特殊要求
+    if (mode === 'edit' || mode === 'compose') {
+      systemPrompt += `\n\n⚠️ 特别注意（图像${mode === 'edit' ? '编辑' : '合成'}模式）：
+- 用户已上传参考图片，会进行图像编辑或合成
+- 如果图片中包含人物，必须强调"保持人物的面部特征与细节一致"
+- 如果涉及人物改变（服装、姿势、背景等），必须明确指出"容貌、五官、面部特征必须与原图一致"
+- 添加类似表述："人物的脸型、五官、神态等细节特征需与原图保持高度一致"
+- 这对于避免生成的人物面部特征偏离原图非常重要`;
+    }
+    
+    systemPrompt += `\n\n示例：
 用户输入：一只猫
 优化输出：一只优雅的波斯猫，柔软的白色长毛，琥珀色的眼睛，坐在阳光洒落的窗台上。柔和的自然光从侧面照射，营造出温暖的氛围。背景虚化，突出猫咪的细节。高清摄影，浅景深，专业人像级别的画质。`;
+
+    if (mode === 'edit') {
+      systemPrompt += `\n\n图像编辑示例：
+用户输入：换一身和服
+优化输出：为图片中的人物更换传统日式和服，采用精美的花纹图案和鲜艳的色彩。⚠️ 重要：人物的面部特征、五官细节、神态表情必须与原图保持完全一致，只改变服装，不改变容貌。背景和光线保持与原图协调。`;
+    }
+    
+    if (mode === 'compose') {
+      systemPrompt += `\n\n图像合成示例：
+用户输入：合成在海边
+优化输出：将图片中的人物合成到海边场景中，背景是金色沙滩和蔚蓝大海，夕阳西下的温暖光线。⚠️ 重要：人物的面部特征、五官、表情、体态必须与原图完全一致，确保人物形象不变形不走样。自然融入新背景，光影协调统一。`;
+    }
     
     const response = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent",
