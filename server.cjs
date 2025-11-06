@@ -2637,16 +2637,18 @@ app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
   }
 });
 
-// 管理员诊断工具：列出images目录结构
+// 管理员诊断工具：列出images目录结构和归档目录
 app.get("/api/admin/diagnose-images", requireAdmin, async (req, res) => {
   try {
     const result = {
       imagesDir: IMAGES_DIR,
       userDirs: [],
-      sampleFiles: []
+      sampleFiles: [],
+      archivedDir: path.join(__dirname, 'data', 'archived-images'),
+      archivedFiles: []
     };
     
-    // 列出所有用户目录
+    // 列出所有用户图片目录
     const entries = await fs.readdir(IMAGES_DIR, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
@@ -2664,6 +2666,29 @@ app.get("/api/admin/diagnose-images", requireAdmin, async (req, res) => {
           console.error(`读取用户目录失败: ${entry.name}`, e);
         }
       }
+    }
+    
+    // 检查归档目录
+    try {
+      const archiveDir = path.join(__dirname, 'data', 'archived-images');
+      await fs.access(archiveDir);
+      const archiveEntries = await fs.readdir(archiveDir, { withFileTypes: true });
+      for (const entry of archiveEntries) {
+        if (entry.isDirectory()) {
+          try {
+            const archivedFiles = await fs.readdir(path.join(archiveDir, entry.name));
+            result.archivedFiles.push({
+              userId: entry.name,
+              files: archivedFiles,
+              total: archivedFiles.length
+            });
+          } catch (e) {
+            console.error(`读取归档目录失败: ${entry.name}`, e);
+          }
+        }
+      }
+    } catch {
+      result.archivedFiles = null; // 归档目录不存在
     }
     
     res.json(result);
