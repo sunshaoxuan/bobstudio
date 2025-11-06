@@ -2563,12 +2563,13 @@ app.get("/api/admin/archived-image/:userId/:filename", requireAdmin, async (req,
   }
 });
 
-// 管理员修复旧数据：清理错误的archived标记
+// 管理员修复旧数据：清理错误的archived标记并恢复imageUrl
 app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
   try {
     console.log(`🔧 开始修复旧的归档数据...`);
     
     let fixedCount = 0;
+    let restoredUrlCount = 0;
     const historyFiles = await fs.readdir(HISTORY_DIR);
     
     for (const fileName of historyFiles) {
@@ -2581,12 +2582,27 @@ app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
         let changed = false;
         
         for (const item of history) {
-          // 如果标记为archived但没有archivedPath，说明是旧数据，需要修复
+          // 修复1：如果标记为archived但没有archivedPath，说明是旧数据
           if (item.archived && !item.archivedPath) {
             console.log(`  🔧 修复 ${fileName} 中的记录 ${item.id}`);
             item.archived = false; // 改回普通删除状态
             changed = true;
             fixedCount++;
+          }
+          
+          // 修复2：如果imageUrl为null但fileName存在，尝试恢复imageUrl
+          if (!item.imageUrl && item.fileName) {
+            const possibleImagePath = path.join(__dirname, 'public', 'images', item.fileName);
+            try {
+              await fs.access(possibleImagePath);
+              // 文件存在！恢复imageUrl
+              item.imageUrl = `/images/${item.fileName}`;
+              console.log(`  ✅ 恢复imageUrl: ${item.fileName}`);
+              changed = true;
+              restoredUrlCount++;
+            } catch {
+              // 文件不存在，无法恢复
+            }
           }
         }
         
@@ -2599,8 +2615,16 @@ app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
       }
     }
     
-    console.log(`✅ 数据修复完成！共修复 ${fixedCount} 条记录`);
-    res.json({ success: true, fixedCount, message: `已修复 ${fixedCount} 条旧数据` });
+    console.log(`✅ 数据修复完成！`);
+    console.log(`  - 修复archived标记: ${fixedCount} 条`);
+    console.log(`  - 恢复imageUrl: ${restoredUrlCount} 条`);
+    
+    res.json({ 
+      success: true, 
+      fixedCount, 
+      restoredUrlCount,
+      message: `已修复 ${fixedCount} 条归档标记，恢复 ${restoredUrlCount} 个图片URL` 
+    });
   } catch (error) {
     console.error('❌ 修复数据失败:', error);
     res.status(500).json({ error: '修复数据失败' });
