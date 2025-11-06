@@ -2225,6 +2225,95 @@ app.delete("/api/history/:userId", async (req, res) => {
   }
 });
 
+// 管理员恢复用户的已删除图片
+app.post("/api/admin/history/:userId/:historyId/restore", requireAdmin, async (req, res) => {
+  try {
+    const { userId, historyId } = req.params;
+    const filePath = path.join(HISTORY_DIR, `history-${userId}.json`);
+    
+    console.log(`🔄 管理员恢复用户 ${userId} 的图片 ${historyId}`);
+    
+    let history = [];
+    try {
+      const data = await fs.readFile(filePath, 'utf8');
+      history = JSON.parse(data);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return res.status(404).json({ error: '用户历史记录不存在' });
+      }
+      throw error;
+    }
+    
+    const item = history.find(h => h.id === historyId);
+    if (!item) {
+      return res.status(404).json({ error: '历史记录不存在' });
+    }
+    
+    if (!item.deleted) {
+      return res.status(400).json({ error: '该记录未被删除' });
+    }
+    
+    // 恢复记录
+    item.deleted = false;
+    item.restoredAt = new Date().toISOString();
+    item.restoredBy = req.session.user.id;
+    
+    await fs.writeFile(filePath, JSON.stringify(history, null, 2), 'utf8');
+    console.log(`✅ 成功恢复用户 ${userId} 的图片 ${historyId}`);
+    
+    res.json({ success: true, message: '图片已恢复' });
+  } catch (error) {
+    console.error('❌ 恢复图片失败:', error);
+    res.status(500).json({ error: '恢复图片失败' });
+  }
+});
+
+// 管理员删除用户的图片（硬删除或标记删除）
+app.delete("/api/admin/history/:userId/:historyId", requireAdmin, async (req, res) => {
+  try {
+    const { userId, historyId } = req.params;
+    const { permanent } = req.query; // permanent=true 表示永久删除
+    const filePath = path.join(HISTORY_DIR, `history-${userId}.json`);
+    
+    console.log(`🗑️ 管理员${permanent === 'true' ? '永久删除' : '标记删除'}用户 ${userId} 的图片 ${historyId}`);
+    
+    let history = [];
+    try {
+      const data = await fs.readFile(filePath, 'utf8');
+      history = JSON.parse(data);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return res.status(404).json({ error: '用户历史记录不存在' });
+      }
+      throw error;
+    }
+    
+    const itemIndex = history.findIndex(h => h.id === historyId);
+    if (itemIndex === -1) {
+      return res.status(404).json({ error: '历史记录不存在' });
+    }
+    
+    if (permanent === 'true') {
+      // 永久删除：从数组中移除
+      history.splice(itemIndex, 1);
+      console.log(`✅ 永久删除了图片 ${historyId}`);
+    } else {
+      // 标记删除
+      history[itemIndex].deleted = true;
+      history[itemIndex].deletedAt = new Date().toISOString();
+      history[itemIndex].deletedBy = req.session.user.id;
+      console.log(`✅ 标记删除了图片 ${historyId}`);
+    }
+    
+    await fs.writeFile(filePath, JSON.stringify(history, null, 2), 'utf8');
+    
+    res.json({ success: true, message: permanent === 'true' ? '图片已永久删除' : '图片已删除' });
+  } catch (error) {
+    console.error('❌ 删除图片失败:', error);
+    res.status(500).json({ error: '删除图片失败' });
+  }
+});
+
 // 统计 API
 app.get("/api/stats", requireAuth, async (req, res) => {
   try {

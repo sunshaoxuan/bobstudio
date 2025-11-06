@@ -1319,7 +1319,97 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
+                {/* 管理员操作按钮 */}
+                <div className="flex justify-between items-center gap-4 pt-4 border-t">
+                  <div className="flex gap-2">
+                    {selectedImage.deleted ? (
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm('确定要恢复这张图片吗？')) return;
+                          try {
+                            const res = await fetch(
+                              `${API_BASE_URL}/api/admin/history/${selectedImage.user.id}/${selectedImage.id}/restore`,
+                              {
+                                method: 'POST',
+                                credentials: 'include',
+                              }
+                            );
+                            if (!res.ok) {
+                              const data = await res.json();
+                              throw new Error(data.error || '恢复失败');
+                            }
+                            alert('✅ 图片已恢复');
+                            setSelectedImage(null);
+                            fetchAllHistory(); // 刷新列表
+                          } catch (error) {
+                            alert('❌ 恢复失败: ' + error.message);
+                          }
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+                      >
+                        <span>🔄</span>
+                        恢复图片
+                      </button>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm('确定要删除这张图片吗？\n\n这将标记删除，可以恢复。')) return;
+                          try {
+                            const res = await fetch(
+                              `${API_BASE_URL}/api/admin/history/${selectedImage.user.id}/${selectedImage.id}`,
+                              {
+                                method: 'DELETE',
+                                credentials: 'include',
+                              }
+                            );
+                            if (!res.ok) {
+                              const data = await res.json();
+                              throw new Error(data.error || '删除失败');
+                            }
+                            alert('✅ 图片已删除');
+                            setSelectedImage(null);
+                            fetchAllHistory(); // 刷新列表
+                          } catch (error) {
+                            alert('❌ 删除失败: ' + error.message);
+                          }
+                        }}
+                        className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 flex items-center gap-2"
+                      >
+                        <span>🗑️</span>
+                        删除图片
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm('⚠️ 确定要永久删除这张图片吗？\n\n此操作不可恢复！')) return;
+                        if (!window.confirm('⚠️⚠️ 再次确认：永久删除后无法恢复！')) return;
+                        try {
+                          const res = await fetch(
+                            `${API_BASE_URL}/api/admin/history/${selectedImage.user.id}/${selectedImage.id}?permanent=true`,
+                            {
+                              method: 'DELETE',
+                              credentials: 'include',
+                            }
+                          );
+                          if (!res.ok) {
+                            const data = await res.json();
+                            throw new Error(data.error || '永久删除失败');
+                          }
+                          alert('✅ 图片已永久删除');
+                          setSelectedImage(null);
+                          fetchAllHistory(); // 刷新列表
+                        } catch (error) {
+                          alert('❌ 永久删除失败: ' + error.message);
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
+                    >
+                      <span>⚠️</span>
+                      永久删除
+                    </button>
+                  </div>
+                  
                   <button
                     onClick={() => setSelectedImage(null)}
                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
