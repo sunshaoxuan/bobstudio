@@ -49,7 +49,7 @@ const AdminDashboard = () => {
   const [filterUser, setFilterUser] = useState("");
   const [filterMode, setFilterMode] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
-  const [pageSize, setPageSize] = useState(20); // 每页显示数量
+  const [pageSize, setPageSize] = useState(21); // 每页显示数量（3的倍数，3列布局）
   const [currentPage, setCurrentPage] = useState(1); // 当前页码
   
   // 在线用户相关状态
@@ -982,9 +982,10 @@ const AdminDashboard = () => {
                       setCurrentPage(1); // 改变每页数量时重置到第一页
                     }}
                   >
-                    <option value="20">20 张</option>
-                    <option value="50">50 张</option>
-                    <option value="100">100 张</option>
+                    <option value="21">21 张 (7行)</option>
+                    <option value="30">30 张 (10行)</option>
+                    <option value="60">60 张 (20行)</option>
+                    <option value="99">99 张 (33行)</option>
                   </select>
                 </div>
               </div>
@@ -1019,10 +1020,13 @@ const AdminDashboard = () => {
                         <span>
                           共 {filteredRecords.length} 条记录，第 {currentPage} / {totalPages || 1} 页
                         </span>
-                        {/* 分页控件 */}
+                        {/* 顶部分页控件 */}
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            onClick={() => {
+                              setCurrentPage(Math.max(1, currentPage - 1));
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
                             disabled={currentPage === 1}
                             className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
@@ -1032,7 +1036,10 @@ const AdminDashboard = () => {
                             {currentPage} / {totalPages || 1}
                           </span>
                           <button
-                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            onClick={() => {
+                              setCurrentPage(Math.min(totalPages, currentPage + 1));
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
                             disabled={currentPage >= totalPages}
                             className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
@@ -1111,6 +1118,40 @@ const AdminDashboard = () => {
                       </div>
                         ))}
                       </div>
+
+                      {/* 底部分页控件 */}
+                      {filteredRecords.length > 0 && (
+                        <div className="text-sm text-gray-600 flex items-center justify-between pt-4 border-t">
+                          <span>
+                            共 {filteredRecords.length} 条记录，第 {currentPage} / {totalPages || 1} 页
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setCurrentPage(Math.max(1, currentPage - 1));
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              disabled={currentPage === 1}
+                              className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              上一页
+                            </button>
+                            <span className="text-gray-600">
+                              {currentPage} / {totalPages || 1}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setCurrentPage(Math.min(totalPages, currentPage + 1));
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              disabled={currentPage >= totalPages}
+                              className="px-3 py-1 border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              下一页
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* 无数据提示 */}
                       {filteredRecords.length === 0 && (
