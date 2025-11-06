@@ -1027,6 +1027,28 @@ const AdminDashboard = () => {
                   </>
                 )}
                 <button
+                  onClick={async () => {
+                    if (!window.confirm('🔧 确定要修复旧的归档数据吗？\n\n这将清理在归档功能实现前被错误标记的数据')) return;
+                    try {
+                      const res = await fetch(`${API_BASE_URL}/api/admin/fix-archived-data`, {
+                        method: 'POST',
+                        credentials: 'include',
+                      });
+                      if (!res.ok) throw new Error('修复失败');
+                      const result = await res.json();
+                      alert(`✅ ${result.message}`);
+                      fetchAllHistory(); // 刷新列表
+                    } catch (error) {
+                      alert('❌ 修复失败: ' + error.message);
+                    }
+                  }}
+                  className="text-sm bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 flex items-center gap-2"
+                  title="清理在归档功能实现前被错误标记的数据"
+                >
+                  <span>🔧</span>
+                  修复旧数据
+                </button>
+                <button
                   onClick={toggleBatchMode}
                   className={`text-sm px-4 py-2 rounded flex items-center gap-2 ${
                     batchMode 
@@ -1528,30 +1550,38 @@ const AdminDashboard = () => {
                         <div className="text-sm text-gray-500 mb-4">
                           文件已移至归档目录，用户无法访问
                         </div>
-                        <button
-                          onClick={async () => {
-                            if (!selectedImage.archivedPath) {
-                              alert('归档路径不存在');
-                              return;
-                            }
-                            try {
-                              // 从归档路径提取文件名
-                              const pathParts = selectedImage.archivedPath.split('/');
-                              const filename = pathParts[pathParts.length - 1];
-                              const userId = selectedImage.user.id;
-                              
-                              const url = `${API_BASE_URL}/api/admin/archived-image/${userId}/${filename}`;
-                              setArchivedImageUrl(url);
-                              setViewingArchivedImage(true);
-                            } catch (error) {
-                              alert('❌ 加载归档图片失败: ' + error.message);
-                            }
-                          }}
-                          className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 font-semibold"
-                        >
-                          <span>👁️</span>
-                          查看归档图片
-                        </button>
+                        {selectedImage.archivedPath ? (
+                          <button
+                            onClick={async () => {
+                              try {
+                                // 从归档路径提取文件名
+                                const pathParts = selectedImage.archivedPath.split('/');
+                                const filename = pathParts[pathParts.length - 1];
+                                const userId = selectedImage.user.id;
+                                
+                                const url = `${API_BASE_URL}/api/admin/archived-image/${userId}/${filename}`;
+                                setArchivedImageUrl(url);
+                                setViewingArchivedImage(true);
+                              } catch (error) {
+                                alert('❌ 加载归档图片失败: ' + error.message);
+                              }
+                            }}
+                            className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 font-semibold"
+                          >
+                            <span>👁️</span>
+                            查看归档图片
+                          </button>
+                        ) : (
+                          <div className="text-center">
+                            <div className="text-sm text-red-600 mb-2">
+                              ⚠️ 归档路径缺失
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              此图片在归档功能实现前被删除，<br/>
+                              没有归档路径信息，无法查看
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )
                   ) : selectedImage.imageUrl ? (

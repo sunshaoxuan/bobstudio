@@ -2253,6 +2253,41 @@ app.post("/api/admin/history/:userId/:historyId/restore", requireAdmin, async (r
       return res.status(400).json({ error: '该记录未被删除' });
     }
     
+    // 如果是归档的图片，需要从归档目录移回来
+    if (item.archived && item.archivedPath) {
+      try {
+        const archivedFilePath = path.join(__dirname, item.archivedPath);
+        
+        // 检查归档文件是否存在
+        try {
+          await fs.access(archivedFilePath);
+        } catch {
+          console.warn(`⚠️ 归档文件不存在: ${archivedFilePath}`);
+          return res.status(404).json({ error: '归档文件不存在，无法恢复' });
+        }
+        
+        // 恢复文件到原位置
+        const originalFileName = path.basename(item.archivedPath).split('_').slice(1).join('_'); // 去掉时间戳前缀
+        const restorePath = path.join(__dirname, 'public', 'images', originalFileName);
+        
+        await fs.copyFile(archivedFilePath, restorePath);
+        
+        // 更新记录
+        item.imageUrl = `/images/${originalFileName}`;
+        item.archived = false;
+        item.archivedPath = null;
+        
+        console.log(`📦 已从归档恢复文件: ${archivedFilePath} -> ${restorePath}`);
+      } catch (restoreError) {
+        console.error('❌ 从归档恢复文件失败:', restoreError);
+        return res.status(500).json({ error: '从归档恢复文件失败: ' + restoreError.message });
+      }
+    } else if (item.archived && !item.archivedPath) {
+      // 旧数据：标记为归档但没有归档路径
+      console.warn(`⚠️ 图片 ${historyId} 标记为归档但缺少归档路径`);
+      return res.status(400).json({ error: '此图片在归档功能实现前被删除，缺少归档路径，无法恢复' });
+    }
+    
     // 恢复记录
     item.deleted = false;
     item.restoredAt = new Date().toISOString();
@@ -2392,6 +2427,50 @@ app.get("/api/admin/archived-image/:userId/:filename", requireAdmin, async (req,
   } catch (error) {
     console.error('❌ 查看归档图片失败:', error);
     res.status(500).json({ error: '查看归档图片失败' });
+  }
+});
+
+// 管理员修复旧数据：清理错误的archived标记
+app.post("/api/admin/fix-archived-data", requireAdmin, async (req, res) => {
+  try {
+    console.log(`🔧 开始修复旧的归档数据...`);
+    
+    let fixedCount = 0;
+    const historyFiles = await fs.readdir(HISTORY_DIR);
+    
+    for (const fileName of historyFiles) {
+      if (!fileName.startsWith('history-') || !fileName.endsWith('.json')) continue;
+      
+      const filePath = path.join(HISTORY_DIR, fileName);
+      try {
+        const data = await fs.readFile(filePath, 'utf8');
+        let history = JSON.parse(data);
+        let changed = false;
+        
+        for (const item of history) {
+          // 如果标记为archived但没有archivedPath，说明是旧数据，需要修复
+          if (item.archived && !item.archivedPath) {
+            console.log(`  🔧 修复 ${fileName} 中的记录 ${item.id}`);
+            item.archived = false; // 改回普通删除状态
+            changed = true;
+            fixedCount++;
+          }
+        }
+        
+        if (changed) {
+          await fs.writeFile(filePath, JSON.stringify(history, null, 2), 'utf8');
+          console.log(`  ✅ 已更新 ${fileName}`);
+        }
+      } catch (error) {
+        console.error(`  ❌ 处理 ${fileName} 失败:`, error);
+      }
+    }
+    
+    console.log(`✅ 数据修复完成！共修复 ${fixedCount} 条记录`);
+    res.json({ success: true, fixedCount, message: `已修复 ${fixedCount} 条旧数据` });
+  } catch (error) {
+    console.error('❌ 修复数据失败:', error);
+    res.status(500).json({ error: '修复数据失败' });
   }
 });
 
