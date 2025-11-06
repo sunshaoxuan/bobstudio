@@ -2255,9 +2255,22 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
     if (!effectiveApiKey) {
       // 尝试从数据库获取用户的实际 API Key
       const dbUser = users.find(u => u.id === userId);
+      console.log(`[${timestamp}] 🔍 调试信息 | 用户: ${username}(${userId})`);
+      console.log(`  - isSuperAdmin: ${dbUser?.isSuperAdmin}`);
+      console.log(`  - hasApiKeyEncrypted: ${!!dbUser?.apiKeyEncrypted}`);
+      console.log(`  - apiKeyEncrypted前16字符: ${dbUser?.apiKeyEncrypted?.substring(0, 16) || 'null'}`);
+      
       if (dbUser && (dbUser.apiKeyEncrypted || dbUser.apiKey)) {
-        effectiveApiKey = decryptSensitiveValue(dbUser.apiKeyEncrypted || dbUser.apiKey || "");
-        console.log(`[${timestamp}] 📝 使用管理员配置的 API Key | 用户: ${username}(${userId})`);
+        try {
+          effectiveApiKey = decryptSensitiveValue(dbUser.apiKeyEncrypted || dbUser.apiKey || "");
+          console.log(`[${timestamp}] 📝 使用管理员配置的 API Key | 用户: ${username}(${userId})`);
+          console.log(`  - 解密成功: ${!!effectiveApiKey}`);
+          console.log(`  - API Key长度: ${effectiveApiKey?.length || 0}`);
+          console.log(`  - API Key前8字符: ${effectiveApiKey?.substring(0, 8) || 'null'}`);
+        } catch (decryptError) {
+          console.error(`[${timestamp}] ❌ API Key解密失败 | 用户: ${username}(${userId})`, decryptError);
+          return res.status(500).json({ error: "API密钥解密失败，请联系管理员重新配置" });
+        }
       }
     }
     
