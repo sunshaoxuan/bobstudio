@@ -48,9 +48,12 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterUser, setFilterUser] = useState("");
   const [filterMode, setFilterMode] = useState("");
+  const [filterDeleted, setFilterDeleted] = useState(""); // 过滤删除状态：all/deleted/active
   const [selectedImage, setSelectedImage] = useState(null);
   const [viewingArchivedImage, setViewingArchivedImage] = useState(false); // 是否正在查看归档图片
   const [archivedImageUrl, setArchivedImageUrl] = useState(null); // 归档图片的URL
+  const [selectedImages, setSelectedImages] = useState([]); // 多选的图片ID列表
+  const [batchMode, setBatchMode] = useState(false); // 是否处于批量操作模式
   const [pageSize, setPageSize] = useState(21); // 每页显示数量（3的倍数，3列布局）
   const [currentPage, setCurrentPage] = useState(1); // 当前页码
   
@@ -60,6 +63,79 @@ const AdminDashboard = () => {
     setViewingArchivedImage(false);
     setArchivedImageUrl(null);
   }, []);
+  
+  // 切换多选模式
+  const toggleBatchMode = useCallback(() => {
+    setBatchMode(prev => !prev);
+    setSelectedImages([]); // 切换模式时清空选择
+  }, []);
+  
+  // 切换单个图片的选中状态
+  const toggleImageSelection = useCallback((imageId) => {
+    setSelectedImages(prev => 
+      prev.includes(imageId) 
+        ? prev.filter(id => id !== imageId)
+        : [...prev, imageId]
+    );
+  }, []);
+  
+  // 全选/取消全选当前页
+  const toggleSelectAll = useCallback((records) => {
+    const currentPageIds = records.map(r => r.id);
+    const allSelected = currentPageIds.every(id => selectedImages.includes(id));
+    
+    if (allSelected) {
+      // 取消全选
+      setSelectedImages(prev => prev.filter(id => !currentPageIds.includes(id)));
+    } else {
+      // 全选
+      setSelectedImages(prev => [...new Set([...prev, ...currentPageIds])]);
+    }
+  }, [selectedImages]);
+  
+  // 批量归档
+  const batchArchiveImages = useCallback(async () => {
+    if (selectedImages.length === 0) {
+      alert('请先选择要归档的图片');
+      return;
+    }
+    
+    if (!window.confirm(`📦 确定要批量归档 ${selectedImages.length} 张图片吗？\n\n✅ 文件将移至归档目录（用于取证）\n✅ 用户无法访问，但管理员可追溯\n✅ 历史记录完整保留`)) {
+      return;
+    }
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const imageId of selectedImages) {
+      try {
+        const record = allHistory.find(h => h.id === imageId);
+        if (!record) continue;
+        
+        const res = await fetch(
+          `${API_BASE_URL}/api/admin/history/${record.user.id}/${imageId}?archiveFile=true`,
+          {
+            method: 'DELETE',
+            credentials: 'include',
+          }
+        );
+        
+        if (res.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (error) {
+        console.error('归档失败:', error);
+        failCount++;
+      }
+    }
+    
+    alert(`✅ 批量归档完成\n\n成功: ${successCount} 张\n失败: ${failCount} 张`);
+    setSelectedImages([]);
+    setBatchMode(false);
+    fetchAllHistory(); // 刷新列表
+  }, [selectedImages, allHistory, fetchAllHistory]);
   
   // 在线用户相关状态
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -921,19 +997,45 @@ const AdminDashboard = () => {
                 <ImageIcon className="w-5 h-5" />
                 所有用户图片记录
               </h2>
-              <button
-                onClick={fetchAllHistory}
-                disabled={loadingHistory}
-                className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2"
-              >
-                {loadingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                刷新
-              </button>
+              <div className="flex items-center gap-2">
+                {batchMode && selectedImages.length > 0 && (
+                  <>
+                    <span className="text-sm text-gray-600">
+                      已选择 {selectedImages.length} 张
+                    </span>
+                    <button
+                      onClick={batchArchiveImages}
+                      className="text-sm bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 flex items-center gap-2"
+                    >
+                      <span>📦</span>
+                      批量归档
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={toggleBatchMode}
+                  className={`text-sm px-4 py-2 rounded flex items-center gap-2 ${
+                    batchMode 
+                      ? 'bg-gray-600 text-white hover:bg-gray-700' 
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                  }`}
+                >
+                  {batchMode ? '取消多选' : '批量操作'}
+                </button>
+                <button
+                  onClick={fetchAllHistory}
+                  disabled={loadingHistory}
+                  className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2"
+                >
+                  {loadingHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  刷新
+                </button>
+              </div>
             </div>
 
             {/* 搜索和过滤 */}
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <div className="grid md:grid-cols-4 gap-4">
+              <div className="grid md:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <Search className="w-4 h-4 inline mr-1" />
@@ -981,6 +1083,22 @@ const AdminDashboard = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Filter className="w-4 h-4 inline mr-1" />
+                    删除状态
+                  </label>
+                  <select
+                    className="w-full border rounded px-3 py-2"
+                    value={filterDeleted}
+                    onChange={(e) => setFilterDeleted(e.target.value)}
+                  >
+                    <option value="">全部</option>
+                    <option value="active">未删除</option>
+                    <option value="deleted">已删除</option>
+                    <option value="archived">已归档</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     每页显示
                   </label>
                   <select
@@ -1014,7 +1132,18 @@ const AdminDashboard = () => {
                     const matchesSearch = !searchTerm || (record.prompt && record.prompt.toLowerCase().includes(searchTerm.toLowerCase()));
                     const matchesUser = !filterUser || record.user?.id === filterUser;
                     const matchesMode = !filterMode || record.mode === filterMode;
-                    return matchesSearch && matchesUser && matchesMode;
+                    
+                    // 删除状态过滤
+                    let matchesDeleted = true;
+                    if (filterDeleted === 'active') {
+                      matchesDeleted = !record.deleted;
+                    } else if (filterDeleted === 'deleted') {
+                      matchesDeleted = record.deleted && !record.archived;
+                    } else if (filterDeleted === 'archived') {
+                      matchesDeleted = record.archived;
+                    }
+                    
+                    return matchesSearch && matchesUser && matchesMode && matchesDeleted;
                   });
                   
                   const totalPages = Math.ceil(filteredRecords.length / pageSize);
@@ -1026,9 +1155,19 @@ const AdminDashboard = () => {
                     <>
                       {/* 统计信息 */}
                       <div className="text-sm text-gray-600 flex items-center justify-between">
-                        <span>
-                          共 {filteredRecords.length} 条记录，第 {currentPage} / {totalPages || 1} 页
-                        </span>
+                        <div className="flex items-center gap-4">
+                          <span>
+                            共 {filteredRecords.length} 条记录，第 {currentPage} / {totalPages || 1} 页
+                          </span>
+                          {batchMode && paginatedRecords.length > 0 && (
+                            <button
+                              onClick={() => toggleSelectAll(paginatedRecords)}
+                              className="text-xs px-3 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                            >
+                              {paginatedRecords.every(r => selectedImages.includes(r.id)) ? '取消全选' : '全选本页'}
+                            </button>
+                          )}
+                        </div>
                         {/* 顶部分页控件 */}
                         <div className="flex items-center gap-2">
                           <button
@@ -1062,11 +1201,34 @@ const AdminDashboard = () => {
                         {paginatedRecords.map(record => (
                       <div
                         key={record.id}
-                        className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() => setSelectedImage(record)}
+                        className={`bg-gray-50 border rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${
+                          selectedImages.includes(record.id) ? 'border-purple-500 border-2 ring-2 ring-purple-200' : 'border-gray-200'
+                        }`}
+                        onClick={(e) => {
+                          if (batchMode) {
+                            e.stopPropagation();
+                            toggleImageSelection(record.id);
+                          } else {
+                            setSelectedImage(record);
+                          }
+                        }}
                       >
                         {/* 图片 */}
                         <div className="relative bg-gray-200 h-48">
+                          {/* 批量模式的复选框 */}
+                          {batchMode && (
+                            <div className="absolute top-2 left-2 z-10">
+                              <input
+                                type="checkbox"
+                                checked={selectedImages.includes(record.id)}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleImageSelection(record.id);
+                                }}
+                                className="w-5 h-5 rounded border-2 border-white shadow-lg cursor-pointer"
+                              />
+                            </div>
+                          )}
                           {record.archived ? (
                             // 归档图片显示占位符
                             <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-orange-50">
