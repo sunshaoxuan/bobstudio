@@ -49,8 +49,17 @@ const AdminDashboard = () => {
   const [filterUser, setFilterUser] = useState("");
   const [filterMode, setFilterMode] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
+  const [viewingArchivedImage, setViewingArchivedImage] = useState(false); // 是否正在查看归档图片
+  const [archivedImageUrl, setArchivedImageUrl] = useState(null); // 归档图片的URL
   const [pageSize, setPageSize] = useState(21); // 每页显示数量（3的倍数，3列布局）
   const [currentPage, setCurrentPage] = useState(1); // 当前页码
+  
+  // 关闭图片详情弹窗并重置状态
+  const closeImageModal = useCallback(() => {
+    setSelectedImage(null);
+    setViewingArchivedImage(false);
+    setArchivedImageUrl(null);
+  }, []);
   
   // 在线用户相关状态
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -1058,7 +1067,14 @@ const AdminDashboard = () => {
                       >
                         {/* 图片 */}
                         <div className="relative bg-gray-200 h-48">
-                          {record.imageUrl ? (
+                          {record.archived ? (
+                            // 归档图片显示占位符
+                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-orange-50">
+                              <div className="text-5xl mb-2">📦</div>
+                              <div className="text-sm text-gray-600">已归档</div>
+                              <div className="text-xs text-gray-500 mt-1">点击查看详情</div>
+                            </div>
+                          ) : record.imageUrl ? (
                             <img
                               src={`${API_BASE_URL}${record.imageUrl}`}
                               alt={record.fileName}
@@ -1073,9 +1089,15 @@ const AdminDashboard = () => {
                             </div>
                           )}
                           {/* 已删除标签 */}
-                          {record.deleted && (
+                          {record.deleted && !record.archived && (
                             <div className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded-md font-bold shadow-lg">
                               🗑️ 已删除
+                            </div>
+                          )}
+                          {/* 已归档标签 */}
+                          {record.archived && (
+                            <div className="absolute top-2 right-2 bg-orange-600 text-white text-xs px-2 py-1 rounded-md font-bold shadow-lg">
+                              📦 已归档
                             </div>
                           )}
                         </div>
@@ -1282,7 +1304,7 @@ const AdminDashboard = () => {
         {selectedImage && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            onClick={() => setSelectedImage(null)}
+            onClick={closeImageModal}
           >
             <div
               className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
@@ -1299,7 +1321,7 @@ const AdminDashboard = () => {
                     )}
                   </div>
                   <button
-                    onClick={() => setSelectedImage(null)}
+                    onClick={closeImageModal}
                     className="text-gray-500 hover:text-gray-700"
                   >
                     ✕
@@ -1307,8 +1329,56 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* 图片 */}
-                <div className="bg-gray-100 rounded-lg overflow-hidden">
-                  {selectedImage.imageUrl ? (
+                <div className="bg-gray-100 rounded-lg overflow-hidden relative">
+                  {selectedImage.archived ? (
+                    // 归档图片
+                    viewingArchivedImage && archivedImageUrl ? (
+                      // 显示从归档加载的图片
+                      <div>
+                        <img
+                          src={archivedImageUrl}
+                          alt={selectedImage.fileName}
+                          className="w-full h-auto"
+                        />
+                        <div className="absolute top-2 right-2 bg-orange-600 text-white text-xs px-3 py-2 rounded-md shadow-lg">
+                          📦 归档图片（管理员查看）
+                        </div>
+                      </div>
+                    ) : (
+                      // 显示占位符和加载按钮
+                      <div className="w-full h-64 flex flex-col items-center justify-center text-gray-400 bg-orange-50">
+                        <div className="text-6xl mb-4">📦</div>
+                        <div className="text-lg font-semibold text-gray-700 mb-2">图片已归档</div>
+                        <div className="text-sm text-gray-500 mb-4">
+                          文件已移至归档目录，用户无法访问
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!selectedImage.archivedPath) {
+                              alert('归档路径不存在');
+                              return;
+                            }
+                            try {
+                              // 从归档路径提取文件名
+                              const pathParts = selectedImage.archivedPath.split('/');
+                              const filename = pathParts[pathParts.length - 1];
+                              const userId = selectedImage.user.id;
+                              
+                              const url = `${API_BASE_URL}/api/admin/archived-image/${userId}/${filename}`;
+                              setArchivedImageUrl(url);
+                              setViewingArchivedImage(true);
+                            } catch (error) {
+                              alert('❌ 加载归档图片失败: ' + error.message);
+                            }
+                          }}
+                          className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2 font-semibold"
+                        >
+                          <span>👁️</span>
+                          查看归档图片
+                        </button>
+                      </div>
+                    )
+                  ) : selectedImage.imageUrl ? (
                     <img
                       src={`${API_BASE_URL}${selectedImage.imageUrl}`}
                       alt={selectedImage.fileName}
@@ -1394,7 +1464,7 @@ const AdminDashboard = () => {
                               throw new Error(data.error || '恢复失败');
                             }
                             alert('✅ 图片已恢复');
-                            setSelectedImage(null);
+                            closeImageModal();
                             fetchAllHistory(); // 刷新列表
                           } catch (error) {
                             alert('❌ 恢复失败: ' + error.message);
@@ -1422,7 +1492,7 @@ const AdminDashboard = () => {
                               throw new Error(data.error || '删除失败');
                             }
                             alert('✅ 图片已删除');
-                            setSelectedImage(null);
+                            closeImageModal();
                             fetchAllHistory(); // 刷新列表
                           } catch (error) {
                             alert('❌ 删除失败: ' + error.message);
@@ -1452,7 +1522,7 @@ const AdminDashboard = () => {
                           }
                           const result = await res.json();
                           alert('✅ ' + result.message);
-                          setSelectedImage(null);
+                          closeImageModal();
                           fetchAllHistory(); // 刷新列表
                         } catch (error) {
                           alert('❌ 归档失败: ' + error.message);
@@ -1466,7 +1536,7 @@ const AdminDashboard = () => {
                   </div>
                   
                   <button
-                    onClick={() => setSelectedImage(null)}
+                    onClick={closeImageModal}
                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
                   >
                     关闭

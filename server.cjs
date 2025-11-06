@@ -2360,6 +2360,41 @@ app.delete("/api/admin/history/:userId/:historyId", requireAdmin, async (req, re
   }
 });
 
+// 管理员查看归档图片（需要权限）
+app.get("/api/admin/archived-image/:userId/:filename", requireAdmin, async (req, res) => {
+  try {
+    const { userId, filename } = req.params;
+    
+    // 安全检查：防止路径遍历攻击
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({ error: '非法文件名' });
+    }
+    
+    const archiveDir = path.join(__dirname, 'data', 'archived-images', userId);
+    const filePath = path.join(archiveDir, filename);
+    
+    // 确保文件在归档目录内
+    if (!filePath.startsWith(archiveDir)) {
+      return res.status(403).json({ error: '访问被拒绝' });
+    }
+    
+    console.log(`👁️ 管理员 ${req.session.user.username} 查看归档图片: ${filePath}`);
+    
+    try {
+      await fs.access(filePath);
+      res.sendFile(filePath);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return res.status(404).json({ error: '归档文件不存在' });
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('❌ 查看归档图片失败:', error);
+    res.status(500).json({ error: '查看归档图片失败' });
+  }
+});
+
 // 统计 API
 app.get("/api/stats", requireAuth, async (req, res) => {
   try {
