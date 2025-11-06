@@ -1,5 +1,6 @@
 const express = require("express");
 const fs = require("fs").promises;
+const fsSync = require("fs");
 const path = require("path");
 const cors = require("cors");
 const session = require("express-session");
@@ -7,20 +8,152 @@ const FileStore = require("session-file-store")(session);
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 
-// ===== 全局日志时间戳 =====
+// ===== 日志管理系统 =====
+const LOGS_DIR = path.join(__dirname, "logs");
+const CURRENT_LOG_FILE = path.join(LOGS_DIR, "output.log");
+let currentLogDate = null;
+let logStream = null;
+
+// 确保日志目录存在
+async function ensureLogsDir() {
+  try {
+    await fs.access(LOGS_DIR);
+  } catch {
+    await fs.mkdir(LOGS_DIR, { recursive: true });
+    console.log("📁 创建日志目录:", LOGS_DIR);
+  }
+}
+
+// 获取当前日期字符串（YYYY-MM-DD）
+function getCurrentDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// 归档当前日志文件
+async function archiveCurrentLog() {
+  try {
+    // 检查当前日志文件是否存在
+    try {
+      await fs.access(CURRENT_LOG_FILE);
+    } catch {
+      return; // 文件不存在，无需归档
+    }
+    
+    // 读取日志文件第一行获取日期
+    const content = await fs.readFile(CURRENT_LOG_FILE, 'utf8');
+    if (!content.trim()) {
+      return; // 空文件，无需归档
+    }
+    
+    // 从第一行提取日期
+    const firstLine = content.split('\n')[0];
+    const dateMatch = firstLine.match(/\[(\d{4}-\d{2}-\d{2})/);
+    const logDate = dateMatch ? dateMatch[1] : getCurrentDateString();
+    
+    // 归档文件名
+    const archiveFileName = `output-${logDate}.log`;
+    const archivePath = path.join(LOGS_DIR, archiveFileName);
+    
+    // 如果归档文件已存在，追加内容
+    if (fsSync.existsSync(archivePath)) {
+      const existingContent = await fs.readFile(archivePath, 'utf8');
+      await fs.writeFile(archivePath, existingContent + '\n' + content, 'utf8');
+      console.log(`📝 追加到归档日志: ${archiveFileName}`);
+    } else {
+      await fs.rename(CURRENT_LOG_FILE, archivePath);
+      console.log(`📦 归档日志文件: ${archiveFileName}`);
+    }
+  } catch (error) {
+    console.error('❌ 归档日志失败:', error);
+  }
+}
+
+// 检查并分割跨日日志
+async function checkAndRotateLog() {
+  const today = getCurrentDateString();
+  
+  // 如果日期没变，无需操作
+  if (currentLogDate === today) {
+    return;
+  }
+  
+  // 如果这是首次启动或日期已改变
+  if (currentLogDate && currentLogDate !== today) {
+    console.log(`📅 检测到日期变更: ${currentLogDate} -> ${today}，开始归档旧日志...`);
+    
+    // 关闭当前日志流
+    if (logStream) {
+      logStream.end();
+      logStream = null;
+    }
+    
+    // 归档旧日志
+    await archiveCurrentLog();
+  }
+  
+  // 更新当前日期
+  currentLogDate = today;
+  
+  // 创建新的日志流
+  if (!logStream || logStream.destroyed) {
+    logStream = fsSync.createWriteStream(CURRENT_LOG_FILE, { flags: 'a' });
+  }
+}
+
+// 初始化日志系统
+async function initLogSystem() {
+  await ensureLogsDir();
+  await checkAndRotateLog();
+  
+  // 每小时检查一次日志分割
+  setInterval(async () => {
+    await checkAndRotateLog();
+  }, 60 * 60 * 1000); // 1小时检查一次
+  
+  console.log('📝 日志系统已初始化');
+}
+
+// 保存原始console方法
 const originalLog = console.log;
 const originalError = console.error;
 const originalWarn = console.warn;
 
+// 格式化日志时间
 const formatLogTime = () => {
   const now = new Date();
   return now.toISOString().replace('T', ' ').substring(0, 23);
 };
 
-console.log = (...args) => originalLog(`[${formatLogTime()}]`, ...args);
-console.error = (...args) => originalError(`[${formatLogTime()}]`, ...args);
-console.warn = (...args) => originalWarn(`[${formatLogTime()}]`, ...args);
-// ===== 全局日志时间戳结束 =====
+// 写入日志文件
+const writeToLogFile = (message) => {
+  if (logStream && !logStream.destroyed) {
+    logStream.write(message + '\n');
+  }
+};
+
+// 重写console方法，同时输出到控制台和文件
+console.log = (...args) => {
+  const message = `[${formatLogTime()}] ${args.join(' ')}`;
+  originalLog(message);
+  writeToLogFile(message);
+};
+
+console.error = (...args) => {
+  const message = `[${formatLogTime()}] ${args.join(' ')}`;
+  originalError(message);
+  writeToLogFile(message);
+};
+
+console.warn = (...args) => {
+  const message = `[${formatLogTime()}] ${args.join(' ')}`;
+  originalWarn(message);
+  writeToLogFile(message);
+};
+// ===== 日志管理系统结束 =====
 
 const API_KEY_SECRET =
   process.env.API_KEY_ENCRYPTION_SECRET || "change-me-bobstudio-secret";
@@ -2710,6 +2843,7 @@ app.get("*", (req, res) => {
 
 // 启动服务器
 async function startServer() {
+  await initLogSystem(); // 初始化日志系统
   await ensureHistoryDir();
   await ensureImagesDir();
   await ensureSessionsDir();
