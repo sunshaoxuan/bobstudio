@@ -2268,14 +2268,14 @@ app.post("/api/admin/history/:userId/:historyId/restore", requireAdmin, async (r
   }
 });
 
-// 管理员删除用户的图片（硬删除或标记删除）
+// 管理员删除用户的图片（标记删除或删除物理文件）
 app.delete("/api/admin/history/:userId/:historyId", requireAdmin, async (req, res) => {
   try {
     const { userId, historyId } = req.params;
-    const { permanent } = req.query; // permanent=true 表示永久删除
+    const { deleteFile } = req.query; // deleteFile=true 表示删除物理图片文件
     const filePath = path.join(HISTORY_DIR, `history-${userId}.json`);
     
-    console.log(`🗑️ 管理员${permanent === 'true' ? '永久删除' : '标记删除'}用户 ${userId} 的图片 ${historyId}`);
+    console.log(`🗑️ 管理员${deleteFile === 'true' ? '删除图片文件' : '标记删除'}用户 ${userId} 的图片 ${historyId}`);
     
     let history = [];
     try {
@@ -2293,21 +2293,44 @@ app.delete("/api/admin/history/:userId/:historyId", requireAdmin, async (req, re
       return res.status(404).json({ error: '历史记录不存在' });
     }
     
-    if (permanent === 'true') {
-      // 永久删除：从数组中移除
-      history.splice(itemIndex, 1);
-      console.log(`✅ 永久删除了图片 ${historyId}`);
+    const item = history[itemIndex];
+    
+    if (deleteFile === 'true') {
+      // 删除物理图片文件，但保留历史记录（用于统计）
+      if (item.imageUrl) {
+        try {
+          const imagePath = path.join(__dirname, 'public', item.imageUrl);
+          await fs.unlink(imagePath);
+          console.log(`✅ 已删除图片文件: ${imagePath}`);
+        } catch (unlinkError) {
+          if (unlinkError.code !== 'ENOENT') {
+            console.warn(`⚠️ 删除图片文件失败: ${unlinkError.message}`);
+          }
+        }
+      }
+      
+      // 标记为已删除文件
+      item.deleted = true;
+      item.fileDeleted = true; // 新增：标记物理文件已删除
+      item.deletedAt = new Date().toISOString();
+      item.deletedBy = req.session.user.id;
+      item.imageUrl = null; // 清空图片URL，因为文件已删除
+      
+      console.log(`✅ 已删除图片文件并标记记录 ${historyId}`);
     } else {
-      // 标记删除
-      history[itemIndex].deleted = true;
-      history[itemIndex].deletedAt = new Date().toISOString();
-      history[itemIndex].deletedBy = req.session.user.id;
-      console.log(`✅ 标记删除了图片 ${historyId}`);
+      // 仅标记删除（逻辑删除）
+      item.deleted = true;
+      item.deletedAt = new Date().toISOString();
+      item.deletedBy = req.session.user.id;
+      console.log(`✅ 已标记删除图片 ${historyId}`);
     }
     
     await fs.writeFile(filePath, JSON.stringify(history, null, 2), 'utf8');
     
-    res.json({ success: true, message: permanent === 'true' ? '图片已永久删除' : '图片已删除' });
+    res.json({ 
+      success: true, 
+      message: deleteFile === 'true' ? '图片文件已删除（记录保留用于统计）' : '图片已标记删除' 
+    });
   } catch (error) {
     console.error('❌ 删除图片失败:', error);
     res.status(500).json({ error: '删除图片失败' });

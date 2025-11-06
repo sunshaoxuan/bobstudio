@@ -1354,6 +1354,13 @@ const AdminDashboard = () => {
                     </div>
                   )}
 
+                  {selectedImage.fileDeleted && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <label className="text-sm font-semibold text-red-700">⚠️ 文件状态</label>
+                      <p className="text-red-600 text-sm">图片文件已被删除，仅保留记录用于统计</p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="text-sm font-semibold text-gray-700">Prompt</label>
                     <p className="text-gray-600 whitespace-pre-wrap">{selectedImage.prompt || '无'}</p>
@@ -1423,11 +1430,11 @@ const AdminDashboard = () => {
                     
                     <button
                       onClick={async () => {
-                        if (!window.confirm('⚠️ 确定要永久删除这张图片吗？\n\n此操作不可恢复！')) return;
-                        if (!window.confirm('⚠️⚠️ 再次确认：永久删除后无法恢复！')) return;
+                        if (!window.confirm('⚠️ 确定要删除图片文件吗？\n\n• 物理文件将被删除\n• 历史记录将保留（用于统计）\n• 此操作不可恢复！')) return;
+                        if (!window.confirm('⚠️⚠️ 再次确认：删除图片文件后无法恢复！\n\n记录会保留用于统计数据')) return;
                         try {
                           const res = await fetch(
-                            `${API_BASE_URL}/api/admin/history/${selectedImage.user.id}/${selectedImage.id}?permanent=true`,
+                            `${API_BASE_URL}/api/admin/history/${selectedImage.user.id}/${selectedImage.id}?deleteFile=true`,
                             {
                               method: 'DELETE',
                               credentials: 'include',
@@ -1435,19 +1442,20 @@ const AdminDashboard = () => {
                           );
                           if (!res.ok) {
                             const data = await res.json();
-                            throw new Error(data.error || '永久删除失败');
+                            throw new Error(data.error || '删除文件失败');
                           }
-                          alert('✅ 图片已永久删除');
+                          const result = await res.json();
+                          alert('✅ ' + result.message);
                           setSelectedImage(null);
                           fetchAllHistory(); // 刷新列表
                         } catch (error) {
-                          alert('❌ 永久删除失败: ' + error.message);
+                          alert('❌ 删除文件失败: ' + error.message);
                         }
                       }}
                       className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
                     >
-                      <span>⚠️</span>
-                      永久删除
+                      <span>🗂️</span>
+                      删除文件
                     </button>
                   </div>
                   
