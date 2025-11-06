@@ -97,7 +97,62 @@ const Studio = () => {
   const [lastRequestBody, setLastRequestBody] = useState(null);
   const loadingTimerRef = useRef(null);
   const abortControllerRef = useRef(null); // 保存 AbortController 引用
-  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false); // 超时对话框
+  
+  // 提示词助写相关状态
+  const [suggestedPrompt, setSuggestedPrompt] = useState(''); // AI建议的提示词
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false); // 正在生成建议
+  
+  // 提示词优化函数
+  const optimizePrompt = useCallback(async () => {
+    if (!prompt.trim()) {
+      showError('提示词为空', '请先输入提示词');
+      return;
+    }
+    
+    const check = checkApiKeyAvailable();
+    if (!check.isValid) {
+      showError('无法优化提示词', check.errorMessage);
+      return;
+    }
+    
+    try {
+      setLoadingSuggestion(true);
+      setSuggestedPrompt('');
+      
+      const response = await fetch(`${API_BASE_URL}/api/gemini/optimize-prompt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          userPrompt: prompt,
+          apiKey: currentUser?.showApiConfig ? apiKey : undefined,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '优化失败');
+      }
+      
+      const result = await response.json();
+      setSuggestedPrompt(result.optimizedPrompt);
+    } catch (error) {
+      console.error('提示词优化失败:', error);
+      showError('优化失败', error.message || '提示词优化失败，请稍后重试');
+    } finally {
+      setLoadingSuggestion(false);
+    }
+  }, [prompt, apiKey, currentUser, checkApiKeyAvailable, showError]);
+  
+  // 使用建议的提示词
+  const useSuggestedPrompt = useCallback(() => {
+    if (suggestedPrompt) {
+      setPrompt(suggestedPrompt);
+      setSuggestedPrompt(''); // 清空建议
+    }
+  }, [suggestedPrompt]);
   
   // 本地缓存和服务器状态
   const [pendingSync, setPendingSync] = useState([]); // 待同步的历史记录
@@ -2168,6 +2223,29 @@ const Studio = () => {
                 onChange={(e) => setPrompt(e.target.value)}
                 className="w-full p-4 border border-gray-300 rounded-lg h-32 resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
+              
+              {/* AI提示词建议 */}
+              {suggestedPrompt && (
+                <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      AI优化建议
+                    </h3>
+                    <button
+                      onClick={useSuggestedPrompt}
+                      className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 flex items-center gap-1"
+                    >
+                      <span>✨</span>
+                      使用建议
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {suggestedPrompt}
+                  </p>
+                </div>
+              )}
+              
               {!hasApiKeyConfigured && (
                 <p className="mt-3 text-sm text-orange-600">
                   尚未配置 API Key，生成按钮已禁用。
@@ -2185,43 +2263,70 @@ const Studio = () => {
               )}
             </div>
 
-            {/* 生成按钮 */}
-            <button
-              onClick={executeAction}
-              disabled={
-                loading ||
-                !isApiKeyAvailable ||
-                !prompt ||
-                ((mode === "edit" || mode === "compose") &&
-                  uploadedImages.length === 0)
-              }
-              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <div className="flex flex-col items-center justify-center gap-2">
-                  <div className="flex items-center gap-2">
+            {/* 操作按钮区域 */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* 提示词助写按钮 */}
+              <button
+                onClick={optimizePrompt}
+                disabled={
+                  loadingSuggestion ||
+                  loading ||
+                  !isApiKeyAvailable ||
+                  !prompt
+                }
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-lg font-semibold text-lg hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loadingSuggestion ? (
+                  <>
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>处理中...</span>
+                    <span>优化中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span>提示词助写</span>
+                  </>
+                )}
+              </button>
+              
+              {/* 生成图像按钮 */}
+              <button
+                onClick={executeAction}
+                disabled={
+                  loading ||
+                  !isApiKeyAvailable ||
+                  !prompt ||
+                  ((mode === "edit" || mode === "compose") &&
+                    uploadedImages.length === 0)
+                }
+                className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-lg font-semibold text-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>处理中...</span>
+                    </div>
+                    {loadingElapsedTime > 0 && (
+                      <span className="text-xs opacity-80">
+                        已等待 {loadingElapsedTime} 秒
+                        {loadingElapsedTime > 30 && " (请耐心等待)"}
+                        {loadingElapsedTime > 60 && " (Google 服务器响应较慢)"}
+                      </span>
+                    )}
                   </div>
-                  {loadingElapsedTime > 0 && (
-                    <span className="text-xs opacity-80">
-                      已等待 {loadingElapsedTime} 秒
-                      {loadingElapsedTime > 30 && " (请耐心等待)"}
-                      {loadingElapsedTime > 60 && " (Google 服务器响应较慢)"}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <Sparkles className="w-5 h-5" />
-                  {mode === "generate"
-                    ? "生成图像"
-                    : mode === "edit"
-                      ? "编辑图像"
-                      : "合成图像"}
-                </div>
-              )}
-            </button>
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <Sparkles className="w-5 h-5" />
+                    {mode === "generate"
+                      ? "生成图像"
+                      : mode === "edit"
+                        ? "编辑图像"
+                        : "合成图像"}
+                  </div>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* 右侧结果显示 */}

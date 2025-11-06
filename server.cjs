@@ -2717,6 +2717,123 @@ app.get("/api/admin/all-history", requireAdmin, async (req, res) => {
   }
 });
 
+// 提示词优化API（使用文本模型）
+app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
+  const startTime = Date.now();
+  const timestamp = formatLogTime();
+  const user = req.session.user;
+  const userId = user?.id || 'unknown';
+  const username = user?.username || 'unknown';
+  
+  try {
+    const { userPrompt, apiKey } = req.body;
+    
+    if (!userPrompt || !userPrompt.trim()) {
+      return res.status(400).json({ error: '提示词不能为空' });
+    }
+    
+    // 确定要使用的 API Key（与图片生成逻辑一致）
+    let effectiveApiKey = apiKey;
+    const dbUser = users.find(u => u.id === userId);
+    
+    if (!effectiveApiKey) {
+      if (dbUser && (dbUser.apiKeyEncrypted || dbUser.apiKey)) {
+        effectiveApiKey = decryptSensitiveValue(dbUser.apiKeyEncrypted || dbUser.apiKey || "");
+      }
+    }
+    
+    if (!effectiveApiKey) {
+      return res.status(400).json({ error: "API 密钥不能为空" });
+    }
+    
+    console.log(`[${timestamp}] 💡 提示词优化请求 | 用户: ${username}(${userId}) | 原始提示词长度: ${userPrompt.length}`);
+    
+    // 使用 Gemini Flash 文本模型优化提示词
+    let fetch;
+    if (globalThis.fetch) {
+      fetch = globalThis.fetch;
+    } else {
+      fetch = require('node-fetch');
+    }
+    
+    const systemPrompt = `你是一个专业的AI图像生成提示词优化助手。用户会给你一个简短的提示词，你需要将其扩展为详细、具体的图像生成提示词。
+
+要求：
+1. 保留用户的核心意图和关键词
+2. 添加具体的视觉细节（构图、光线、色彩、风格等）
+3. 使用专业的摄影和艺术术语
+4. 提示词长度控制在100-200字
+5. 直接输出优化后的提示词，不要有任何前缀或解释
+6. 使用中文输出
+
+示例：
+用户输入：一只猫
+优化输出：一只优雅的波斯猫，柔软的白色长毛，琥珀色的眼睛，坐在阳光洒落的窗台上。柔和的自然光从侧面照射，营造出温暖的氛围。背景虚化，突出猫咪的细节。高清摄影，浅景深，专业人像级别的画质。`;
+    
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent",
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": effectiveApiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `${systemPrompt}\n\n用户提示词：${userPrompt}\n\n请优化：`
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 500,
+          }
+        }),
+      }
+    );
+    
+    const data = await response.json();
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    
+    if (!response.ok) {
+      console.error(`[${timestamp}] ❌ 提示词优化失败 | 状态码: ${response.status} | 耗时: ${duration}s`);
+      return res.status(response.status).json(data);
+    }
+    
+    // 提取优化后的提示词
+    let optimizedPrompt = '';
+    if (data.candidates && data.candidates.length > 0) {
+      const candidate = data.candidates[0];
+      if (candidate.content && candidate.content.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.text) {
+            optimizedPrompt += part.text;
+          }
+        }
+      }
+    }
+    
+    if (!optimizedPrompt) {
+      throw new Error('未能生成优化提示词');
+    }
+    
+    console.log(`[${timestamp}] ✅ 提示词优化成功 | 用户: ${username}(${userId}) | 优化后长度: ${optimizedPrompt.length} | 耗时: ${duration}s`);
+    
+    res.json({ 
+      success: true, 
+      originalPrompt: userPrompt,
+      optimizedPrompt: optimizedPrompt.trim()
+    });
+  } catch (error) {
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.error(`[${timestamp}] ❌ 提示词优化异常 | 用户: ${username}(${userId}) | 错误: ${error.message} | 耗时: ${duration}s`);
+    res.status(500).json({ 
+      error: "提示词优化失败", 
+      details: error.message 
+    });
+  }
+});
+
 // Google Gemini API 代理（解决中国用户网络屏蔽问题）
 app.post("/api/gemini/generate", requireAuth, async (req, res) => {
   const startTime = Date.now();
