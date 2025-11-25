@@ -2818,34 +2818,54 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
 优化输出：将图片1和图片2中的人物合成到同一场景中，两人并肩站立。⚠️ 重要：图片1中人物的容貌、五官必须与原图一致，图片2中人物的容貌、五官也必须与原图一致。整体光影协调，构图自然。`;
     }
     
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "x-goog-api-key": effectiveApiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `${systemPrompt}\n\n用户提示词：${userPrompt}\n\n请优化：`
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 500,
-          }
-        }),
+    // 主模型与回退模型（防止预览版不稳定导致 503）
+    const primaryModel = process.env.GEMINI_OPTIMIZE_MODEL || "gemini-3-pro-preview";
+    const fallbackModel = process.env.GEMINI_OPTIMIZE_FALLBACK_MODEL || "gemini-2.0-flash-exp";
+    
+    const requestPayload = {
+      contents: [{
+        parts: [{
+          text: `${systemPrompt}\n\n用户提示词：${userPrompt}\n\n请优化：`
+        }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 500,
       }
-    );
+    };
     
-    const data = await response.json();
+    const callModel = async (modelId) => {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "x-goog-api-key": effectiveApiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestPayload),
+        }
+      );
+      let body;
+      try {
+        body = await resp.json();
+      } catch (e) {
+        body = { error: "无法解析 Gemini 响应", parseError: e?.message };
+      }
+      return { resp, body };
+    };
+    
+    let { resp, body } = await callModel(primaryModel);
+    if (!resp.ok && fallbackModel && fallbackModel !== primaryModel) {
+      console.warn(`[${timestamp}] ⚠️ 提示词优化主模型失败，尝试回退 | 主模型: ${primaryModel} | 状态码: ${resp.status}`);
+      ({ resp, body } = await callModel(fallbackModel));
+    }
+    
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    
-    if (!response.ok) {
-      console.error(`[${timestamp}] ❌ 提示词优化失败 | 状态码: ${response.status} | 耗时: ${duration}s`);
-      return res.status(response.status).json(data);
+    if (!resp.ok) {
+      const detail = typeof body === 'object' ? JSON.stringify(body).slice(0, 400) : String(body);
+      console.error(`[${timestamp}] ❌ 提示词优化失败 | 模型: ${resp?.url || 'unknown'} | 状态码: ${resp.status} | 耗时: ${duration}s | 返回: ${detail}`);
+      return res.status(resp.status).json(body);
     }
     
     // 提取优化后的提示词
