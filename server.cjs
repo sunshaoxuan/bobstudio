@@ -2869,6 +2869,7 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
     }
     
     // 提取优化后的提示词
+    const data = body || {};
     let optimizedPrompt = '';
     if (data.candidates && data.candidates.length > 0) {
       const candidate = data.candidates[0];
