@@ -523,9 +523,9 @@ const Stats = () => {
                       <thead>
                         <tr className="text-gray-500 border-b">
                           <th className="text-left py-2 pr-4">用户</th>
-                          <th className="text-right py-2 pr-4">今日</th>
-                          <th className="text-right py-2 pr-4">本月</th>
-                          <th className="text-right py-2 pr-4">总计</th>
+                          {dateRange === 'all' && <th className="text-right py-2 pr-4">今日</th>}
+                          {dateRange === 'all' && <th className="text-right py-2 pr-4">本月</th>}
+                          <th className="text-right py-2 pr-4">{dateRange !== 'all' ? '期间生成' : '总计'}</th>
                           <th className="text-right py-2 pr-4">额度使用</th>
                           <th className="text-right py-2">最近创作时间</th>
                         </tr>
@@ -543,8 +543,8 @@ const Stats = () => {
                                 {user.email && ` · ${user.email}`}
                               </div>
                             </td>
-                            <td className="py-2 pr-4 text-right text-purple-600 font-medium">{user.totals.today}</td>
-                            <td className="py-2 pr-4 text-right text-blue-600 font-medium">{user.totals.thisMonth}</td>
+                            {dateRange === 'all' && <td className="py-2 pr-4 text-right text-purple-600 font-medium">{user.totals.today}</td>}
+                            {dateRange === 'all' && <td className="py-2 pr-4 text-right text-blue-600 font-medium">{user.totals.thisMonth}</td>}
                             <td className="py-2 pr-4 text-right text-gray-700 font-semibold">{user.totals.total}</td>
                             <td className="py-2 pr-4 text-right">
                               {user.unlimited ? (
@@ -564,7 +564,7 @@ const Stats = () => {
                         ))}
                         {(summaryData?.perUser?.length || 0) === 0 && (
                           <tr>
-                            <td colSpan={6} className="py-6 text-center text-sm text-gray-500">
+                            <td colSpan={dateRange === 'all' ? 6 : 4} className="py-6 text-center text-sm text-gray-500">
                               暂无用户统计数据
                             </td>
                           </tr>
