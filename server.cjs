@@ -2135,6 +2135,7 @@ async function buildSummaryStats(startDate, endDate) {
     const limit = (Number.isFinite(user.freeLimit) && user.freeLimit > 0) ? Math.floor(user.freeLimit) : 30;
     // 修正：使用 allTimeTotal 而不是 filtered 的 totals.total
     const remaining = limitEnabled ? Math.max(0, limit - userStats.allTimeTotal) : null;
+    const used = userStats.allTimeTotal || 0;
     
     summary.perUser.push({
       ...userStats.user,
@@ -2146,6 +2147,7 @@ async function buildSummaryStats(startDate, endDate) {
       limitEnabled: limitEnabled,
       limit: limitEnabled ? limit : null,
       remaining: remaining,
+      used: used, // 添加已用额度
       unlimited: !limitEnabled || isSuperAdmin
     });
   }

@@ -526,7 +526,7 @@ const Stats = () => {
                           <th className="text-right py-2 pr-4">今日</th>
                           <th className="text-right py-2 pr-4">本月</th>
                           <th className="text-right py-2 pr-4">总计</th>
-                          <th className="text-right py-2 pr-4">剩余额度</th>
+                          <th className="text-right py-2 pr-4">额度使用</th>
                           <th className="text-right py-2">最近创作时间</th>
                         </tr>
                       </thead>
@@ -550,8 +550,8 @@ const Stats = () => {
                               {user.unlimited ? (
                                 <span className="text-green-600 font-medium">无限制</span>
                               ) : user.limitEnabled ? (
-                                <span className={`font-medium ${user.remaining > 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                                  {user.remaining} / {user.limit}
+                                <span className={`font-medium ${(user.used || 0) >= (user.limit || 30) ? 'text-red-600' : 'text-blue-600'}`}>
+                                  {user.used || 0} / {user.limit}
                                 </span>
                               ) : (
                                 <span className="text-gray-400">-</span>
@@ -706,8 +706,8 @@ const Stats = () => {
                       {user.unlimited ? (
                         <span className="text-green-600">额度：无限制</span>
                       ) : user.limitEnabled ? (
-                        <span className={user.remaining > 0 ? 'text-blue-600' : 'text-red-600'}>
-                          剩余：{user.remaining} / {user.limit}
+                        <span className={(user.used || 0) >= (user.limit || 30) ? 'text-red-600' : 'text-blue-600'}>
+                          已用：{user.used || 0} / {user.limit}
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
