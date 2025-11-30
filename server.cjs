@@ -2065,6 +2065,9 @@ function computeStatsFromHistory(history) {
 async function buildUserStatsPayload(user, startDate, endDate) {
   let history = await loadUserHistory(user.id);
   
+  // 获取全量历史总数（用于计算配额，不受日期筛选影响）
+  const allTimeTotal = history.length;
+  
   // 如果指定了日期范围，过滤历史记录
   if (startDate && endDate) {
     const start = new Date(startDate);
@@ -2098,6 +2101,7 @@ async function buildUserStatsPayload(user, startDate, endDate) {
     distribution: stats.distribution,
     lastGeneratedAt: stats.lastGeneratedAt,
     historyCount: stats.historyCount,
+    allTimeTotal: allTimeTotal, // 返回全量总数
   };
 }
 
@@ -2125,11 +2129,12 @@ async function buildSummaryStats(startDate, endDate) {
     if (userStats.totals.total > 0) {
       summary.users.activeWithGenerations += 1;
     }
-    // 计算剩余额度
+    // 计算剩余额度（使用全量总数 allTimeTotal）
     const isSuperAdmin = Boolean(user.isSuperAdmin);
     const limitEnabled = !isSuperAdmin && (typeof user.freeLimitEnabled === 'boolean' ? user.freeLimitEnabled : true);
     const limit = (Number.isFinite(user.freeLimit) && user.freeLimit > 0) ? Math.floor(user.freeLimit) : 30;
-    const remaining = limitEnabled ? Math.max(0, limit - userStats.totals.total) : null;
+    // 修正：使用 allTimeTotal 而不是 filtered 的 totals.total
+    const remaining = limitEnabled ? Math.max(0, limit - userStats.allTimeTotal) : null;
     
     summary.perUser.push({
       ...userStats.user,
