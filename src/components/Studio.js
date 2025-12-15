@@ -2344,27 +2344,88 @@ const Studio = () => {
 
             {/* 主内容：上部效果图 + 便捷提示词输入 */}
             <div className="flex-1 overflow-y-auto px-3 pt-3 pb-24">
+              {(mode === "edit" || mode === "compose") && (
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/*"
+                  multiple={mode === "compose"}
+                  className="hidden"
+                />
+              )}
+
               <div className="bg-white rounded-xl shadow-lg p-3">
-                <div
-                  className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center"
-                  data-no-drawer-swipe
-                  onTouchStart={onMobileViewerTouchStart}
-                  onTouchMove={onMobileViewerTouchMove}
-                  onTouchEnd={onMobileViewerTouchEnd}
-                >
-                  {mobileDisplayImageUrl ? (
-                    <img
-                      src={mobileDisplayImageUrl}
-                      alt="preview"
-                      className="w-full h-full object-contain"
-                      onClick={() => setFullscreenImage(mobileDisplayImageUrl)}
-                    />
-                  ) : (
-                    <div className="text-center text-gray-500">
-                      <Image className="w-14 h-14 mx-auto mb-3 text-gray-300" />
-                      <p className="text-sm">生成效果图将显示在这里</p>
+                <div className="flex items-stretch gap-2">
+                  {(mode === "edit" || mode === "compose") && (
+                    <div className="w-14 shrink-0 flex flex-col gap-2" data-no-drawer-swipe>
+                      <button
+                        onClick={() => {
+                          setMobileRefOpen(true);
+                          setTimeout(() => fileInputRef.current?.click(), 0);
+                        }}
+                        className="h-12 w-full rounded-lg bg-purple-600 text-white flex items-center justify-center active:bg-purple-700"
+                        title="添加参考图片"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+
+                      <button
+                        onClick={() => setMobileRefOpen(true)}
+                        className="relative flex-1 w-full rounded-lg border bg-gray-50 overflow-hidden active:bg-gray-100"
+                        title="管理参考图片"
+                      >
+                        {imageUrls.length > 0 ? (
+                          <img
+                            src={imageUrls[0]}
+                            alt="ref"
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-gray-600">
+                            参考
+                          </div>
+                        )}
+
+                        <div className="absolute top-1 left-1 right-1 flex items-center justify-between">
+                          <span className="text-[10px] text-white bg-black/35 px-1.5 py-0.5 rounded">
+                            参考
+                          </span>
+                          <span className="text-[10px] text-white bg-black/35 px-1.5 py-0.5 rounded">
+                            {mode === "edit" ? Math.min(1, uploadedImages.length) : uploadedImages.length}
+                          </span>
+                        </div>
+
+                        {mode === "compose" && uploadedImages.length > 1 && (
+                          <div className="absolute bottom-1 right-1 text-[10px] text-white bg-purple-600/90 px-1.5 py-0.5 rounded">
+                            +{uploadedImages.length - 1}
+                          </div>
+                        )}
+                      </button>
                     </div>
                   )}
+
+                  <div className="flex-1">
+                    <div
+                      className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center"
+                      data-no-drawer-swipe
+                      onTouchStart={onMobileViewerTouchStart}
+                      onTouchMove={onMobileViewerTouchMove}
+                      onTouchEnd={onMobileViewerTouchEnd}
+                    >
+                      {mobileDisplayImageUrl ? (
+                        <img
+                          src={mobileDisplayImageUrl}
+                          alt="preview"
+                          className="w-full h-full object-contain"
+                          onClick={() => setFullscreenImage(mobileDisplayImageUrl)}
+                        />
+                      ) : (
+                        <div className="text-center text-gray-500">
+                          <Image className="w-14 h-14 mx-auto mb-3 text-gray-300" />
+                          <p className="text-sm">生成效果图将显示在这里</p>
+                        </div>
+                      )}
 
                   {showMobileLibraryNav && (
                     <>
@@ -2462,63 +2523,10 @@ const Studio = () => {
                       </div>
                     </div>
                   )}
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {(mode === "edit" || mode === "compose") && (
-                <div className="bg-white rounded-xl shadow-lg p-3 mt-3">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    accept="image/*"
-                    multiple={mode === "compose"}
-                    className="hidden"
-                  />
-
-                  <div className="flex items-stretch gap-2">
-                    <button
-                      onClick={() => setMobileRefOpen(true)}
-                      className="flex-1 h-12 rounded-lg border bg-white px-3 flex items-center justify-between active:bg-gray-50"
-                      title="管理参考图片"
-                    >
-                      <div className="text-left">
-                        <div className="text-sm font-semibold text-gray-900">参考图片</div>
-                        <div className="text-[11px] text-gray-500">
-                          {uploadedImages.length > 0
-                            ? mode === "edit"
-                              ? `已选择 ${Math.min(1, uploadedImages.length)} 张`
-                              : `已选择 ${uploadedImages.length} 张`
-                            : "点击管理 / 删除"}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {uploadedImages.length > 0 && (
-                          <div className="px-2 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-semibold">
-                            {mode === "edit" ? 1 : uploadedImages.length}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setMobileRefOpen(true);
-                        setTimeout(() => fileInputRef.current?.click(), 0);
-                      }}
-                      className="h-12 w-12 rounded-lg bg-purple-600 text-white flex items-center justify-center active:bg-purple-700"
-                      title="添加参考图片"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  {mode === "edit" && (
-                    <div className="mt-2 text-xs text-gray-500">编辑模式仅支持 1 张参考图</div>
-                  )}
-                </div>
-              )}
 
               <div className="bg-white rounded-xl shadow-lg p-4 mt-3">
                 <div className="flex items-center justify-between mb-2">
