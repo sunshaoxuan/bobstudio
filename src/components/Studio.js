@@ -2390,22 +2390,31 @@ const Studio = () => {
                               </div>
                             ) : (
                               <div className="grid grid-cols-2 gap-2">
-                                {imageUrls.map((url, index) => (
-                                  <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200">
-                                    <img
-                                      src={url}
-                                      alt={`ref-${index}`}
-                                      className="w-full h-24 object-cover"
-                                    />
-                                    <button
-                                      onClick={() => removeImage(index)}
-                                      className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 active:bg-black/70"
-                                      title="移除"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                ))}
+                                {imageUrls
+                                  .slice()
+                                  .reverse()
+                                  .map((url, reversedIndex) => {
+                                    const originalIndex = imageUrls.length - 1 - reversedIndex;
+                                    return (
+                                      <div
+                                        key={`${originalIndex}-${url}`}
+                                        className="relative rounded-lg overflow-hidden border border-gray-200"
+                                      >
+                                        <img
+                                          src={url}
+                                          alt={`ref-${originalIndex}`}
+                                          className="w-full h-24 object-cover"
+                                        />
+                                        <button
+                                          onClick={() => removeImage(originalIndex)}
+                                          className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 active:bg-black/70"
+                                          title="移除"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
                               </div>
                             )}
                           </div>
@@ -2426,7 +2435,11 @@ const Studio = () => {
                             title="展开参考图片"
                           >
                             {imageUrls.length > 0 ? (
-                              <img src={imageUrls[0]} alt="ref" className="w-full h-full object-cover" />
+                              <img
+                                src={imageUrls[imageUrls.length - 1]}
+                                alt="ref"
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-[11px] font-semibold text-gray-600">
                                 参考
