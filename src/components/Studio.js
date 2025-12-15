@@ -148,6 +148,7 @@ const Studio = () => {
   const [mobileRightOpen, setMobileRightOpen] = useState(false);
   const [mobileThumbsOpen, setMobileThumbsOpen] = useState(false);
   const [mobileThumbsExpanded, setMobileThumbsExpanded] = useState(false);
+  const [mobileRefOpen, setMobileRefOpen] = useState(false);
   const [mobileLibraryTab, setMobileLibraryTab] = useState("history"); // history | shares
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
   const [mobilePreferGenerated, setMobilePreferGenerated] = useState(false);
@@ -2087,8 +2088,19 @@ const Studio = () => {
       setMobileRightOpen(false);
       setMobileThumbsOpen(false);
       setMobileThumbsExpanded(false);
+      setMobileRefOpen(false);
     }
   }, [isMobile]);
+
+  useEffect(() => {
+    if (mode === "generate") setMobileRefOpen(false);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== "edit") return;
+    setUploadedImages((prev) => (prev.length > 1 ? [prev[0]] : prev));
+    setImageUrls((prev) => (prev.length > 1 ? [prev[0]] : prev));
+  }, [mode]);
 
   const mobilePrev = useCallback(() => {
     if (!mobileGalleryItems.length) return;
@@ -2218,8 +2230,21 @@ const Studio = () => {
 
         const remoteRef = { __remote: true, serverImagePath: serverPath, name, mimeType: mime };
 
-        setUploadedImages([remoteRef]);
-        setImageUrls([previewUrl]);
+        if (mode === "edit") {
+          setUploadedImages([remoteRef]);
+          setImageUrls([previewUrl]);
+        } else {
+          setUploadedImages((prev) => {
+            const exists = prev.some(
+              (it) => it?.__remote && it.serverImagePath === remoteRef.serverImagePath
+            );
+            return exists ? prev : [...prev, remoteRef];
+          });
+          setImageUrls((prev) => {
+            const exists = prev.includes(previewUrl);
+            return exists ? prev : [...prev, previewUrl];
+          });
+        }
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (e) {
         console.error("移动端参考图添加失败:", e);
@@ -2441,16 +2466,7 @@ const Studio = () => {
               </div>
 
               {(mode === "edit" || mode === "compose") && (
-                <div className="bg-white rounded-xl shadow-lg p-4 mt-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="font-semibold text-gray-900">参考图片</div>
-                    {uploadedImages.length > 0 && (
-                      <button onClick={clearAllImages} className="text-sm text-red-600 hover:text-red-800">
-                        清空
-                      </button>
-                    )}
-                  </div>
-
+                <div className="bg-white rounded-xl shadow-lg p-3 mt-3">
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -2460,36 +2476,46 @@ const Studio = () => {
                     className="hidden"
                   />
 
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-3 rounded-lg border-2 border-dashed border-gray-300 text-gray-700 bg-white hover:border-purple-400 active:bg-gray-50"
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <Upload className="w-5 h-5 text-gray-500" />
-                      <span className="text-sm">
-                        {mode === "edit" ? "上传要编辑的图片" : "上传多张图片合成"}
-                      </span>
-                    </div>
-                  </button>
-
-                  {uploadedImages.length > 0 && (
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      {uploadedImages.map((img, index) => (
-                        <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200">
-                          <img src={imageUrls[index]} alt={`img-${index}`} className="w-full h-24 object-cover" />
-                          <div className="absolute top-1 left-1 bg-purple-600 text-white px-1.5 py-0.5 rounded text-[10px] font-bold">
-                            图片{index + 1}
-                          </div>
-                          <button
-                            onClick={() => removeImage(index)}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
-                            title="移除"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
+                  <div className="flex items-stretch gap-2">
+                    <button
+                      onClick={() => setMobileRefOpen(true)}
+                      className="flex-1 h-12 rounded-lg border bg-white px-3 flex items-center justify-between active:bg-gray-50"
+                      title="管理参考图片"
+                    >
+                      <div className="text-left">
+                        <div className="text-sm font-semibold text-gray-900">参考图片</div>
+                        <div className="text-[11px] text-gray-500">
+                          {uploadedImages.length > 0
+                            ? mode === "edit"
+                              ? `已选择 ${Math.min(1, uploadedImages.length)} 张`
+                              : `已选择 ${uploadedImages.length} 张`
+                            : "点击管理 / 删除"}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {uploadedImages.length > 0 && (
+                          <div className="px-2 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-semibold">
+                            {mode === "edit" ? 1 : uploadedImages.length}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setMobileRefOpen(true);
+                        setTimeout(() => fileInputRef.current?.click(), 0);
+                      }}
+                      className="h-12 w-12 rounded-lg bg-purple-600 text-white flex items-center justify-center active:bg-purple-700"
+                      title="添加参考图片"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {mode === "edit" && (
+                    <div className="mt-2 text-xs text-gray-500">编辑模式仅支持 1 张参考图</div>
                   )}
                 </div>
               )}
@@ -2547,6 +2573,83 @@ const Studio = () => {
                 )}
               </div>
             </div>
+
+            {/* 参考图片管理抽屉（移动端） */}
+            {mobileRefOpen && (mode === "edit" || mode === "compose") && (
+              <div className="fixed inset-0 z-50">
+                <div className="absolute inset-0 bg-black/50" onClick={() => setMobileRefOpen(false)} />
+
+                <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl shadow-2xl h-[66svh] flex flex-col">
+                  <div className="p-4 flex items-center justify-between border-b">
+                    <div className="font-semibold text-gray-900">参考图片</div>
+                    <div className="flex items-center gap-2">
+                      {uploadedImages.length > 0 && (
+                        <button
+                          onClick={clearAllImages}
+                          className="px-3 h-10 rounded-lg border bg-white text-red-700 hover:bg-red-50 active:bg-red-100"
+                          title="清空参考图片"
+                        >
+                          清空
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setMobileRefOpen(false)}
+                        className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100"
+                        title="关闭"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-3 overflow-y-auto">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 h-11 rounded-lg bg-purple-600 text-white flex items-center justify-center gap-2 active:bg-purple-700"
+                      >
+                        <Upload className="w-4 h-4" />
+                        {mode === "edit" ? "替换参考图" : "添加参考图"}
+                      </button>
+                      {mode === "compose" && (
+                        <div className="text-xs text-gray-500">
+                          支持多张（会自动去重）
+                        </div>
+                      )}
+                      {mode === "edit" && (
+                        <div className="text-xs text-gray-500">
+                          仅 1 张
+                        </div>
+                      )}
+                    </div>
+
+                    {uploadedImages.length === 0 ? (
+                      <div className="text-sm text-gray-500 py-8 text-center">
+                        暂无参考图片，点击上方按钮添加
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-3">
+                        {uploadedImages.map((img, index) => (
+                          <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200">
+                            <img src={imageUrls[index]} alt={`ref-${index}`} className="w-full h-24 object-cover" />
+                            <div className="absolute top-1 left-1 bg-purple-600 text-white px-1.5 py-0.5 rounded text-[10px] font-bold">
+                              图片{index + 1}
+                            </div>
+                            <button
+                              onClick={() => removeImage(index)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+                              title="移除"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 底部永远显示：提示词助写 + 生成 */}
             <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t px-3 py-3">
