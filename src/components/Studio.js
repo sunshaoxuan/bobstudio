@@ -490,13 +490,13 @@ const Studio = () => {
   // ESC键关闭全屏查看器
   useEffect(() => {
     const handleEsc = (event) => {
-      if (event.key === 'Escape' && fullscreenImage) {
+      if (event.key === 'Escape' && fullscreenImage && !isMobile) {
         setFullscreenImage(null);
       }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [fullscreenImage]);
+  }, [fullscreenImage, isMobile]);
 
   // 如果用户未登录，重定向到登录页面
   useEffect(() => {
@@ -3970,12 +3970,12 @@ const Studio = () => {
         {fullscreenImage && (
           <div 
             className="fixed inset-0 bg-black bg-opacity-95 z-50 flex items-center justify-center p-4"
-            onClick={() => setFullscreenImage(null)}
+            onClick={isMobile ? undefined : () => setFullscreenImage(null)}
           >
             <button
               onClick={() => setFullscreenImage(null)}
               className="absolute top-4 right-4 z-10 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-full p-3 transition-all"
-              title="关闭 (ESC)"
+              title={isMobile ? "关闭" : "关闭 (ESC)"}
             >
               <X className="w-6 h-6" />
             </button>
@@ -3984,11 +3984,14 @@ const Studio = () => {
               src={fullscreenImage}
               alt="全屏查看"
               className="max-w-full max-h-full object-contain"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                if (isMobile) setFullscreenImage(null);
+                else e.stopPropagation();
+              }}
             />
             
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white text-sm bg-black bg-opacity-50 px-4 py-2 rounded">
-              点击背景或按 ESC 关闭
+              {isMobile ? "点图片关闭" : "点击背景或按 ESC 关闭"}
             </div>
           </div>
         )}
