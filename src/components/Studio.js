@@ -148,7 +148,7 @@ const Studio = () => {
   const [mobileRightOpen, setMobileRightOpen] = useState(false);
   const [mobileThumbsOpen, setMobileThumbsOpen] = useState(false);
   const [mobileThumbsExpanded, setMobileThumbsExpanded] = useState(false);
-  const [mobileRefOpen, setMobileRefOpen] = useState(false);
+  const [mobileRefExpanded, setMobileRefExpanded] = useState(false);
   const [mobileLibraryTab, setMobileLibraryTab] = useState("history"); // history | shares
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
   const [mobilePreferGenerated, setMobilePreferGenerated] = useState(false);
@@ -2035,8 +2035,8 @@ const Studio = () => {
   }, [mobilePreferGenerated, mobileGalleryItems.length]);
 
   const showMobilePromptOverlay = useMemo(() => {
-    return showMobileLibraryNav && Boolean(mobileActiveItem?.prompt);
-  }, [showMobileLibraryNav, mobileActiveItem?.prompt]);
+    return !mobileRefExpanded && showMobileLibraryNav && Boolean(mobileActiveItem?.prompt);
+  }, [mobileRefExpanded, showMobileLibraryNav, mobileActiveItem?.prompt]);
 
   const [mobilePromptScrollState, setMobilePromptScrollState] = useState({
     hasOverflow: false,
@@ -2088,12 +2088,12 @@ const Studio = () => {
       setMobileRightOpen(false);
       setMobileThumbsOpen(false);
       setMobileThumbsExpanded(false);
-      setMobileRefOpen(false);
+      setMobileRefExpanded(false);
     }
   }, [isMobile]);
 
   useEffect(() => {
-    if (mode === "generate") setMobileRefOpen(false);
+    if (mode === "generate") setMobileRefExpanded(false);
   }, [mode]);
 
   useEffect(() => {
@@ -2356,69 +2356,107 @@ const Studio = () => {
               )}
 
               <div className="bg-white rounded-xl shadow-lg p-3">
-                <div className="flex items-stretch gap-2">
+                <div className={`flex gap-2 ${mobileRefExpanded ? "items-stretch" : "items-start"}`}>
                   {(mode === "edit" || mode === "compose") && (
-                    <div className="w-14 shrink-0 flex flex-col gap-2" data-no-drawer-swipe>
-                      <button
-                        onClick={() => {
-                          setMobileRefOpen(true);
-                          setTimeout(() => fileInputRef.current?.click(), 0);
-                        }}
-                        className="h-12 w-full rounded-lg bg-purple-600 text-white flex items-center justify-center active:bg-purple-700"
-                        title="添加参考图片"
-                      >
-                        <Plus className="w-5 h-5" />
-                      </button>
-
-                      <button
-                        onClick={() => setMobileRefOpen(true)}
-                        className="relative flex-1 w-full rounded-lg border bg-gray-50 overflow-hidden active:bg-gray-100"
-                        title="管理参考图片"
-                      >
-                        {imageUrls.length > 0 ? (
-                          <img
-                            src={imageUrls[0]}
-                            alt="ref"
-                            className="absolute inset-0 w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-gray-600">
-                            参考
+                    <>
+                      {mobileRefExpanded ? (
+                        <div
+                          className="w-[42%] max-w-[220px] aspect-square rounded-lg border bg-gray-50 overflow-hidden flex flex-col"
+                          data-no-drawer-swipe
+                          data-no-viewer-swipe
+                        >
+                          <div className="p-2 flex items-center justify-between gap-2 border-b bg-white/90">
+                            <button
+                              onClick={() => fileInputRef.current?.click()}
+                              className="h-9 px-3 rounded-lg bg-purple-600 text-white text-sm font-semibold flex items-center justify-center gap-2 active:bg-purple-700"
+                              title="添加参考图片"
+                            >
+                              <Plus className="w-4 h-4" />
+                              添加
+                            </button>
+                            <button
+                              onClick={clearAllImages}
+                              disabled={uploadedImages.length === 0}
+                              className="h-9 px-3 rounded-lg border bg-white text-sm text-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                              title="清空参考图片"
+                            >
+                              清空
+                            </button>
                           </div>
-                        )}
 
-                        <div className="absolute top-1 left-1 right-1 flex items-center justify-between">
-                          <span className="text-[10px] text-white bg-black/35 px-1.5 py-0.5 rounded">
-                            参考
-                          </span>
-                          <span className="text-[10px] text-white bg-black/35 px-1.5 py-0.5 rounded">
-                            {mode === "edit" ? Math.min(1, uploadedImages.length) : uploadedImages.length}
-                          </span>
+                          <div className="flex-1 overflow-y-auto p-2">
+                            {imageUrls.length === 0 ? (
+                              <div className="h-full flex items-center justify-center text-sm text-gray-500">
+                                暂无参考图
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-2">
+                                {imageUrls.map((url, index) => (
+                                  <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200">
+                                    <img
+                                      src={url}
+                                      alt={`ref-${index}`}
+                                      className="w-full h-24 object-cover"
+                                    />
+                                    <button
+                                      onClick={() => removeImage(index)}
+                                      className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 active:bg-black/70"
+                                      title="移除"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
+                      ) : (
+                        <div className="w-12 shrink-0 flex flex-col gap-2" data-no-drawer-swipe>
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-12 h-12 rounded-lg bg-purple-600 text-white flex items-center justify-center active:bg-purple-700"
+                            title="添加参考图片"
+                          >
+                            <Plus className="w-5 h-5" />
+                          </button>
 
-                        {mode === "compose" && uploadedImages.length > 1 && (
-                          <div className="absolute bottom-1 right-1 text-[10px] text-white bg-purple-600/90 px-1.5 py-0.5 rounded">
-                            +{uploadedImages.length - 1}
-                          </div>
-                        )}
-                      </button>
-                    </div>
+                          <button
+                            onClick={() => setMobileRefExpanded(true)}
+                            className="w-12 h-12 rounded-lg border bg-gray-50 overflow-hidden active:bg-gray-100"
+                            title="展开参考图片"
+                          >
+                            {imageUrls.length > 0 ? (
+                              <img src={imageUrls[0]} alt="ref" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[11px] font-semibold text-gray-600">
+                                参考
+                              </div>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   <div className="flex-1">
                     <div
                       className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center"
                       data-no-drawer-swipe
-                      onTouchStart={onMobileViewerTouchStart}
-                      onTouchMove={onMobileViewerTouchMove}
-                      onTouchEnd={onMobileViewerTouchEnd}
+                      onTouchStart={mobileRefExpanded ? undefined : onMobileViewerTouchStart}
+                      onTouchMove={mobileRefExpanded ? undefined : onMobileViewerTouchMove}
+                      onTouchEnd={mobileRefExpanded ? undefined : onMobileViewerTouchEnd}
+                      onClick={mobileRefExpanded ? () => setMobileRefExpanded(false) : undefined}
                     >
                       {mobileDisplayImageUrl ? (
                         <img
                           src={mobileDisplayImageUrl}
                           alt="preview"
                           className="w-full h-full object-contain"
-                          onClick={() => setFullscreenImage(mobileDisplayImageUrl)}
+                          onClick={() => {
+                            if (mobileRefExpanded) setMobileRefExpanded(false);
+                            else setFullscreenImage(mobileDisplayImageUrl);
+                          }}
                         />
                       ) : (
                         <div className="text-center text-gray-500">
@@ -2427,7 +2465,7 @@ const Studio = () => {
                         </div>
                       )}
 
-                  {showMobileLibraryNav && (
+                  {!mobileRefExpanded && showMobileLibraryNav && (
                     <>
                       <button
                         onClick={mobilePrev}
@@ -2451,7 +2489,7 @@ const Studio = () => {
                     </>
                   )}
 
-                  {showMobileLibraryNav && !showMobilePromptOverlay && mode !== "generate" && mobileActiveItem?.record && (
+                  {!mobileRefExpanded && showMobileLibraryNav && !showMobilePromptOverlay && mode !== "generate" && mobileActiveItem?.record && (
                     <button
                       onClick={() => addMobileReferenceRecordToUpload(mobileActiveItem.record)}
                       className="absolute bottom-2 left-2 px-3 py-1.5 rounded-full bg-black/40 text-white text-xs font-semibold active:bg-black/55 flex items-center gap-1"
@@ -2581,83 +2619,6 @@ const Studio = () => {
                 )}
               </div>
             </div>
-
-            {/* 参考图片管理抽屉（移动端） */}
-            {mobileRefOpen && (mode === "edit" || mode === "compose") && (
-              <div className="fixed inset-0 z-50">
-                <div className="absolute inset-0 bg-black/50" onClick={() => setMobileRefOpen(false)} />
-
-                <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl shadow-2xl h-[66svh] flex flex-col">
-                  <div className="p-4 flex items-center justify-between border-b">
-                    <div className="font-semibold text-gray-900">参考图片</div>
-                    <div className="flex items-center gap-2">
-                      {uploadedImages.length > 0 && (
-                        <button
-                          onClick={clearAllImages}
-                          className="px-3 h-10 rounded-lg border bg-white text-red-700 hover:bg-red-50 active:bg-red-100"
-                          title="清空参考图片"
-                        >
-                          清空
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setMobileRefOpen(false)}
-                        className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100"
-                        title="关闭"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-4 space-y-3 overflow-y-auto">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex-1 h-11 rounded-lg bg-purple-600 text-white flex items-center justify-center gap-2 active:bg-purple-700"
-                      >
-                        <Upload className="w-4 h-4" />
-                        {mode === "edit" ? "替换参考图" : "添加参考图"}
-                      </button>
-                      {mode === "compose" && (
-                        <div className="text-xs text-gray-500">
-                          支持多张（会自动去重）
-                        </div>
-                      )}
-                      {mode === "edit" && (
-                        <div className="text-xs text-gray-500">
-                          仅 1 张
-                        </div>
-                      )}
-                    </div>
-
-                    {uploadedImages.length === 0 ? (
-                      <div className="text-sm text-gray-500 py-8 text-center">
-                        暂无参考图片，点击上方按钮添加
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-3 gap-3">
-                        {uploadedImages.map((img, index) => (
-                          <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200">
-                            <img src={imageUrls[index]} alt={`ref-${index}`} className="w-full h-24 object-cover" />
-                            <div className="absolute top-1 left-1 bg-purple-600 text-white px-1.5 py-0.5 rounded text-[10px] font-bold">
-                              图片{index + 1}
-                            </div>
-                            <button
-                              onClick={() => removeImage(index)}
-                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
-                              title="移除"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* 底部永远显示：提示词助写 + 生成 */}
             <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t px-3 py-3">
