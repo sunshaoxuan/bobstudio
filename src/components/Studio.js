@@ -2368,19 +2368,18 @@ const Studio = () => {
                           <div className="p-2 flex items-center justify-between gap-2 border-b bg-white/90">
                             <button
                               onClick={() => fileInputRef.current?.click()}
-                              className="h-9 px-3 rounded-lg bg-purple-600 text-white text-sm font-semibold flex items-center justify-center gap-2 active:bg-purple-700"
+                              className="h-9 w-9 rounded-lg bg-purple-600 text-white flex items-center justify-center active:bg-purple-700"
                               title="添加参考图片"
                             >
                               <Plus className="w-4 h-4" />
-                              添加
                             </button>
                             <button
                               onClick={clearAllImages}
                               disabled={uploadedImages.length === 0}
-                              className="h-9 px-3 rounded-lg border bg-white text-sm text-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="h-9 w-9 rounded-lg border bg-white text-red-700 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                               title="清空参考图片"
                             >
-                              清空
+                              <X className="w-4 h-4" />
                             </button>
                           </div>
 
@@ -2572,10 +2571,10 @@ const Studio = () => {
                   {prompt && (
                     <button
                       onClick={() => setPrompt("")}
-                      className="text-sm text-gray-600 hover:text-gray-800"
+                      className="w-9 h-9 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200 text-gray-700"
                       title="清空提示词"
                     >
-                      清空
+                      <X className="w-4 h-4" />
                     </button>
                   )}
                 </div>
