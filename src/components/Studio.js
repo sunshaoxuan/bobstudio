@@ -630,7 +630,7 @@ const Studio = () => {
       if (!res.ok) throw new Error('保存分享失败');
       setImageHistory(prev => prev.map(it => it.id === shareModal.recordId ? { ...it, shareTargets: [...shareModal.targets] } : it));
       closeShareModal();
-      alert('分享设置已更新');
+      alert(shareModal.targets.length === 0 ? '已取消分享' : '分享设置已更新');
     } catch (e) {
       console.error(e);
       alert('保存分享失败，请重试');
@@ -4151,10 +4151,9 @@ const Studio = () => {
                 </button>
                 <button 
                   onClick={saveShareTargets} 
-                  disabled={shareModal.targets.length === 0}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  保存 ({shareModal.targets.length})
+                  {shareModal.targets.length === 0 ? "取消分享" : `保存 (${shareModal.targets.length})`}
                 </button>
               </div>
             </div>
