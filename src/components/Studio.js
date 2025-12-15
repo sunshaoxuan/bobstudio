@@ -630,7 +630,6 @@ const Studio = () => {
       if (!res.ok) throw new Error('保存分享失败');
       setImageHistory(prev => prev.map(it => it.id === shareModal.recordId ? { ...it, shareTargets: [...shareModal.targets] } : it));
       closeShareModal();
-      alert(shareModal.targets.length === 0 ? '已取消分享' : '分享设置已更新');
     } catch (e) {
       console.error(e);
       alert('保存分享失败，请重试');
@@ -1293,7 +1292,7 @@ const Studio = () => {
     }
   }, []);
 
-  // 从历史记录添加图片到上传区（支持编辑/合成模式）
+  // 从历史记录添加图片到参考区（支持编辑/合成模式）
   const resolveHistoryImageUrl = useCallback((u) => {
     if (!u) return u;
     if (u.startsWith('/images/')) return `${API_BASE_URL}${u}`;
@@ -1340,12 +1339,12 @@ const Studio = () => {
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
-      console.error('历史图片添加到上传区失败:', e);
+      console.error('历史图片添加到参考区失败:', e);
       alert('添加失败，请稍后重试');
     }
   }, [mode, resolveHistoryImageUrl, resolveHistoryServerPath]);
 
-  // 将当前生成结果加入上传区
+  // 将当前生成结果加入参考区
   const addGeneratedToUpload = useCallback(() => {
     try {
       if (!generatedImage) return;
@@ -1376,8 +1375,8 @@ const Studio = () => {
 
       alert('暂不支持的生成结果格式');
     } catch (e) {
-      console.error('加入上传区失败:', e);
-      alert('加入上传区失败，请重试');
+      console.error('加入参考区失败:', e);
+      alert('加入参考区失败，请重试');
     }
   }, [generatedImage, mode, dataUrlToFile, createImageUrl, resolveHistoryImageUrl]);
 
@@ -2525,7 +2524,7 @@ const Studio = () => {
                     <button
                       onClick={() => addMobileReferenceRecordToUpload(mobileActiveItem.record)}
                       className="absolute bottom-2 left-2 px-3 py-1.5 rounded-full bg-black/40 text-white text-xs font-semibold active:bg-black/55 flex items-center gap-1"
-                      title="加入参考图（上传区）"
+                      title="加入参考区"
                     >
                       <Plus className="w-4 h-4" />
                       参考
@@ -2542,7 +2541,7 @@ const Studio = () => {
                           <button
                             onClick={() => addMobileReferenceRecordToUpload(mobileActiveItem.record)}
                             className="px-3 py-1 rounded-full bg-white/15 active:bg-white/25 text-xs font-semibold flex items-center gap-1"
-                            title="加入参考图（上传区）"
+                            title="加入参考区"
                           >
                             <Plus className="w-4 h-4" />
                             参考
@@ -2932,7 +2931,7 @@ const Studio = () => {
                               className="w-full h-11 rounded-lg bg-purple-600 text-white flex items-center justify-center gap-2"
                             >
                               <Plus className="w-4 h-4" />
-                              加入上传区
+                              加入参考区
                             </button>
                           )}
                           <button
@@ -2975,7 +2974,7 @@ const Studio = () => {
                               className="w-full h-11 rounded-lg bg-purple-600 text-white flex items-center justify-center gap-2"
                             >
                               <Plus className="w-4 h-4" />
-                              加入上传区
+                              加入参考区
                             </button>
                           )}
                         </>
@@ -3096,7 +3095,7 @@ const Studio = () => {
                                 }}
                                 disabled={!canAddToUpload}
                                 className="h-9 rounded-lg bg-purple-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                                title="加入上传区"
+                                title="加入参考区"
                               >
                                 <Plus className="w-4 h-4" />
                                 加入
@@ -3564,9 +3563,9 @@ const Studio = () => {
                 <button
                   onClick={addGeneratedToUpload}
                   className="px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors text-sm flex items-center gap-2"
-                  title="将该图像加入上传区以继续编辑/合成"
+                  title="将该图像加入参考区以继续编辑/合成"
                 >
-                  <Plus className="w-4 h-4" /> 加入上传区
+                  <Plus className="w-4 h-4" /> 加入参考区
                 </button>
               </div>
         )}
@@ -3696,7 +3695,7 @@ const Studio = () => {
                       ...(mode === 'edit' || mode === 'compose' ? [{
                         key: 'use',
                         icon: Plus,
-                        title: '加入上传区',
+                        title: '加入参考区',
                         variant: 'default',
                         onPress: () => addHistoryRecordToUpload(record)
                       }] : []),
@@ -3904,8 +3903,8 @@ const Studio = () => {
                     <button
                       onClick={() => addHistoryRecordToUpload(item)}
                       className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
-                      title="加入上传区"
-                    >加入上传区</button>
+                      title="加入参考区"
+                    >加入参考区</button>
                   </div>
                 </div>
               </div>
@@ -3927,7 +3926,7 @@ const Studio = () => {
               <strong>📸 多种上传方式：</strong>
               <ul className="mt-2 space-y-1 text-xs">
                 <li>• 点击按钮选择文件</li>
-                <li>• 直接拖拽图片到上传区域</li>
+                <li>• 直接拖拽图片到参考区</li>
                 <li>• 复制图片后按 Ctrl+V 粘贴</li>
                 <li>• 在历史记录中点击 ➕ 按钮快速添加参考</li>
               </ul>
