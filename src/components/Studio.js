@@ -15,6 +15,11 @@ import {
   Image,
   Edit3,
   Layers,
+  Menu,
+  MoreVertical,
+  ChevronLeft,
+  ChevronRight,
+  Grid3x3,
   Download,
   Settings,
   Sparkles,
@@ -23,11 +28,40 @@ import {
   Eye,
   EyeOff,
   Share2,
+  Users,
+  BarChart3,
+  User,
+  LogOut,
 } from "lucide-react";
+
+const useMediaQuery = (query) => {
+  const getMatches = () => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const mql = window.matchMedia(query);
+    const onChange = (event) => setMatches(event.matches);
+    setMatches(mql.matches);
+    if (mql.addEventListener) mql.addEventListener("change", onChange);
+    else mql.addListener(onChange);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", onChange);
+      else mql.removeListener(onChange);
+    };
+  }, [query]);
+
+  return matches;
+};
 
 const Studio = () => {
   const { currentUser, logout, refreshUser, changePassword } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useMediaQuery("(max-width: 768px)");
   
   // API Key 安全处理：
   // - 用户自配的Key（showApiConfig=true）：从后端加密传回，用密码框显示，禁止复制
@@ -108,6 +142,18 @@ const Studio = () => {
   // 本地缓存和服务器状态
   const [pendingSync, setPendingSync] = useState([]); // 待同步的历史记录
   const [serverAvailable, setServerAvailable] = useState(true); // 服务器是否可用
+
+  // 移动端：左右抽屉（左：导航/账号；右：生图/共享/快捷操作）
+  const [mobileLeftOpen, setMobileLeftOpen] = useState(false);
+  const [mobileRightOpen, setMobileRightOpen] = useState(false);
+  const [mobileThumbsOpen, setMobileThumbsOpen] = useState(false);
+  const [mobileThumbsExpanded, setMobileThumbsExpanded] = useState(false);
+  const [mobileLibraryTab, setMobileLibraryTab] = useState("history"); // history | shares
+  const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
+  const [mobilePreferGenerated, setMobilePreferGenerated] = useState(false);
+  const drawerSwipeRef = useRef({ x: 0, y: 0, t: 0 });
+  const viewerSwipeRef = useRef({ x: 0, y: 0, t: 0, moved: false, lastX: 0 });
+  const mobilePromptTextareaRef = useRef(null);
 
   // 使用限额显示逻辑
   const remainingQuota = useMemo(() => {
@@ -1253,6 +1299,16 @@ const Studio = () => {
     return u;
   }, []);
 
+  const resolveHistoryServerPath = useCallback((u) => {
+    if (!u) return u;
+    if (u.startsWith("/images/")) return u;
+    try {
+      const parsed = new URL(u);
+      if (parsed.pathname?.startsWith("/images/")) return parsed.pathname;
+    } catch {}
+    return u;
+  }, []);
+
   const addHistoryRecordToUpload = useCallback((record) => {
     try {
       if (!(mode === 'edit' || mode === 'compose')) {
@@ -1260,7 +1316,7 @@ const Studio = () => {
         return;
       }
 
-      const serverPath = record.imageUrl; // 形如 /images/...
+      const serverPath = resolveHistoryServerPath(record.imageUrl); // 形如 /images/...
       const previewUrl = resolveHistoryImageUrl(record.imageUrl);
       const name = record.fileName || `history_${Date.now()}.png`;
 
@@ -1286,7 +1342,7 @@ const Studio = () => {
       console.error('历史图片添加到上传区失败:', e);
       alert('添加失败，请稍后重试');
     }
-  }, [mode, resolveHistoryImageUrl]);
+  }, [mode, resolveHistoryImageUrl, resolveHistoryServerPath]);
 
   // 将当前生成结果加入上传区
   const addGeneratedToUpload = useCallback(() => {
@@ -1928,11 +1984,1045 @@ const Studio = () => {
     return null; // 避免在重定向前显示内容
   }
 
+  // 移动端图集：统一 history / shares 数据结构（用于顶部预览、左右滑动、缩略图选择）
+  const mobileHistoryItems = useMemo(() => {
+    return nonDeletedHistory
+      .slice()
+      .reverse()
+      .map((record) => ({
+        key: String(record.id),
+        type: "history",
+        imageUrl: record.imageUrl,
+        prompt: record.prompt || "",
+        createdAt: record.createdAt,
+        record,
+      }));
+  }, [nonDeletedHistory]);
+
+  const mobileShareItems = useMemo(() => {
+    return (incomingShares || [])
+      .slice()
+      .reverse()
+      .map((item) => ({
+        key: `${item?.owner?.id || "owner"}-${item?.id || "id"}`,
+        type: "share",
+        imageUrl: item.imageUrl,
+        prompt: item.prompt || "",
+        owner: item.owner,
+        createdAt: item.createdAt,
+        record: item,
+      }));
+  }, [incomingShares]);
+
+  const mobileGalleryItems = useMemo(() => {
+    return mobileLibraryTab === "shares" ? mobileShareItems : mobileHistoryItems;
+  }, [mobileLibraryTab, mobileHistoryItems, mobileShareItems]);
+
+  const mobileActiveItem = useMemo(() => {
+    if (!mobileGalleryItems.length) return null;
+    const idx = Math.max(0, Math.min(mobileActiveIndex, mobileGalleryItems.length - 1));
+    return mobileGalleryItems[idx] || null;
+  }, [mobileGalleryItems, mobileActiveIndex]);
+
+  const mobileDisplayImageUrl = useMemo(() => {
+    if (mobilePreferGenerated && generatedImage) return generatedImage;
+    return mobileActiveItem?.imageUrl || generatedImage || null;
+  }, [mobileActiveItem, generatedImage, mobilePreferGenerated]);
+
+  const showMobileLibraryNav = useMemo(() => {
+    return !mobilePreferGenerated && mobileGalleryItems.length > 0;
+  }, [mobilePreferGenerated, mobileGalleryItems.length]);
+
+  const showMobilePromptOverlay = useMemo(() => {
+    return showMobileLibraryNav && Boolean(mobileActiveItem?.prompt);
+  }, [showMobileLibraryNav, mobileActiveItem?.prompt]);
+
+  const [mobilePromptScrollState, setMobilePromptScrollState] = useState({
+    hasOverflow: false,
+    atTop: true,
+    atBottom: true,
+  });
+  const mobilePromptScrollRef = useRef(null);
+
+  const updateMobilePromptScrollState = useCallback(() => {
+    const el = mobilePromptScrollRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollHeight > el.clientHeight + 1;
+    const atTop = el.scrollTop <= 1;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+    setMobilePromptScrollState((prev) => {
+      if (
+        prev.hasOverflow === hasOverflow &&
+        prev.atTop === atTop &&
+        prev.atBottom === atBottom
+      ) {
+        return prev;
+      }
+      return { hasOverflow, atTop, atBottom };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (generatedImage) setMobilePreferGenerated(true);
+  }, [generatedImage]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!showMobilePromptOverlay) return;
+    setTimeout(() => updateMobilePromptScrollState(), 0);
+  }, [isMobile, showMobilePromptOverlay, mobileActiveItem?.prompt, updateMobilePromptScrollState]);
+
+  useEffect(() => {
+    if (!mobileGalleryItems.length) {
+      if (mobileActiveIndex !== 0) setMobileActiveIndex(0);
+      return;
+    }
+    const idx = Math.max(0, Math.min(mobileActiveIndex, mobileGalleryItems.length - 1));
+    if (idx !== mobileActiveIndex) setMobileActiveIndex(idx);
+  }, [mobileGalleryItems.length, mobileActiveIndex]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileLeftOpen(false);
+      setMobileRightOpen(false);
+      setMobileThumbsOpen(false);
+      setMobileThumbsExpanded(false);
+    }
+  }, [isMobile]);
+
+  const mobilePrev = useCallback(() => {
+    if (!mobileGalleryItems.length) return;
+    setMobilePreferGenerated(false);
+    setMobileActiveIndex((i) => Math.max(0, i - 1));
+  }, [mobileGalleryItems.length]);
+
+  const mobileNext = useCallback(() => {
+    if (!mobileGalleryItems.length) return;
+    setMobilePreferGenerated(false);
+    setMobileActiveIndex((i) => Math.min(mobileGalleryItems.length - 1, i + 1));
+  }, [mobileGalleryItems.length]);
+
+  const shouldIgnoreViewerSwipe = useCallback((event) => {
+    const target = event?.target;
+    if (!target?.closest) return false;
+    return Boolean(target.closest("[data-no-viewer-swipe]"));
+  }, []);
+
+  const onMobileViewerTouchStart = useCallback((event) => {
+    if (shouldIgnoreViewerSwipe(event)) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    viewerSwipeRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      t: Date.now(),
+      moved: false,
+      lastX: touch.clientX,
+    };
+  }, [shouldIgnoreViewerSwipe]);
+
+  const onMobileViewerTouchMove = useCallback((event) => {
+    if (shouldIgnoreViewerSwipe(event)) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const start = viewerSwipeRef.current;
+    viewerSwipeRef.current.lastX = touch.clientX;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      viewerSwipeRef.current.moved = true;
+      event.preventDefault();
+    }
+  }, [shouldIgnoreViewerSwipe]);
+
+  const onMobileViewerTouchEnd = useCallback(
+    (event) => {
+      if (shouldIgnoreViewerSwipe(event)) return;
+      const touch = event.changedTouches?.[0];
+      const start = viewerSwipeRef.current;
+      if (!touch || !start) return;
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+      if (dx < 0) mobileNext();
+      else mobilePrev();
+    },
+    [mobileNext, mobilePrev, shouldIgnoreViewerSwipe]
+  );
+
+  const shouldIgnoreDrawerSwipe = useCallback((event) => {
+    const target = event?.target;
+    if (!target?.closest) return false;
+    return Boolean(target.closest("[data-no-drawer-swipe]"));
+  }, []);
+
+  const onMobileRootTouchStart = useCallback(
+    (event) => {
+      if (shouldIgnoreDrawerSwipe(event)) return;
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      drawerSwipeRef.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
+    },
+    [shouldIgnoreDrawerSwipe]
+  );
+
+  const onMobileRootTouchEnd = useCallback(
+    (event) => {
+      if (shouldIgnoreDrawerSwipe(event)) return;
+      const touch = event.changedTouches?.[0];
+      const start = drawerSwipeRef.current;
+      if (!touch || !start) return;
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+
+      const vw = typeof window !== "undefined" ? window.innerWidth : 0;
+      const startX = start.x;
+      const fromLeftEdge = startX <= 24;
+      const fromRightEdge = vw ? startX >= vw - 24 : false;
+
+      if (dx > 0) {
+        if (mobileRightOpen) setMobileRightOpen(false);
+        else if (fromLeftEdge) setMobileLeftOpen(true);
+      } else {
+        if (mobileLeftOpen) setMobileLeftOpen(false);
+        else if (fromRightEdge) setMobileRightOpen(true);
+      }
+    },
+    [shouldIgnoreDrawerSwipe, mobileLeftOpen, mobileRightOpen]
+  );
+
+  const addMobileReferenceRecordToUpload = useCallback(
+    (record) => {
+      try {
+        if (!(mode === "edit" || mode === "compose")) {
+          alert("请先切换到图像编辑或图像生成模式");
+          return;
+        }
+
+        const serverPath = resolveHistoryServerPath(record?.imageUrl);
+        const previewUrl = resolveHistoryImageUrl(record?.imageUrl);
+        const name = record?.fileName || `history_${Date.now()}.png`;
+
+        const ext = String(name).split(".").pop()?.toLowerCase();
+        const mime =
+          ext === "jpg" || ext === "jpeg"
+            ? "image/jpeg"
+            : ext === "png"
+              ? "image/png"
+              : ext === "webp"
+                ? "image/webp"
+                : ext === "gif"
+                  ? "image/gif"
+                  : "image/png";
+
+        const remoteRef = { __remote: true, serverImagePath: serverPath, name, mimeType: mime };
+
+        setUploadedImages([remoteRef]);
+        setImageUrls([previewUrl]);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) {
+        console.error("移动端参考图添加失败:", e);
+        alert("添加失败，请稍后重试");
+      }
+    },
+    [mode, resolveHistoryImageUrl, resolveHistoryServerPath]
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 to-blue-100">
-      <Navigation />
+      {!isMobile && <Navigation />}
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className={isMobile ? "w-full max-w-none p-0" : "max-w-7xl mx-auto p-6"}>
+        {isMobile && (
+          <div
+            className="min-h-[100svh] flex flex-col"
+            onTouchStart={onMobileRootTouchStart}
+            onTouchEnd={onMobileRootTouchEnd}
+          >
+            {/* 顶部栏：Logo最小化 + 左侧菜单 + 右侧功能 */}
+            <div className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b">
+              <div className="h-12 px-3 flex items-center justify-between">
+                <button
+                  onClick={() => setMobileLeftOpen(true)}
+                  className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                  title="菜单"
+                >
+                  <Menu className="w-5 h-5 text-gray-700" />
+                </button>
+
+                <button
+                  onClick={() => navigate("/studio")}
+                  className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-100 active:bg-gray-200"
+                  title="BOB Studio"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600" />
+                  <div className="text-sm font-semibold text-gray-900">BOB</div>
+                </button>
+
+                <button
+                  onClick={() => setMobileRightOpen(true)}
+                  className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                  title="功能"
+                >
+                  <MoreVertical className="w-5 h-5 text-gray-700" />
+                </button>
+              </div>
+
+              {/* 顶部永远显示：三种工作模式 */}
+              <div className="px-3 pb-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => {
+                      setMode("generate");
+                      clearAllImages();
+                    }}
+                    className={`h-10 rounded-lg border text-sm font-medium flex items-center justify-center gap-2 ${
+                      mode === "generate"
+                        ? "border-purple-500 bg-purple-50 text-purple-700"
+                        : "border-gray-200 bg-white text-gray-700"
+                    }`}
+                  >
+                    <Image className="w-4 h-4" />
+                    文本生图
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMode("edit");
+                      clearAllImages();
+                    }}
+                    className={`h-10 rounded-lg border text-sm font-medium flex items-center justify-center gap-2 ${
+                      mode === "edit"
+                        ? "border-purple-500 bg-purple-50 text-purple-700"
+                        : "border-gray-200 bg-white text-gray-700"
+                    }`}
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    图像编辑
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMode("compose");
+                    }}
+                    className={`h-10 rounded-lg border text-sm font-medium flex items-center justify-center gap-2 ${
+                      mode === "compose"
+                        ? "border-purple-500 bg-purple-50 text-purple-700"
+                        : "border-gray-200 bg-white text-gray-700"
+                    }`}
+                  >
+                    <Layers className="w-4 h-4" />
+                    图像生成
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 主内容：上部效果图 + 便捷提示词输入 */}
+            <div className="flex-1 overflow-y-auto px-3 pt-3 pb-24">
+              <div className="bg-white rounded-xl shadow-lg p-3">
+                <div
+                  className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center"
+                  data-no-drawer-swipe
+                  onTouchStart={onMobileViewerTouchStart}
+                  onTouchMove={onMobileViewerTouchMove}
+                  onTouchEnd={onMobileViewerTouchEnd}
+                >
+                  {mobileDisplayImageUrl ? (
+                    <img
+                      src={mobileDisplayImageUrl}
+                      alt="preview"
+                      className="w-full h-full object-contain"
+                      onClick={() => setFullscreenImage(mobileDisplayImageUrl)}
+                    />
+                  ) : (
+                    <div className="text-center text-gray-500">
+                      <Image className="w-14 h-14 mx-auto mb-3 text-gray-300" />
+                      <p className="text-sm">生成效果图将显示在这里</p>
+                    </div>
+                  )}
+
+                  {showMobileLibraryNav && (
+                    <>
+                      <button
+                        onClick={mobilePrev}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/35 text-white flex items-center justify-center active:bg-black/50"
+                        title="上一张"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={mobileNext}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/35 text-white flex items-center justify-center active:bg-black/50"
+                        title="下一张"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                      {!showMobilePromptOverlay && (
+                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-white bg-black/40 px-2 py-1 rounded-full">
+                          {mobileLibraryTab === "shares" ? "共享" : "生图"} {mobileActiveIndex + 1}/{mobileGalleryItems.length}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {showMobileLibraryNav && !showMobilePromptOverlay && mode !== "generate" && mobileActiveItem?.record && (
+                    <button
+                      onClick={() => addMobileReferenceRecordToUpload(mobileActiveItem.record)}
+                      className="absolute bottom-2 left-2 px-3 py-1.5 rounded-full bg-black/40 text-white text-xs font-semibold active:bg-black/55 flex items-center gap-1"
+                      title="加入参考图（上传区）"
+                    >
+                      <Plus className="w-4 h-4" />
+                      参考
+                    </button>
+                  )}
+
+                  {showMobilePromptOverlay && (
+                    <div
+                      data-no-viewer-swipe
+                      className="absolute left-0 right-0 bottom-0 px-3 py-2 bg-black/35 backdrop-blur text-white"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        {mode !== "generate" && mobileActiveItem?.record ? (
+                          <button
+                            onClick={() => addMobileReferenceRecordToUpload(mobileActiveItem.record)}
+                            className="px-3 py-1 rounded-full bg-white/15 active:bg-white/25 text-xs font-semibold flex items-center gap-1"
+                            title="加入参考图（上传区）"
+                          >
+                            <Plus className="w-4 h-4" />
+                            参考
+                          </button>
+                        ) : (
+                          <div className="w-[64px]" />
+                        )}
+
+                        <div className="text-[11px] text-white/90 bg-black/30 px-2 py-1 rounded-full">
+                          {mobileLibraryTab === "shares" ? "共享" : "生图"} {mobileActiveIndex + 1}/{mobileGalleryItems.length}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setPrompt(mobileActiveItem.prompt);
+                            setTimeout(() => {
+                              try {
+                                mobilePromptTextareaRef.current?.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "center",
+                                });
+                                mobilePromptTextareaRef.current?.focus?.();
+                              } catch {}
+                            }, 0);
+                          }}
+                          className="px-3 py-1 rounded-full bg-white/15 active:bg-white/25 text-xs font-semibold"
+                          title="复用该图提示词"
+                        >
+                          复用
+                        </button>
+                      </div>
+
+                      <div className="relative">
+                        <div
+                          ref={mobilePromptScrollRef}
+                          onScroll={updateMobilePromptScrollState}
+                          className="h-24 overflow-y-auto pr-2 text-xs leading-5 whitespace-pre-wrap select-text"
+                        >
+                          {mobileActiveItem.prompt}
+                        </div>
+
+                        {mobilePromptScrollState.hasOverflow && !mobilePromptScrollState.atTop && (
+                          <div className="pointer-events-none absolute top-0 left-0 right-0 h-5 bg-gradient-to-b from-black/60 to-transparent" />
+                        )}
+                        {mobilePromptScrollState.hasOverflow && !mobilePromptScrollState.atBottom && (
+                          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-black/60 to-transparent" />
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {(mode === "edit" || mode === "compose") && (
+                <div className="bg-white rounded-xl shadow-lg p-4 mt-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="font-semibold text-gray-900">参考图片</div>
+                    {uploadedImages.length > 0 && (
+                      <button onClick={clearAllImages} className="text-sm text-red-600 hover:text-red-800">
+                        清空
+                      </button>
+                    )}
+                  </div>
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    accept="image/*"
+                    multiple={mode === "compose"}
+                    className="hidden"
+                  />
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-3 rounded-lg border-2 border-dashed border-gray-300 text-gray-700 bg-white hover:border-purple-400 active:bg-gray-50"
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Upload className="w-5 h-5 text-gray-500" />
+                      <span className="text-sm">
+                        {mode === "edit" ? "上传要编辑的图片" : "上传多张图片合成"}
+                      </span>
+                    </div>
+                  </button>
+
+                  {uploadedImages.length > 0 && (
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {uploadedImages.map((img, index) => (
+                        <div key={index} className="relative rounded-lg overflow-hidden border border-gray-200">
+                          <img src={imageUrls[index]} alt={`img-${index}`} className="w-full h-24 object-cover" />
+                          <div className="absolute top-1 left-1 bg-purple-600 text-white px-1.5 py-0.5 rounded text-[10px] font-bold">
+                            图片{index + 1}
+                          </div>
+                          <button
+                            onClick={() => removeImage(index)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+                            title="移除"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="bg-white rounded-xl shadow-lg p-4 mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-semibold text-gray-900">提示词</div>
+                  {prompt && (
+                    <button
+                      onClick={() => setPrompt("")}
+                      className="text-sm text-gray-600 hover:text-gray-800"
+                      title="清空提示词"
+                    >
+                      清空
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  ref={mobilePromptTextareaRef}
+                  placeholder={getPromptExample()}
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg min-h-[140px] max-h-[40vh] resize-none text-base leading-6 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+
+                {suggestedPrompt && (
+                  <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        AI优化建议
+                      </div>
+                      <button
+                        onClick={useSuggestedPrompt}
+                        className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
+                      >
+                        使用
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{suggestedPrompt}</p>
+                  </div>
+                )}
+
+                {uploadedImages.length > 0 && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-700 font-medium">提示词技巧</p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      可以用“图片1”、“图片2”…引用特定图片，例如：“将图片1的人物特征应用到图片2的背景中”
+                    </p>
+                  </div>
+                )}
+
+                {!hasApiKeyConfigured && (
+                  <p className="mt-3 text-sm text-orange-600">尚未配置 API Key，生成按钮已禁用。</p>
+                )}
+              </div>
+            </div>
+
+            {/* 底部永远显示：提示词助写 + 生成 */}
+            <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t px-3 py-3">
+              <div className="flex items-stretch gap-2">
+                <button
+                  onClick={optimizePrompt}
+                  disabled={loadingSuggestion || loading || !isApiKeyAvailable || !prompt}
+                  className="h-12 flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loadingSuggestion ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>助写中</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      <span>助写</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={executeAction}
+                  disabled={
+                    loading ||
+                    !isApiKeyAvailable ||
+                    !prompt ||
+                    ((mode === "edit" || mode === "compose") && uploadedImages.length === 0)
+                  }
+                  className="h-12 flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>处理中</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      <span>{mode === "generate" ? "生成" : mode === "edit" ? "编辑" : "合成"}</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setMobilePreferGenerated(false);
+                    setMobileThumbsExpanded(false);
+                    setMobileThumbsOpen(true);
+                  }}
+                  className="h-12 w-12 rounded-lg border bg-white text-gray-800 flex items-center justify-center active:bg-gray-50"
+                  title="图库"
+                >
+                  <Grid3x3 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* 左侧抽屉：菜单项归入这里 */}
+            {mobileLeftOpen && (
+              <div className="fixed inset-0 z-50">
+                <div className="absolute inset-0 bg-black/40" onClick={() => setMobileLeftOpen(false)} />
+                <div className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-2xl p-4 overflow-y-auto">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600" />
+                      <div className="font-semibold">BOB Studio</div>
+                    </div>
+                    <button
+                      onClick={() => setMobileLeftOpen(false)}
+                      className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100"
+                      title="关闭"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 p-3 rounded-lg bg-gray-50 border">
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {currentUser.displayName || currentUser.username}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <button
+                      onClick={() => {
+                        setMobileLeftOpen(false);
+                        navigate("/friends");
+                      }}
+                      className="w-full h-11 rounded-lg border bg-white flex items-center gap-3 px-3"
+                    >
+                      <Users className="w-4 h-4 text-gray-700" />
+                      <span className="text-sm">好友</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMobileLeftOpen(false);
+                        navigate("/stats");
+                      }}
+                      className="w-full h-11 rounded-lg border bg-white flex items-center gap-3 px-3"
+                    >
+                      <BarChart3 className="w-4 h-4 text-gray-700" />
+                      <span className="text-sm">统计</span>
+                    </button>
+                    {currentUser.isSuperAdmin && (
+                      <button
+                        onClick={() => {
+                          setMobileLeftOpen(false);
+                          navigate("/admin");
+                        }}
+                        className="w-full h-11 rounded-lg border bg-white flex items-center gap-3 px-3"
+                      >
+                        <span className="w-4 h-4 text-yellow-600 text-sm">管</span>
+                        <span className="text-sm">管理端</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setMobileLeftOpen(false);
+                        navigate("/profile");
+                      }}
+                      className="w-full h-11 rounded-lg border bg-white flex items-center gap-3 px-3"
+                    >
+                      <User className="w-4 h-4 text-gray-700" />
+                      <span className="text-sm">个人中心</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setMobileLeftOpen(false);
+                        logout();
+                      }}
+                      className="w-full h-11 rounded-lg border bg-white flex items-center gap-3 px-3 text-red-700"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="text-sm">退出</span>
+                    </button>
+                  </div>
+
+                  {currentUser?.showApiConfig && (
+                    <div className="mt-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-semibold text-gray-900 flex items-center gap-2">
+                          <Settings className="w-4 h-4" />
+                          API配置
+                        </div>
+                        <button
+                          onClick={toggleApiConfigExpanded}
+                          className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100"
+                          title={apiConfigExpanded ? "折叠" : "展开"}
+                        >
+                          {apiConfigExpanded ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+
+                      {apiConfigExpanded && (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <input
+                              type={showApiKey ? "text" : "password"}
+                              placeholder="输入 Gemini API Key"
+                              value={apiKey}
+                              onChange={(e) => setApiKey(e.target.value)}
+                              onCopy={(e) => e.preventDefault()}
+                              onCut={(e) => e.preventDefault()}
+                              className="w-full p-3 pr-10 border border-gray-300 rounded-lg"
+                              autoComplete="off"
+                              spellCheck="false"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowApiKey(!showApiKey)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+                              title={showApiKey ? "隐藏" : "显示"}
+                            >
+                              {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                          <button
+                            onClick={saveApiSettings}
+                            disabled={!apiKey || saveApiLoading}
+                            className="w-full h-11 bg-green-600 text-white rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {saveApiLoading ? "保存中…" : "保存"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 右侧抽屉：生图/共享 + 快捷操作 */}
+            {mobileRightOpen && (
+              <div className="fixed inset-0 z-50">
+                <div className="absolute inset-0 bg-black/40" onClick={() => setMobileRightOpen(false)} />
+                <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-2xl p-4 overflow-y-auto">
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold text-gray-900">功能</div>
+                    <button
+                      onClick={() => setMobileRightOpen(false)}
+                      className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100"
+                      title="关闭"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      setMobileLibraryTab("history");
+                      setMobileActiveIndex(0);
+                      setMobilePreferGenerated(false);
+                      setMobileThumbsExpanded(false);
+                    }}
+                      className={`h-11 rounded-lg border font-medium ${
+                        mobileLibraryTab === "history"
+                          ? "border-purple-500 bg-purple-50 text-purple-700"
+                          : "border-gray-200 bg-white text-gray-800"
+                      }`}
+                    >
+                      生图
+                    </button>
+                  <button
+                    onClick={() => {
+                      setMobileLibraryTab("shares");
+                      setMobileActiveIndex(0);
+                      setMobilePreferGenerated(false);
+                      setMobileThumbsExpanded(false);
+                      loadIncomingShares();
+                    }}
+                      className={`h-11 rounded-lg border font-medium ${
+                        mobileLibraryTab === "shares"
+                          ? "border-purple-500 bg-purple-50 text-purple-700"
+                          : "border-gray-200 bg-white text-gray-800"
+                      }`}
+                    >
+                      共享
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <button
+                      onClick={() => {
+                        setMobilePreferGenerated(false);
+                        setMobileThumbsOpen(true);
+                        setMobileThumbsExpanded(false);
+                      }}
+                      className="w-full h-11 rounded-lg border bg-white flex items-center justify-center gap-2"
+                    >
+                      <Grid3x3 className="w-4 h-4" />
+                      缩略图选择
+                    </button>
+
+                    {mobileLibraryTab === "shares" && (
+                      <button
+                        onClick={loadIncomingShares}
+                        className="w-full h-11 rounded-lg border bg-white flex items-center justify-center gap-2"
+                      >
+                        刷新共享
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-6">
+                    <div className="text-sm font-semibold text-gray-900 mb-2">当前图片操作</div>
+                    <div className="space-y-2">
+                      {mobileActiveItem?.type === "history" && (
+                        <>
+                          {(mode === "edit" || mode === "compose") && (
+                            <button
+                              onClick={() => {
+                                addMobileReferenceRecordToUpload(mobileActiveItem.record);
+                                setMobileRightOpen(false);
+                              }}
+                              className="w-full h-11 rounded-lg bg-purple-600 text-white flex items-center justify-center gap-2"
+                            >
+                              <Plus className="w-4 h-4" />
+                              加入上传区
+                            </button>
+                          )}
+                          <button
+                            onClick={() =>
+                              downloadImage(mobileActiveItem.record.imageUrl, mobileActiveItem.record.fileName)
+                            }
+                            className="w-full h-11 rounded-lg bg-green-600 text-white flex items-center justify-center gap-2"
+                          >
+                            <Download className="w-4 h-4" />
+                            下载
+                          </button>
+                          <button
+                            onClick={() => openShareModal(mobileActiveItem.record)}
+                            className="w-full h-11 rounded-lg bg-blue-600 text-white flex items-center justify-center gap-2"
+                          >
+                            <Share2 className="w-4 h-4" />
+                            分享
+                          </button>
+                          <button
+                            onClick={() => {
+                              deleteHistoryImage(mobileActiveItem.record.id);
+                              setMobileRightOpen(false);
+                            }}
+                            className="w-full h-11 rounded-lg bg-red-600 text-white flex items-center justify-center gap-2"
+                          >
+                            <X className="w-4 h-4" />
+                            删除
+                          </button>
+                        </>
+                      )}
+
+                      {mobileActiveItem?.type === "share" && (
+                        <>
+                          {(mode === "edit" || mode === "compose") && (
+                            <button
+                              onClick={() => {
+                                addMobileReferenceRecordToUpload(mobileActiveItem.record);
+                                setMobileRightOpen(false);
+                              }}
+                              className="w-full h-11 rounded-lg bg-purple-600 text-white flex items-center justify-center gap-2"
+                            >
+                              <Plus className="w-4 h-4" />
+                              加入上传区
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      {mobileActiveItem?.prompt && (
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => {
+                              setPrompt(mobileActiveItem.prompt);
+                              setMobileRightOpen(false);
+                            }}
+                            className="w-full h-11 rounded-lg border bg-white flex items-center justify-center gap-2"
+                          >
+                            复用提示词
+                          </button>
+                          <button
+                            onClick={() => copyText(mobileActiveItem.prompt)}
+                            className="w-full h-11 rounded-lg border bg-white flex items-center justify-center gap-2"
+                          >
+                            复制提示词
+                          </button>
+                        </div>
+                      )}
+
+                      {mobileDisplayImageUrl && (
+                        <button
+                          onClick={() => setFullscreenImage(mobileDisplayImageUrl)}
+                          className="w-full h-11 rounded-lg border bg-white flex items-center justify-center gap-2"
+                        >
+                          全屏查看
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 缩略图选择：扩大选择范围 */}
+            {mobileThumbsOpen && (
+              <div className="fixed inset-0 z-50">
+                {!mobileThumbsExpanded && (
+                  <div className="absolute inset-0 bg-black/50" onClick={() => setMobileThumbsOpen(false)} />
+                )}
+
+                <div
+                  className={
+                    mobileThumbsExpanded
+                      ? "absolute inset-0 bg-white shadow-2xl flex flex-col"
+                      : "absolute left-0 right-0 bottom-0 bg-white rounded-t-2xl shadow-2xl h-[66svh] flex flex-col"
+                  }
+                >
+                  <div className="p-4 flex items-center justify-between border-b">
+                    <div className="font-semibold">
+                      {mobileLibraryTab === "shares" ? "共享" : "生图"}图库（{mobileGalleryItems.length}）
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {!mobileThumbsExpanded ? (
+                        <button
+                          onClick={() => setMobileThumbsExpanded(true)}
+                          className="px-3 h-10 rounded-lg border bg-white hover:bg-gray-50"
+                          title="全屏"
+                        >
+                          全屏
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setMobileThumbsExpanded(false)}
+                          className="px-3 h-10 rounded-lg border bg-white hover:bg-gray-50"
+                          title="返回"
+                        >
+                          返回
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => setMobileThumbsOpen(false)}
+                        className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100"
+                        title="关闭"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 grid grid-cols-3 gap-3 overflow-y-auto">
+                    {mobileGalleryItems.map((it, idx) => {
+                      const canAddToUpload = mode === "edit" || mode === "compose";
+                      const hasPrompt = Boolean(it.prompt);
+
+                      return (
+                        <div key={it.key} className="space-y-2">
+                          <button
+                            onClick={() => {
+                              setMobilePreferGenerated(false);
+                              setMobileActiveIndex(idx);
+                              setMobileThumbsOpen(false);
+                            }}
+                            className={`relative w-full rounded-lg overflow-hidden border ${
+                              idx === mobileActiveIndex ? "border-purple-500" : "border-gray-200"
+                            }`}
+                            title={`第 ${idx + 1} 张`}
+                          >
+                            <img src={it.imageUrl} alt="thumb" className="w-full h-24 object-cover" />
+                            <div className="absolute bottom-1 right-1 text-[10px] text-white bg-black/50 px-1.5 py-0.5 rounded">
+                              {idx + 1}
+                            </div>
+                          </button>
+
+                          {(canAddToUpload || hasPrompt) && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => {
+                                  addMobileReferenceRecordToUpload(it.record);
+                                  setMobileThumbsOpen(false);
+                                }}
+                                disabled={!canAddToUpload}
+                                className="h-9 rounded-lg bg-purple-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                                title="加入上传区"
+                              >
+                                <Plus className="w-4 h-4" />
+                                加入
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (!it.prompt) return;
+                                  setPrompt(it.prompt);
+                                  setMobileThumbsOpen(false);
+                                }}
+                                disabled={!hasPrompt}
+                                className="h-9 rounded-lg border bg-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                title="复用提示词"
+                              >
+                                复用
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isMobile && (
+          <>
         {/* API配置（仅允许自助配置时显示） */}
         {currentUser?.showApiConfig && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
@@ -2764,6 +3854,9 @@ const Studio = () => {
             </div>
           </div>
         </div>
+
+          </>
+        )}
 
         {/* 错误模态框 */}
         {errorModal.show && (
