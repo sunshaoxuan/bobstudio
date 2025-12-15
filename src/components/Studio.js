@@ -1987,9 +1987,19 @@ const Studio = () => {
 
   // 移动端图集：统一 history / shares 数据结构（用于顶部预览、左右滑动、缩略图选择）
   const mobileHistoryItems = useMemo(() => {
+    const parseTime = (value) => {
+      if (!value) return 0;
+      const t = Date.parse(value);
+      return Number.isFinite(t) ? t : 0;
+    };
+
     return nonDeletedHistory
       .slice()
-      .reverse()
+      .sort((a, b) => {
+        const diff = parseTime(b?.createdAt) - parseTime(a?.createdAt);
+        if (diff) return diff;
+        return String(b?.id || "").localeCompare(String(a?.id || ""));
+      })
       .map((record) => ({
         key: String(record.id),
         type: "history",
@@ -2001,9 +2011,19 @@ const Studio = () => {
   }, [nonDeletedHistory]);
 
   const mobileShareItems = useMemo(() => {
+    const parseTime = (value) => {
+      if (!value) return 0;
+      const t = Date.parse(value);
+      return Number.isFinite(t) ? t : 0;
+    };
+
     return (incomingShares || [])
       .slice()
-      .reverse()
+      .sort((a, b) => {
+        const diff = parseTime(b?.createdAt) - parseTime(a?.createdAt);
+        if (diff) return diff;
+        return String(b?.id || "").localeCompare(String(a?.id || ""));
+      })
       .map((item) => ({
         key: `${item?.owner?.id || "owner"}-${item?.id || "id"}`,
         type: "share",
