@@ -1065,18 +1065,76 @@ const Studio = () => {
     [currentUser, showError, saveHistoryToServer, uploadImageToServer, pendingSync],
   );
 
-  // 手动下载图片
-  const downloadImage = (imageUrl, fileName) => {
-    if (!imageUrl) return;
+  const isIOSDevice = useMemo(() => {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    const platform = navigator.platform || "";
+    const isAppleMobile = /iPad|iPhone|iPod/.test(ua);
+    const isIpadOS = platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1;
+    return isAppleMobile || isIpadOS;
+  }, []);
 
-    const link = document.createElement("a");
-    link.href = imageUrl;
-    link.download = fileName || `bob-studio_${generateFileName()}.png`;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const resolveImageUrl = useCallback((url) => {
+    if (!url) return url;
+    if (typeof url !== "string") return String(url);
+    if (url.startsWith("data:")) return url;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    if (url.startsWith("/")) return `${API_BASE_URL}${url}`;
+    return url;
+  }, [API_BASE_URL]);
+
+  // 手动下载图片（iOS：优先调起系统分享面板，便于“存储到照片”）
+  const downloadImage = useCallback(
+    async (imageUrl, fileName) => {
+      if (!imageUrl) return;
+
+      const resolvedUrl = resolveImageUrl(imageUrl);
+      const name = fileName || `bob-studio_${generateFileName()}.png`;
+
+      if (isIOSDevice) {
+        try {
+          if (navigator.share) {
+            let res;
+            try {
+              res = await fetch(resolvedUrl);
+            } catch (_) {
+              res = await fetch(resolvedUrl, { credentials: "include" });
+            }
+
+            const blob = await res.blob();
+            const type = blob.type || "image/png";
+            const file = new File([blob], name, { type });
+
+            const canShareFiles =
+              typeof navigator.canShare === "function"
+                ? navigator.canShare({ files: [file] })
+                : true;
+
+            if (canShareFiles) {
+              await navigator.share({ files: [file], title: "保存图片" });
+              return;
+            }
+          }
+        } catch (error) {
+          if (error?.name === "AbortError") return;
+        }
+
+        try {
+          window.open(resolvedUrl, "_blank", "noopener,noreferrer");
+        } catch (_) {}
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.href = resolvedUrl;
+      link.download = name;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    },
+    [isIOSDevice, resolveImageUrl],
+  );
 
   // 导出历史记录到文件
   const exportHistoryToFile = useCallback(() => {
@@ -3024,7 +3082,7 @@ const Studio = () => {
                             className="w-full h-11 rounded-lg bg-green-600 text-white flex items-center justify-center gap-2"
                           >
                             <Download className="w-4 h-4" />
-                            下载
+                            {isIOSDevice ? "保存到相册" : "下载"}
                           </button>
                           <button
                             onClick={() => openShareModal(mobileActiveItem.record)}
