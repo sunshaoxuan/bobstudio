@@ -3113,7 +3113,7 @@ const Studio = () => {
                 >
                   <div className="p-4 flex items-center justify-between border-b">
                     <div className="font-semibold">
-                      {mobileLibraryTab === "shares" ? "共享" : "生图"}图库（{mobileGalleryItems.length}）
+                      {mobileLibraryTab === "shares" ? "共享" : "生图"}图库（{mobileThumbsVirtualState.visibleItems.length}/{mobileGalleryItems.length}）
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -3203,7 +3203,7 @@ const Studio = () => {
                                     title="加入参考区"
                                   >
                                     <Plus className="w-4 h-4" />
-                                    参考
+                                    加入
                                   </button>
                                   <button
                                     onClick={() => {
