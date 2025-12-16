@@ -9,7 +9,10 @@ import {
   Users,
   Loader2,
   Search,
-  X
+  X,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import {
   BarChart,
@@ -32,6 +35,20 @@ const MODE_COLORS = {
 };
 
 const EMPTY_TOTALS = { today: 0, thisMonth: 0, total: 0 };
+
+const normalizeNumber = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+};
+
+const compareValues = (a, b) => {
+  if (a == null && b == null) return 0;
+  if (a == null) return -1;
+  if (b == null) return 1;
+  if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b, 'zh-CN');
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  return String(a).localeCompare(String(b), 'zh-CN');
+};
 
 const Stats = () => {
   console.log('=== Stats 组件开始渲染 ===');
@@ -56,6 +73,8 @@ const Stats = () => {
   const [dateRange, setDateRange] = useState('all'); // 'all', 'lastMonth', 'thisMonth', 'custom'
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+
+  const [summarySort, setSummarySort] = useState({ key: 'totals.total', direction: 'desc' });
 
   const [selfStatsCache, setSelfStatsCache] = useState(null);
   const [summaryStatsCache, setSummaryStatsCache] = useState(null);
@@ -229,6 +248,65 @@ const Stats = () => {
       user.email?.toLowerCase().includes(keyword)
     );
   }, [summaryData, userSearch]);
+
+  const sortedSummaryUsers = useMemo(() => {
+    const list = summaryData?.perUser || [];
+    const { key, direction } = summarySort || {};
+    const directionMultiplier = direction === 'asc' ? 1 : -1;
+
+    const getSortValue = (user) => {
+      switch (key) {
+        case 'name':
+          return (user.displayName || user.username || '').toString().toLowerCase();
+        case 'totals.today':
+          return normalizeNumber(user.totals?.today);
+        case 'totals.thisMonth':
+          return normalizeNumber(user.totals?.thisMonth);
+        case 'totals.total':
+          return normalizeNumber(user.totals?.total);
+        case 'quotaUsage': {
+          if (user.unlimited) return -1;
+          if (!user.limitEnabled) return -1;
+          const used = normalizeNumber(user.used);
+          const limit = normalizeNumber(user.limit || 30);
+          return limit > 0 ? used / limit : used;
+        }
+        case 'lastGeneratedAt':
+          return user.lastGeneratedAt ? Date.parse(user.lastGeneratedAt) || 0 : 0;
+        default:
+          return normalizeNumber(user.totals?.total);
+      }
+    };
+
+    return list
+      .map((user, index) => ({ user, index, value: getSortValue(user) }))
+      .sort((left, right) => {
+        const base = compareValues(left.value, right.value);
+        if (base !== 0) return base * directionMultiplier;
+        return left.index - right.index;
+      })
+      .map(({ user }) => user);
+  }, [summaryData, summarySort]);
+
+  const handleSummarySort = (key, defaultDirection = 'desc') => {
+    setSummarySort((prev) => {
+      if (prev?.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: defaultDirection };
+    });
+  };
+
+  const renderSortIcon = (key) => {
+    if (summarySort?.key !== key) {
+      return <ArrowUpDown className="w-3 h-3 opacity-40" />;
+    }
+    return summarySort.direction === 'asc' ? (
+      <ChevronUp className="w-3 h-3" />
+    ) : (
+      <ChevronDown className="w-3 h-3" />
+    );
+  };
 
   const scopeHasData = effectiveScope === 'summary'
     ? Boolean(summaryData)
@@ -522,16 +600,74 @@ const Stats = () => {
                     <table className="min-w-full text-sm">
                       <thead>
                         <tr className="text-gray-500 border-b">
-                          <th className="text-left py-2 pr-4">用户</th>
-                          {dateRange === 'all' && <th className="text-right py-2 pr-4">今日</th>}
-                          {dateRange === 'all' && <th className="text-right py-2 pr-4">本月</th>}
-                          <th className="text-right py-2 pr-4">{dateRange !== 'all' ? '期间生成' : '总计'}</th>
-                          <th className="text-right py-2 pr-4">额度使用</th>
-                          <th className="text-right py-2">最近创作时间</th>
+                          <th className="text-left py-2 pr-4">
+                            <button
+                              type="button"
+                              onClick={() => handleSummarySort('name', 'asc')}
+                              className="inline-flex items-center gap-1 hover:text-gray-700"
+                            >
+                              用户
+                              {renderSortIcon('name')}
+                            </button>
+                          </th>
+                          {dateRange === 'all' && (
+                            <th className="text-right py-2 pr-4">
+                              <button
+                                type="button"
+                                onClick={() => handleSummarySort('totals.today', 'desc')}
+                                className="inline-flex items-center justify-end gap-1 w-full hover:text-gray-700"
+                              >
+                                今日
+                                {renderSortIcon('totals.today')}
+                              </button>
+                            </th>
+                          )}
+                          {dateRange === 'all' && (
+                            <th className="text-right py-2 pr-4">
+                              <button
+                                type="button"
+                                onClick={() => handleSummarySort('totals.thisMonth', 'desc')}
+                                className="inline-flex items-center justify-end gap-1 w-full hover:text-gray-700"
+                              >
+                                本月
+                                {renderSortIcon('totals.thisMonth')}
+                              </button>
+                            </th>
+                          )}
+                          <th className="text-right py-2 pr-4">
+                            <button
+                              type="button"
+                              onClick={() => handleSummarySort('totals.total', 'desc')}
+                              className="inline-flex items-center justify-end gap-1 w-full hover:text-gray-700"
+                            >
+                              {dateRange !== 'all' ? '期间生成' : '总计'}
+                              {renderSortIcon('totals.total')}
+                            </button>
+                          </th>
+                          <th className="text-right py-2 pr-4">
+                            <button
+                              type="button"
+                              onClick={() => handleSummarySort('quotaUsage', 'desc')}
+                              className="inline-flex items-center justify-end gap-1 w-full hover:text-gray-700"
+                            >
+                              额度使用
+                              {renderSortIcon('quotaUsage')}
+                            </button>
+                          </th>
+                          <th className="text-right py-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSummarySort('lastGeneratedAt', 'desc')}
+                              className="inline-flex items-center justify-end gap-1 w-full hover:text-gray-700"
+                            >
+                              最近创作时间
+                              {renderSortIcon('lastGeneratedAt')}
+                            </button>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {(summaryData?.perUser || []).map((user) => (
+                        {sortedSummaryUsers.map((user) => (
                           <tr key={user.id} className="border-b last:border-b-0">
                             <td className="py-2 pr-4 text-gray-700">
                               <div className="flex items-center gap-2">
