@@ -3113,7 +3113,16 @@ const Studio = () => {
                 >
                   <div className="p-4 flex items-center justify-between border-b">
                     <div className="font-semibold">
-                      {mobileLibraryTab === "shares" ? "共享" : "生图"}图库（{mobileThumbsVirtualState.visibleItems.length}/{mobileGalleryItems.length}）
+                      {(() => {
+                        const total = mobileGalleryItems.length;
+                        const visible = mobileThumbsVirtualState.visibleItems.length;
+                        const start = mobileThumbsVirtualState.startIndex;
+                        const end = Math.min(total, start + visible);
+                        if (!total) {
+                          return `${mobileLibraryTab === "shares" ? "共享" : "生图"}图库（0/0）`;
+                        }
+                        return `${mobileLibraryTab === "shares" ? "共享" : "生图"}图库（${start + 1}-${end}/${total}，窗口${visible}）`;
+                      })()}
                     </div>
 
                     <div className="flex items-center gap-2">
