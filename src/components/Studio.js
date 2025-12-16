@@ -152,6 +152,9 @@ const Studio = () => {
   const [mobileLibraryTab, setMobileLibraryTab] = useState("history"); // history | shares
   const [mobileActiveIndex, setMobileActiveIndex] = useState(0);
   const [mobilePreferGenerated, setMobilePreferGenerated] = useState(false);
+  const mobileThumbsScrollRef = useRef(null);
+  const [mobileThumbsScrollTop, setMobileThumbsScrollTop] = useState(0);
+  const [mobileThumbsViewportHeight, setMobileThumbsViewportHeight] = useState(0);
   const drawerSwipeRef = useRef({ x: 0, y: 0, t: 0 });
   const viewerSwipeRef = useRef({ x: 0, y: 0, t: 0, moved: false, lastX: 0 });
   const mobilePromptTextareaRef = useRef(null);
@@ -2057,6 +2060,80 @@ const Studio = () => {
     return !mobileRefExpanded && showMobileLibraryNav && Boolean(mobileActiveItem?.prompt);
   }, [mobileRefExpanded, showMobileLibraryNav, mobileActiveItem?.prompt]);
 
+  useEffect(() => {
+    if (!mobileThumbsOpen) {
+      setMobileThumbsScrollTop(0);
+      setMobileThumbsViewportHeight(0);
+      return;
+    }
+
+    const el = mobileThumbsScrollRef.current;
+    if (!el) return;
+
+    const update = () => {
+      setMobileThumbsViewportHeight(el.clientHeight || 0);
+      setMobileThumbsScrollTop(el.scrollTop || 0);
+    };
+
+    update();
+
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(update);
+      ro.observe(el);
+    } else {
+      window.addEventListener("resize", update);
+    }
+
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [mobileThumbsOpen, mobileThumbsExpanded, mobileLibraryTab]);
+
+  const mobileThumbsVirtualState = useMemo(() => {
+    const cols = 3;
+    const paddingPx = 16;
+    const gapPx = 12;
+    const cellHeightPx = 140;
+    const rowHeightPx = cellHeightPx + gapPx;
+    const maxRowsInDom = 10;
+
+    const totalItems = mobileGalleryItems.length;
+    const totalRows = Math.ceil(totalItems / cols);
+
+    const viewportHeight = Math.max(0, mobileThumbsViewportHeight - paddingPx * 2);
+    const minRowsToCoverViewport = viewportHeight
+      ? Math.min(totalRows, Math.ceil(viewportHeight / rowHeightPx) + 2)
+      : 0;
+    const rowsInDom = Math.min(
+      totalRows,
+      Math.max(minRowsToCoverViewport, Math.min(maxRowsInDom, totalRows)),
+    );
+
+    const centerRow = rowHeightPx
+      ? Math.floor(Math.max(0, mobileThumbsScrollTop - paddingPx) / rowHeightPx)
+      : 0;
+    const startRow = rowsInDom
+      ? Math.max(0, Math.min(totalRows - rowsInDom, centerRow - Math.floor(rowsInDom / 2)))
+      : 0;
+    const endRow = rowsInDom ? startRow + rowsInDom - 1 : -1;
+
+    const startIndex = startRow * cols;
+    const endIndex = Math.min(totalItems, (endRow + 1) * cols);
+
+    const totalHeightPx = paddingPx * 2 + totalRows * rowHeightPx - (totalRows > 0 ? gapPx : 0);
+    const offsetTopPx = paddingPx + startRow * rowHeightPx;
+
+    return {
+      paddingPx,
+      totalHeightPx,
+      offsetTopPx,
+      startIndex,
+      visibleItems: mobileGalleryItems.slice(startIndex, endIndex),
+    };
+  }, [mobileGalleryItems, mobileThumbsScrollTop, mobileThumbsViewportHeight]);
+
   const [mobilePromptScrollState, setMobilePromptScrollState] = useState({
     hasOverflow: false,
     atTop: true,
@@ -3068,61 +3145,85 @@ const Studio = () => {
                     </div>
                   </div>
 
-                  <div className="p-4 grid grid-cols-3 gap-3 overflow-y-auto">
-                    {mobileGalleryItems.map((it, idx) => {
-                      const canAddToUpload = mode === "edit" || mode === "compose";
-                      const hasPrompt = Boolean(it.prompt);
+                  <div
+                    ref={mobileThumbsScrollRef}
+                    onScroll={(e) => setMobileThumbsScrollTop(e.currentTarget.scrollTop)}
+                    className="flex-1 overflow-y-auto"
+                  >
+                    <div className="relative" style={{ height: mobileThumbsVirtualState.totalHeightPx }}>
+                      <div
+                        className="absolute left-0 right-0"
+                        style={{
+                          top: mobileThumbsVirtualState.offsetTopPx,
+                          paddingLeft: mobileThumbsVirtualState.paddingPx,
+                          paddingRight: mobileThumbsVirtualState.paddingPx,
+                        }}
+                      >
+                        <div className="grid grid-cols-3 gap-3">
+                          {mobileThumbsVirtualState.visibleItems.map((it, localIndex) => {
+                            const idx = mobileThumbsVirtualState.startIndex + localIndex;
+                            const canAddToUpload = mode === "edit" || mode === "compose";
+                            const hasPrompt = Boolean(it.prompt);
 
-                      return (
-                        <div key={it.key} className="space-y-2">
-                          <button
-                            onClick={() => {
-                              setMobilePreferGenerated(false);
-                              setMobileActiveIndex(idx);
-                              setMobileThumbsOpen(false);
-                            }}
-                            className={`relative w-full rounded-lg overflow-hidden border ${
-                              idx === mobileActiveIndex ? "border-purple-500" : "border-gray-200"
-                            }`}
-                            title={`第 ${idx + 1} 张`}
-                          >
-                            <img src={it.imageUrl} alt="thumb" className="w-full h-24 object-cover" />
-                            <div className="absolute bottom-1 right-1 text-[10px] text-white bg-black/50 px-1.5 py-0.5 rounded">
-                              {idx + 1}
-                            </div>
-                          </button>
+                            return (
+                              <div key={it.key} className="h-[140px] flex flex-col gap-2">
+                                <button
+                                  onClick={() => {
+                                    setMobilePreferGenerated(false);
+                                    setMobileActiveIndex(idx);
+                                    setMobileThumbsOpen(false);
+                                  }}
+                                  className={`relative w-full rounded-lg overflow-hidden border ${
+                                    idx === mobileActiveIndex ? "border-purple-500" : "border-gray-200"
+                                  }`}
+                                  style={{ height: 96 }}
+                                  title={`第 ${idx + 1} 张`}
+                                >
+                                  <img
+                                    src={it.imageUrl}
+                                    alt="thumb"
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute bottom-1 right-1 text-[10px] text-white bg-black/50 px-1.5 py-0.5 rounded">
+                                    {idx + 1}
+                                  </div>
+                                </button>
 
-                          {(canAddToUpload || hasPrompt) && (
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                onClick={() => {
-                                  addMobileReferenceRecordToUpload(it.record);
-                                  setMobileThumbsOpen(false);
-                                }}
-                                disabled={!canAddToUpload}
-                                className="h-9 rounded-lg bg-purple-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                                title="加入参考区"
-                              >
-                                <Plus className="w-4 h-4" />
-                                加入
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (!it.prompt) return;
-                                  setPrompt(it.prompt);
-                                  setMobileThumbsOpen(false);
-                                }}
-                                disabled={!hasPrompt}
-                                className="h-9 rounded-lg border bg-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                                title="复用提示词"
-                              >
-                                复用
-                              </button>
-                            </div>
-                          )}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => {
+                                      if (!canAddToUpload) return;
+                                      addMobileReferenceRecordToUpload(it.record);
+                                      setMobileThumbsOpen(false);
+                                    }}
+                                    disabled={!canAddToUpload}
+                                    className="h-9 rounded-lg bg-purple-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                                    title="加入参考区"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                    参考
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (!it.prompt) return;
+                                      setPrompt(it.prompt);
+                                      setMobileThumbsOpen(false);
+                                    }}
+                                    disabled={!hasPrompt}
+                                    className="h-9 rounded-lg border bg-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                    title="复用提示词"
+                                  >
+                                    复用
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
