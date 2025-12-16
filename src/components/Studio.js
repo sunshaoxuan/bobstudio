@@ -2301,7 +2301,9 @@ const Studio = () => {
                   title="BOB Studio"
                 >
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600" />
-                  <div className="text-sm font-semibold text-gray-900">BOB</div>
+                  <div className="text-sm font-bold bg-gradient-to-r from-purple-700 to-blue-700 bg-clip-text text-transparent whitespace-nowrap">
+                    BOB Studio
+                  </div>
                 </button>
 
                 <button
