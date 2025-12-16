@@ -2595,7 +2595,7 @@ const Studio = () => {
                       </button>
                       {!showMobilePromptOverlay && (
                         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-white bg-black/40 px-2 py-1 rounded-full">
-                          {mobileLibraryTab === "shares" ? "共享" : "生图"} {mobileActiveIndex + 1}/{mobileGalleryItems.length}
+                          {mobileLibraryTab === "shares" ? "好友分享" : "历史记录"} {mobileActiveIndex + 1}/{mobileGalleryItems.length}
                         </div>
                       )}
                     </>
@@ -2632,7 +2632,7 @@ const Studio = () => {
                         )}
 
                         <div className="text-[11px] text-white/90 bg-black/30 px-2 py-1 rounded-full">
-                          {mobileLibraryTab === "shares" ? "共享" : "生图"} {mobileActiveIndex + 1}/{mobileGalleryItems.length}
+                          {mobileLibraryTab === "shares" ? "好友分享" : "历史记录"} {mobileActiveIndex + 1}/{mobileGalleryItems.length}
                         </div>
 
                         <button
@@ -2927,7 +2927,7 @@ const Studio = () => {
               </div>
             )}
 
-            {/* 右侧抽屉：生图/共享 + 快捷操作 */}
+            {/* 右侧抽屉：历史记录/好友分享 + 快捷操作 */}
             {mobileRightOpen && (
               <div className="fixed inset-0 z-50">
                 <div className="absolute inset-0 bg-black/40" onClick={() => setMobileRightOpen(false)} />
@@ -2957,7 +2957,7 @@ const Studio = () => {
                           : "border-gray-200 bg-white text-gray-800"
                       }`}
                     >
-                      生图
+                      历史记录
                     </button>
                   <button
                     onClick={() => {
@@ -2973,7 +2973,7 @@ const Studio = () => {
                           : "border-gray-200 bg-white text-gray-800"
                       }`}
                     >
-                      共享
+                      好友分享
                     </button>
                   </div>
 
@@ -2995,7 +2995,7 @@ const Studio = () => {
                         onClick={loadIncomingShares}
                         className="w-full h-11 rounded-lg border bg-white flex items-center justify-center gap-2"
                       >
-                        刷新共享
+                        刷新好友分享
                       </button>
                     )}
                   </div>
@@ -3031,7 +3031,7 @@ const Studio = () => {
                             className="w-full h-11 rounded-lg bg-blue-600 text-white flex items-center justify-center gap-2"
                           >
                             <Share2 className="w-4 h-4" />
-                            分享
+                            分享给好友
                           </button>
                           <button
                             onClick={() => {
@@ -3113,7 +3113,7 @@ const Studio = () => {
                 >
                   <div className="p-4 flex items-center justify-between border-b">
                     <div className="font-semibold">
-                      {mobileLibraryTab === "shares" ? "共享" : "生图"}图库（{mobileGalleryItems.length}）
+                      {mobileLibraryTab === "shares" ? "好友分享" : "历史记录"}图库（{mobileGalleryItems.length}）
                       {/*
                       Debug（虚拟列表窗口范围）：
                       {(() => {
@@ -3122,9 +3122,9 @@ const Studio = () => {
                         const start = mobileThumbsVirtualState.startIndex;
                         const end = Math.min(total, start + visible);
                         if (!total) {
-                          return `${mobileLibraryTab === "shares" ? "共享" : "生图"}图库（0/0）`;
+                          return `${mobileLibraryTab === "shares" ? "好友分享" : "历史记录"}图库（0/0）`;
                         }
-                        return `${mobileLibraryTab === "shares" ? "共享" : "生图"}图库（${start + 1}-${end}/${total}，窗口${visible}）`;
+                        return `${mobileLibraryTab === "shares" ? "好友分享" : "历史记录"}图库（${start + 1}-${end}/${total}，窗口${visible}）`;
                       })()}
                       */}
                     </div>
@@ -3972,10 +3972,10 @@ const Studio = () => {
             )}
       </div>
 
-      {/* 与我共享 - 全宽显示 */}
+      {/* 好友分享 - 全宽显示 */}
       <div className="bg-white rounded-lg shadow-lg p-6 mt-6 lg:col-span-2">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">与我共享</h3>
+          <h3 className="text-lg font-semibold">好友分享</h3>
           <button
             onClick={loadIncomingShares}
             className="px-3 py-1 text-sm text-gray-700 border rounded hover:bg-gray-50"
@@ -4031,7 +4031,7 @@ const Studio = () => {
             ))}
           </div>
         ) : (
-          <div className="text-gray-500 text-sm">暂无共享内容</div>
+          <div className="text-gray-500 text-sm">暂无好友分享</div>
         )}
       </div>
         </div>
