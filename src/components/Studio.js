@@ -2301,7 +2301,7 @@ const Studio = () => {
                   title="BOB Studio"
                 >
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center shadow-sm">
-                    <span className="text-sm leading-none">🤖</span>
+                    <span className="text-sm leading-none">🎨</span>
                   </div>
                   <div className="text-sm font-bold bg-gradient-to-r from-purple-700 to-blue-700 bg-clip-text text-transparent whitespace-nowrap">
                     BOB Studio
@@ -2721,7 +2721,7 @@ const Studio = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center shadow-sm">
-                        <span className="text-base leading-none">🤖</span>
+                        <span className="text-base leading-none">🎨</span>
                       </div>
                       <div className="font-semibold">BOB Studio</div>
                     </div>
