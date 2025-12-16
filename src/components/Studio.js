@@ -3082,14 +3082,14 @@ const Studio = () => {
                             className="w-full h-11 rounded-lg bg-green-600 text-white flex items-center justify-center gap-2"
                           >
                             <Download className="w-4 h-4" />
-                            {isIOSDevice ? "保存到相册" : "下载"}
+                            下载
                           </button>
                           <button
                             onClick={() => openShareModal(mobileActiveItem.record)}
                             className="w-full h-11 rounded-lg bg-blue-600 text-white flex items-center justify-center gap-2"
                           >
                             <Share2 className="w-4 h-4" />
-                            分享给好友
+                            站内分享
                           </button>
                           <button
                             onClick={() => {
@@ -3895,7 +3895,7 @@ const Studio = () => {
                       {
                         key: "share",
                         icon: Share2,
-                        title: "分享给好友",
+                        title: "站内分享",
                         variant: "default",
                         onPress: () => openShareModal(record),
                         stopPropagation: true,
@@ -4282,7 +4282,7 @@ const Studio = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={closeShareModal}>
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
               <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-purple-50">
-                <h3 className="text-lg font-semibold text-gray-800">分享给好友</h3>
+                <h3 className="text-lg font-semibold text-gray-800">站内分享</h3>
               </div>
               <div className="p-6 space-y-2 max-h-[60vh] overflow-y-auto">
                 {friends.length === 0 ? (
