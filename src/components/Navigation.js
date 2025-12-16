@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -6,10 +6,170 @@ import {
   BarChart3,
   Users,
   User,
+  Menu,
+  X,
+  Settings,
+  Sparkles,
 } from 'lucide-react';
+
+const useMediaQuery = (query) => {
+  const getMatches = () => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia(query);
+    const handler = () => setMatches(mediaQuery.matches);
+    handler();
+    if (mediaQuery.addEventListener) mediaQuery.addEventListener("change", handler);
+    else mediaQuery.addListener(handler);
+    return () => {
+      if (mediaQuery.removeEventListener) mediaQuery.removeEventListener("change", handler);
+      else mediaQuery.removeListener(handler);
+    };
+  }, [query]);
+
+  return matches;
+};
 
 const Navigation = () => {
   const { currentUser, logout } = useAuth();
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isMobile) setMobileMenuOpen(false);
+  }, [isMobile]);
+
+  const menuItems = useMemo(() => {
+    if (!currentUser) {
+      return [{ key: "login", to: "/login", label: "登录" }];
+    }
+    const items = [
+      { key: "studio", to: "/studio", label: "工作室", icon: Sparkles },
+      { key: "friends", to: "/friends", label: "好友", icon: Users },
+      { key: "stats", to: "/stats", label: "统计", icon: BarChart3 },
+      { key: "profile", to: "/profile", label: "个人中心", icon: User },
+    ];
+    if (currentUser.isSuperAdmin) {
+      items.push({ key: "admin", to: "/admin", label: "管理端", icon: Settings, highlight: true });
+    }
+    return items;
+  }, [currentUser]);
+
+  if (isMobile) {
+    return (
+      <>
+        <nav className="sticky top-0 z-40 bg-white shadow-lg">
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                aria-label="打开菜单"
+              >
+                <Menu className="w-6 h-6 text-gray-700" />
+              </button>
+
+              <Link to={currentUser ? "/studio" : "/"} className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold">
+                  🎨
+                </div>
+                <div className="font-bold text-gray-900">BOB Studio</div>
+              </Link>
+
+              <Link
+                to={currentUser ? "/profile" : "/login"}
+                className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                aria-label="个人中心"
+              >
+                <User className="w-5 h-5 text-gray-700" />
+              </Link>
+            </div>
+          </div>
+        </nav>
+
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+            <div className="absolute left-0 top-0 bottom-0 w-[78vw] max-w-[320px] bg-white shadow-2xl flex flex-col">
+              <div className="p-4 border-b flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold">
+                    🎨
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900">BOB Studio</div>
+                    {currentUser && (
+                      <div className="text-xs text-gray-500 truncate">
+                        {currentUser.displayName || currentUser.username}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                  aria-label="关闭菜单"
+                >
+                  <X className="w-5 h-5 text-gray-700" />
+                </button>
+              </div>
+
+              <div className="p-3 space-y-1 overflow-y-auto">
+                {menuItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.key}
+                      to={item.to}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`w-full px-3 py-3 rounded-xl flex items-center gap-3 hover:bg-gray-100 active:bg-gray-200 ${
+                        item.highlight ? "text-yellow-700" : "text-gray-800"
+                      }`}
+                    >
+                      {Icon ? <Icon className="w-5 h-5" /> : <span className="w-5 h-5" />}
+                      <span className="font-medium">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="p-3 border-t">
+                {currentUser ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="w-full px-3 py-3 rounded-xl flex items-center gap-3 text-red-600 hover:bg-red-50 active:bg-red-100"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span className="font-medium">退出登录</span>
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full px-3 py-3 rounded-xl flex items-center justify-center bg-blue-600 text-white font-semibold"
+                  >
+                    登录
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <nav className="bg-white shadow-lg">
@@ -105,4 +265,3 @@ const Navigation = () => {
 };
 
 export default Navigation;
-

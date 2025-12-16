@@ -471,7 +471,7 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-purple-100 to-blue-100">
       <Navigation />
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6">
         {/* 超级管理员信息 */}
         <div className="text-center mb-8">
           <p className="text-gray-600">用户管理与系统配置</p>
