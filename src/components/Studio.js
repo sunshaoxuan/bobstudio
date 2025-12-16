@@ -3113,6 +3113,9 @@ const Studio = () => {
                 >
                   <div className="p-4 flex items-center justify-between border-b">
                     <div className="font-semibold">
+                      {mobileLibraryTab === "shares" ? "共享" : "生图"}图库（{mobileGalleryItems.length}）
+                      {/*
+                      Debug（虚拟列表窗口范围）：
                       {(() => {
                         const total = mobileGalleryItems.length;
                         const visible = mobileThumbsVirtualState.visibleItems.length;
@@ -3123,6 +3126,7 @@ const Studio = () => {
                         }
                         return `${mobileLibraryTab === "shares" ? "共享" : "生图"}图库（${start + 1}-${end}/${total}，窗口${visible}）`;
                       })()}
+                      */}
                     </div>
 
                     <div className="flex items-center gap-2">
