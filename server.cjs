@@ -7,6 +7,7 @@ const session = require("express-session");
 const FileStore = require("session-file-store")(session);
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const modelConfig = require("./config/models");
 
 // ===== 日志管理系统 =====
 const LOGS_DIR = path.join(__dirname, "logs");
@@ -2825,8 +2826,8 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
     }
     
     // 主模型与回退模型（防止预览版不稳定导致 503）
-    const primaryModel = process.env.GEMINI_OPTIMIZE_MODEL || "gemini-3-pro-preview";
-    const fallbackModel = process.env.GEMINI_OPTIMIZE_FALLBACK_MODEL || "gemini-2.0-flash-exp";
+    const primaryModel = modelConfig.optimize.primary;
+    const fallbackModel = modelConfig.optimize.fallback;
     
     const requestPayload = {
       contents: [{
@@ -2834,15 +2835,12 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
           text: `${systemPrompt}\n\n用户提示词：${userPrompt}\n\n请优化：`
         }]
       }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 500,
-      }
+      generationConfig: modelConfig.optimize.generationConfig
     };
     
     const callModel = async (modelId) => {
       const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
+        modelConfig.getOptimizeEndpoint(modelId),
         {
           method: "POST",
           headers: {
@@ -3040,7 +3038,7 @@ app.post("/api/gemini/generate", requireAuth, async (req, res) => {
     }
     
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent",
+      modelConfig.getImageEndpoint(),
       {
         method: "POST",
         headers: {
