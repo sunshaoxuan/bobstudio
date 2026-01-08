@@ -48,7 +48,7 @@ echo ""
 
 # 检查 server.cjs 是否能正常加载 config
 echo "6. 检查 server.cjs 配置加载:"
-if node -e "require('./config/models')" 2>&1; then
+if node -e "require('./config/models.cjs')" 2>&1; then
     echo "  ✅ server.cjs 可以正常加载 config/models.js"
 else
     echo "  ❌ server.cjs 无法加载 config/models.js"

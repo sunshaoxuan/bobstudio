@@ -19,7 +19,7 @@ if (fsSync.existsSync(configPath)) {
   
   // 尝试加载配置
   try {
-    const modelConfig = require("./config/models");
+    const modelConfig = require("./config/models.cjs");
     console.log("   ✅ 配置文件可以正常加载");
     console.log(`   - 图像模型: ${modelConfig.image.model}`);
     console.log(`   - 优化主模型: ${modelConfig.optimize.primary}`);

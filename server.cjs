@@ -17,7 +17,7 @@ try {
     console.error("请确保 config/models.cjs 文件存在");
     process.exit(1);
   }
-  modelConfig = require("./config/models");
+  modelConfig = require("./config/models.cjs");
   console.log("✅ 模型配置加载成功");
 } catch (error) {
   console.error("❌ 加载模型配置失败:", error.message);
