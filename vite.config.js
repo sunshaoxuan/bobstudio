@@ -18,6 +18,8 @@ export default defineConfig({
         '.js': 'jsx',
       },
     },
+    // 排除后端文件，避免构建时处理
+    exclude: ['config/models.js', 'server.cjs']
   },
   
   server: {
