@@ -7,7 +7,23 @@ const session = require("express-session");
 const FileStore = require("session-file-store")(session);
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
-const modelConfig = require("./config/models");
+
+// 加载模型配置，添加错误处理
+let modelConfig;
+try {
+  const configPath = path.join(__dirname, "config", "models.js");
+  if (!fsSync.existsSync(configPath)) {
+    console.error(`❌ 配置文件不存在: ${configPath}`);
+    console.error("请确保 config/models.js 文件存在");
+    process.exit(1);
+  }
+  modelConfig = require("./config/models");
+  console.log("✅ 模型配置加载成功");
+} catch (error) {
+  console.error("❌ 加载模型配置失败:", error.message);
+  console.error("错误详情:", error);
+  process.exit(1);
+}
 
 // ===== 日志管理系统 =====
 const LOGS_DIR = path.join(__dirname, "logs");
@@ -3149,6 +3165,14 @@ async function startServer() {
   process.exit(1);
 }
 
-startServer().catch(console.error);
+// 启动服务器，添加详细的错误处理
+startServer().catch((error) => {
+  console.error("❌ 服务器启动失败:");
+  console.error("错误信息:", error.message);
+  if (error.stack) {
+    console.error("错误堆栈:", error.stack);
+  }
+  process.exit(1);
+});
 
 module.exports = app;
