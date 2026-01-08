@@ -21,7 +21,22 @@ echo "📦 安装依赖（包括开发依赖）..."
 /usr/bin/npm install
 
 echo "🔨 构建前端..."
-/usr/bin/npm run build
+# 确保输出不被缓冲（如果系统支持）
+if command -v stdbuf >/dev/null 2>&1; then
+    /usr/bin/npm run build 2>&1 | stdbuf -oL -eL tee /tmp/build.log
+    BUILD_EXIT_CODE=${PIPESTATUS[0]}
+else
+    /usr/bin/npm run build
+    BUILD_EXIT_CODE=$?
+fi
+
+if [ $BUILD_EXIT_CODE -eq 0 ]; then
+    echo "✅ 前端构建完成"
+else
+    echo "❌ 构建失败，退出码: $BUILD_EXIT_CODE"
+    echo "📋 查看详细日志: cat /tmp/build.log 2>/dev/null || tail -50 /var/log/bobstudio/output.log"
+    exit $BUILD_EXIT_CODE
+fi
 
 echo "🚀 启动服务器..."
 # 启动服务器时才设置为生产环境
