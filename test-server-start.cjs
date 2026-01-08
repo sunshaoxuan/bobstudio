@@ -10,8 +10,8 @@ const path = require("path");
 
 console.log("🔍 开始诊断服务器启动环境...\n");
 
-// 1. 检查 config/models.js 是否存在
-const configPath = path.join(__dirname, "config", "models.js");
+// 1. 检查 config/models.cjs 是否存在
+const configPath = path.join(__dirname, "config", "models.cjs");
 console.log("1. 检查配置文件:");
 console.log(`   路径: ${configPath}`);
 if (fsSync.existsSync(configPath)) {

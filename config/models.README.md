@@ -2,7 +2,7 @@
 
 ## 概述
 
-`models.js` 文件统一管理项目中所有 AI 模型的配置参数，包括：
+`models.cjs` 文件统一管理项目中所有 AI 模型的配置参数，包括：
 - 提示词优化模型（文本模型）
 - 图像生成模型
 
@@ -42,7 +42,7 @@ GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview
 在代码中引入配置：
 
 ```javascript
-const modelConfig = require("./config/models");
+const modelConfig = require("./config/models.cjs");
 
 // 使用提示词优化模型
 const primaryModel = modelConfig.optimize.primary;
@@ -61,7 +61,7 @@ const imageEndpoint = modelConfig.getImageEndpoint();
 
 如需更换模型，只需：
 
-1. 修改 `config/models.js` 中的默认值，或
+1. 修改 `config/models.cjs` 中的默认值，或
 2. 在 `.env` 文件中设置对应的环境变量
 
 无需修改业务代码，所有模型引用会自动使用新配置。

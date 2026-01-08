@@ -11,10 +11,10 @@ const nodemailer = require("nodemailer");
 // 加载模型配置，添加错误处理
 let modelConfig;
 try {
-  const configPath = path.join(__dirname, "config", "models.js");
+  const configPath = path.join(__dirname, "config", "models.cjs");
   if (!fsSync.existsSync(configPath)) {
     console.error(`❌ 配置文件不存在: ${configPath}`);
-    console.error("请确保 config/models.js 文件存在");
+    console.error("请确保 config/models.cjs 文件存在");
     process.exit(1);
   }
   modelConfig = require("./config/models");
