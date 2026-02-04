@@ -351,9 +351,10 @@ git_update_if_needed() {
       git reset --hard "origin/${branch}"
       # 注意：不执行 git clean，避免误删本地文件/目录（尤其是部署产生的文件）
     else
-      # 若工作区有改动，直接中止，避免覆盖
-      if [ -n "$(git status --porcelain)" ]; then
-        log_red "❌ 检测到本地存在未提交改动，为避免覆盖，已中止自动更新"
+      # 若“被 Git 跟踪的文件”有改动，直接中止，避免覆盖
+      # 说明：运行时产生的未跟踪文件（如 .bobstudio/）不应阻止更新
+      if ! git diff --quiet || ! git diff --cached --quiet; then
+        log_red "❌ 检测到本地（已跟踪文件）存在未提交改动，为避免覆盖，已中止自动更新"
         log_red "   - 如确需强制覆盖远端最新，请执行："
         log_red "     BOBSTUDIO_GIT_FORCE_RESET=1 ./start.sh"
         exit 1

@@ -31,3 +31,6 @@ yarn-error.log*
 
 # local logs
 /logs/*.log
+
+# start.sh runtime cache
+/.bobstudio/
