@@ -427,6 +427,12 @@ admin.isActive = true;
 admin.isSuperAdmin = true;
 admin.showApiConfig = false;
 
+// 防呆：清除登录锁定/重置令牌，避免改完密码仍无法登录
+admin.loginAttempts = 0;
+admin.lockedUntil = null;
+delete admin.resetToken;
+delete admin.resetTokenExpiresAt;
+
 if (apiKey) {
   admin.apiKeyEncrypted = encryptSensitiveValue(String(apiKey).trim());
   // 保持兼容：清理 legacy 明文字段
