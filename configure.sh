@@ -815,6 +815,7 @@ const fs = require("fs");
 let buf;
 try { buf = fs.readFileSync(0); } catch { buf = Buffer.from(""); }
 let raw = buf.toString("utf8");
+raw = raw.replace(/^\uFEFF/, "");
 let data;
 try { data = JSON.parse(raw); } catch (e) {
   const summary = raw.replace(/\s+/g, " ").slice(0, 200);
@@ -897,6 +898,15 @@ NODE
       MODEL_LIST_HTTP_STATUS="$http_status" MODEL_LIST_CONTENT_TYPE="$content_type" \
         render_model_list < "$body_file"
       local code="$?"
+      if [ "$code" -ne 0 ]; then
+        log_yellow "⚠️ 模型列表原文(前2000字符):"
+        head -c 2000 "$body_file" || true
+        echo ""
+        if command -v od >/dev/null 2>&1; then
+          log_yellow "⚠️ 响应HEX(前64字节):"
+          od -An -tx1 -N64 "$body_file" | tr -s ' ' | sed 's/^ //'
+        fi
+      fi
       rm -f "$body_file" 2>/dev/null || true
       return "$code"
     fi
