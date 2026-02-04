@@ -665,10 +665,14 @@ get_existing_api_key() {
   if [ ! -f "$USERS_FILE" ] || ! ensure_cmd node; then
     return 1
   fi
-  if [ -z "${API_KEY_ENCRYPTION_SECRET:-}" ]; then
+  local secret="${API_KEY_ENCRYPTION_SECRET:-}"
+  if [ -z "$secret" ]; then
+    secret="$(get_env_value "API_KEY_ENCRYPTION_SECRET")"
+  fi
+  if [ -z "$secret" ]; then
     return 1
   fi
-  USERS_FILE_PATH="$USERS_FILE" API_KEY_ENCRYPTION_SECRET="$API_KEY_ENCRYPTION_SECRET" node <<'NODE'
+  USERS_FILE_PATH="$USERS_FILE" API_KEY_ENCRYPTION_SECRET="$secret" node <<'NODE'
 const fs = require("fs");
 const crypto = require("crypto");
 
