@@ -204,6 +204,8 @@ check_google_api_key_config() {
     if [ "$missing_key" = "1" ]; then
       log_red "   - 重点：当前缺少 API Key（没有 Key 无法调用 Gemini API）"
     fi
+    log_red "   - 推荐：先运行配置脚本自动写入配置："
+    log_red "     sudo bash ${PROJECT_DIR}/configure.sh"
     exit 1
   fi
 }
