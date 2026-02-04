@@ -1053,14 +1053,22 @@ choose_model_from_list() {
   if [ "${#models[@]}" -eq 0 ]; then
     return 1
   fi
-  log ""
-  log "可用${label}模型（输入序号选择，c 自定义，回车保持当前）:"
+  local menu_echo=""
+  menu_echo() {
+    if [ -w /dev/tty ]; then
+      printf "%s\n" "$*" >/dev/tty
+    else
+      printf "%s\n" "$*" >&2
+    fi
+  }
+  menu_echo ""
+  menu_echo "可用${label}模型（输入序号选择，c 自定义，回车保持当前）:"
   local i=1
   for m in "${models[@]}"; do
     if [ "$m" = "$current" ] && [ -n "$current" ]; then
-      log "  ${i}) ${m}（当前）"
+      menu_echo "  ${i}) ${m}（当前）"
     else
-      log "  ${i}) ${m}"
+      menu_echo "  ${i}) ${m}"
     fi
     i=$((i+1))
   done
