@@ -205,10 +205,12 @@ get_admin_state_summary() {
   # 输出管理员状态摘要（不输出敏感明文）
   # ADMIN_PASSWORD_HASH_PREFIX=xxxxxxxx
   # ADMIN_HAS_KEY=0/1
+  # ADMIN_APIKEY_ENCRYPTED_LEN=123
   # ADMIN_LOCKED=0/1
   if [ ! -f "$USERS_FILE" ] || ! ensure_cmd node; then
     echo "ADMIN_PASSWORD_HASH_PREFIX="
     echo "ADMIN_HAS_KEY=0"
+    echo "ADMIN_APIKEY_ENCRYPTED_LEN=0"
     echo "ADMIN_LOCKED=0"
     return 0
   fi
@@ -220,9 +222,11 @@ try { users = JSON.parse(fs.readFileSync(usersFile, "utf8") || "[]"); if (!Array
 const admin = users.find((u) => u && u.isSuperAdmin) || null;
 const pw = (admin?.password || "").toString();
 const pwPrefix = pw ? pw.slice(0, 8) : "";
-const hasKey = Boolean((admin?.apiKeyEncrypted || admin?.apiKey || "").toString().trim());
+const enc = (admin?.apiKeyEncrypted || admin?.apiKey || "").toString();
+const hasKey = Boolean(enc.trim());
+const encLen = enc ? enc.length : 0;
 const locked = Boolean(admin?.lockedUntil && new Date(admin.lockedUntil) > new Date());
-process.stdout.write(`ADMIN_PASSWORD_HASH_PREFIX=${pwPrefix}\nADMIN_HAS_KEY=${hasKey ? 1 : 0}\nADMIN_LOCKED=${locked ? 1 : 0}\n`);
+process.stdout.write(`ADMIN_PASSWORD_HASH_PREFIX=${pwPrefix}\nADMIN_HAS_KEY=${hasKey ? 1 : 0}\nADMIN_APIKEY_ENCRYPTED_LEN=${encLen}\nADMIN_LOCKED=${locked ? 1 : 0}\n`);
 NODE
 }
 
@@ -359,6 +363,10 @@ prompt_password_twice() {
     if [ -z "$p1" ] && [ "$allow_empty" = "1" ]; then
       printf "%s" ""
       return 0
+    fi
+    if [ -z "$p1" ] && [ "$allow_empty" != "1" ]; then
+      log_yellow "⚠️ 密码不能为空，请重新输入"
+      continue
     fi
     read -r -s -p "请再次输入以确认: " p2 </dev/tty
     echo "" >/dev/tty
@@ -565,11 +573,12 @@ main() {
   log "📝 写入 users.json（或更新其中的超级管理员）..."
 
   # 写入前摘要（用于确认是否真的发生变化）
-  local before_pw_prefix="" before_has_key="" before_locked=""
+  local before_pw_prefix="" before_has_key="" before_key_len="" before_locked=""
   while IFS='=' read -r k v; do
     case "$k" in
       ADMIN_PASSWORD_HASH_PREFIX) before_pw_prefix="$v" ;;
       ADMIN_HAS_KEY) before_has_key="$v" ;;
+      ADMIN_APIKEY_ENCRYPTED_LEN) before_key_len="$v" ;;
       ADMIN_LOCKED) before_locked="$v" ;;
     esac
   done < <(get_admin_state_summary)
@@ -577,17 +586,20 @@ main() {
   write_admin_user_and_key "$admin_username" "$admin_email" "$admin_password" "$gemini_key" "$current_enc"
 
   # 写入后摘要
-  local after_pw_prefix="" after_has_key="" after_locked=""
+  local after_pw_prefix="" after_has_key="" after_key_len="" after_locked=""
   while IFS='=' read -r k v; do
     case "$k" in
       ADMIN_PASSWORD_HASH_PREFIX) after_pw_prefix="$v" ;;
       ADMIN_HAS_KEY) after_has_key="$v" ;;
+      ADMIN_APIKEY_ENCRYPTED_LEN) after_key_len="$v" ;;
       ADMIN_LOCKED) after_locked="$v" ;;
     esac
   done < <(get_admin_state_summary)
 
   log ""
   log "### 配置结果摘要（不包含敏感明文）"
+  log "   - 密码 hash 前缀（前->后）: ${before_pw_prefix:-<empty>} -> ${after_pw_prefix:-<empty>}"
+  log "   - API Key 密文字段长度（前->后）: ${before_key_len:-0} -> ${after_key_len:-0}"
   if [ "$before_pw_prefix" != "$after_pw_prefix" ] && [ -n "$after_pw_prefix" ]; then
     log_green "✅ 管理员密码：已更新（hash 前缀 ${after_pw_prefix}）"
   else
