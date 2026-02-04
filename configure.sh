@@ -201,6 +201,31 @@ process.stdout.write(`ADMIN_USERNAME=${username}\nADMIN_EMAIL=${email}\nADMIN_HA
 NODE
 }
 
+get_admin_state_summary() {
+  # 输出管理员状态摘要（不输出敏感明文）
+  # ADMIN_PASSWORD_HASH_PREFIX=xxxxxxxx
+  # ADMIN_HAS_KEY=0/1
+  # ADMIN_LOCKED=0/1
+  if [ ! -f "$USERS_FILE" ] || ! ensure_cmd node; then
+    echo "ADMIN_PASSWORD_HASH_PREFIX="
+    echo "ADMIN_HAS_KEY=0"
+    echo "ADMIN_LOCKED=0"
+    return 0
+  fi
+  node - <<'NODE' "$USERS_FILE"
+const fs = require("fs");
+const usersFile = process.argv[1];
+let users = [];
+try { users = JSON.parse(fs.readFileSync(usersFile, "utf8") || "[]"); if (!Array.isArray(users)) users = []; } catch { users = []; }
+const admin = users.find((u) => u && u.isSuperAdmin) || null;
+const pw = (admin?.password || "").toString();
+const pwPrefix = pw ? pw.slice(0, 8) : "";
+const hasKey = Boolean((admin?.apiKeyEncrypted || admin?.apiKey || "").toString().trim());
+const locked = Boolean(admin?.lockedUntil && new Date(admin.lockedUntil) > new Date());
+process.stdout.write(`ADMIN_PASSWORD_HASH_PREFIX=${pwPrefix}\nADMIN_HAS_KEY=${hasKey ? 1 : 0}\nADMIN_LOCKED=${locked ? 1 : 0}\n`);
+NODE
+}
+
 set_env_kv() {
   local key="$1"
   local value="$2"
@@ -237,19 +262,19 @@ prompt_value() {
   local out=""
   if [ "$secret" = "1" ]; then
     if [ -n "$default" ]; then
-      read -r -s -p "${prompt}（回车保留默认）: " out
-      echo ""
+      read -r -s -p "${prompt}（回车保留默认）: " out </dev/tty
+      echo "" >/dev/tty
       if [ -z "$out" ]; then out="$default"; fi
     else
-      read -r -s -p "${prompt}: " out
-      echo ""
+      read -r -s -p "${prompt}: " out </dev/tty
+      echo "" >/dev/tty
     fi
   else
     if [ -n "$default" ]; then
-      read -r -p "${prompt}（默认：${default}）: " out
+      read -r -p "${prompt}（默认：${default}）: " out </dev/tty
       if [ -z "$out" ]; then out="$default"; fi
     else
-      read -r -p "${prompt}: " out
+      read -r -p "${prompt}: " out </dev/tty
     fi
   fi
   printf "%s" "$out"
@@ -329,14 +354,14 @@ prompt_password_twice() {
   local allow_empty="${2:-0}"
   local p1="" p2=""
   while true; do
-    read -r -s -p "${prompt}: " p1
-    echo ""
+    read -r -s -p "${prompt}: " p1 </dev/tty
+    echo "" >/dev/tty
     if [ -z "$p1" ] && [ "$allow_empty" = "1" ]; then
       printf "%s" ""
       return 0
     fi
-    read -r -s -p "请再次输入以确认: " p2
-    echo ""
+    read -r -s -p "请再次输入以确认: " p2 </dev/tty
+    echo "" >/dev/tty
     if [ "$p1" != "$p2" ]; then
       log_yellow "⚠️ 两次输入不一致，请重试"
       continue
@@ -538,7 +563,46 @@ main() {
 
   log ""
   log "📝 写入 users.json（或更新其中的超级管理员）..."
+
+  # 写入前摘要（用于确认是否真的发生变化）
+  local before_pw_prefix="" before_has_key="" before_locked=""
+  while IFS='=' read -r k v; do
+    case "$k" in
+      ADMIN_PASSWORD_HASH_PREFIX) before_pw_prefix="$v" ;;
+      ADMIN_HAS_KEY) before_has_key="$v" ;;
+      ADMIN_LOCKED) before_locked="$v" ;;
+    esac
+  done < <(get_admin_state_summary)
+
   write_admin_user_and_key "$admin_username" "$admin_email" "$admin_password" "$gemini_key" "$current_enc"
+
+  # 写入后摘要
+  local after_pw_prefix="" after_has_key="" after_locked=""
+  while IFS='=' read -r k v; do
+    case "$k" in
+      ADMIN_PASSWORD_HASH_PREFIX) after_pw_prefix="$v" ;;
+      ADMIN_HAS_KEY) after_has_key="$v" ;;
+      ADMIN_LOCKED) after_locked="$v" ;;
+    esac
+  done < <(get_admin_state_summary)
+
+  log ""
+  log "### 配置结果摘要（不包含敏感明文）"
+  if [ "$before_pw_prefix" != "$after_pw_prefix" ] && [ -n "$after_pw_prefix" ]; then
+    log_green "✅ 管理员密码：已更新（hash 前缀 ${after_pw_prefix}）"
+  else
+    log_yellow "⚠️ 管理员密码：未更新（如需重置，请在“管理员密码”提示时输入新密码）"
+  fi
+  if [ "$after_has_key" = "1" ]; then
+    log_green "✅ Gemini API Key：已配置（已加密存储）"
+  else
+    log_red "❌ Gemini API Key：未配置"
+  fi
+  if [ "$after_locked" = "1" ]; then
+    log_red "❌ 账户状态：仍处于锁定（请等待锁定到期或检查 lockedUntil）"
+  else
+    log_green "✅ 账户状态：未锁定（loginAttempts 已清零）"
+  fi
 
   # 基础权限收紧
   chmod 600 "$ENV_FILE" 2>/dev/null || true
