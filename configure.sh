@@ -812,12 +812,20 @@ list_gemini_models() {
   render_model_list() {
     node <<'NODE'
 const fs = require("fs");
-let raw = "";
-try { raw = fs.readFileSync(0, "utf8"); } catch {}
+let buf;
+try { buf = fs.readFileSync(0); } catch { buf = Buffer.from(""); }
+let raw = buf.toString("utf8");
 let data;
 try { data = JSON.parse(raw); } catch (e) {
   const summary = raw.replace(/\s+/g, " ").slice(0, 200);
   console.log("⚠️ 无法解析模型列表响应");
+  const httpStatus = process.env.MODEL_LIST_HTTP_STATUS || "";
+  const contentType = process.env.MODEL_LIST_CONTENT_TYPE || "";
+  if (httpStatus || contentType) {
+    console.log(`响应信息: HTTP ${httpStatus || "?"}, Content-Type: ${contentType || "unknown"}`);
+  }
+  const hex = buf.slice(0, 32).toString("hex");
+  if (hex) console.log("响应HEX: " + hex);
   if (summary) console.log("响应摘要: " + summary);
   process.exit(1);
 }
@@ -854,14 +862,14 @@ NODE
     body_file="$(mktemp 2>/dev/null || echo "/tmp/bobstudio_models_$$.json")"
     local meta=""
     if [ "$header_mode" = "1" ]; then
-      meta="$(curl -sS \
+      meta="$(curl -sS --compressed \
         -H "x-goog-api-key: ${api_key}" \
         -H "Accept: application/json" \
         -o "$body_file" \
         -w "%{http_code} %{content_type}" \
         "$url" 2>/dev/null || true)"
     else
-      meta="$(curl -sS \
+      meta="$(curl -sS --compressed \
         -H "Accept: application/json" \
         -o "$body_file" \
         -w "%{http_code} %{content_type}" \
@@ -882,7 +890,8 @@ NODE
     fi
 
     if [ -s "$body_file" ]; then
-      cat "$body_file" | render_model_list
+      MODEL_LIST_HTTP_STATUS="$http_status" MODEL_LIST_CONTENT_TYPE="$content_type" \
+        cat "$body_file" | render_model_list
       local code="$?"
       rm -f "$body_file" 2>/dev/null || true
       return "$code"
