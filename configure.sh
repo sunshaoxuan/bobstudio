@@ -720,7 +720,72 @@ configure_email_provider() {
   log_green "✅ 邮件服务配置完成"
 }
 
+list_gemini_models() {
+  local api_key="$1"
+  local base_url=""
+  base_url="$(get_env_value "GEMINI_API_BASE_URL")"
+  base_url="${base_url:-https://generativelanguage.googleapis.com/v1beta/models}"
+
+  if [ -z "$api_key" ]; then
+    log_yellow "⚠️ 未提供 API Key，无法从接口获取模型列表"
+    return 1
+  fi
+  if ! ensure_cmd curl; then
+    log_yellow "⚠️ 未检测到 curl，无法获取模型列表"
+    return 1
+  fi
+
+  log "🔎 正在从 Gemini API 获取可用模型列表..."
+  local list_url="$base_url"
+  if [[ "$list_url" == *"?"* ]]; then
+    list_url="${list_url}&key=${api_key}"
+  else
+    list_url="${list_url}?key=${api_key}"
+  fi
+
+  local resp=""
+  resp="$(curl -sS "$list_url" 2>/dev/null || true)"
+  if [ -z "$resp" ]; then
+    log_yellow "⚠️ 获取模型列表失败（空响应）"
+    return 1
+  fi
+
+  echo "$resp" | node <<'NODE'
+const fs = require("fs");
+let raw = "";
+try { raw = fs.readFileSync(0, "utf8"); } catch {}
+let data;
+try { data = JSON.parse(raw); } catch (e) {
+  console.log("⚠️ 无法解析模型列表响应");
+  process.exit(1);
+}
+if (data && data.error) {
+  const msg = data.error.message || data.error.status || "未知错误";
+  console.log("⚠️ 获取模型列表失败: " + msg);
+  process.exit(1);
+}
+const models = Array.isArray(data?.models) ? data.models : [];
+const supported = models.filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"));
+const names = supported.map(m => (m.name || "").replace(/^models\//, "")).filter(Boolean);
+const image = names.filter(n => n.includes("image"));
+const text = names.filter(n => !n.includes("image"));
+console.log("可用于 generateContent 的模型列表：");
+if (text.length) {
+  console.log("文本/通用模型:");
+  text.forEach(n => console.log("  - " + n));
+}
+if (image.length) {
+  console.log("图像模型:");
+  image.forEach(n => console.log("  - " + n));
+}
+if (!names.length) {
+  console.log("（未发现可用模型）");
+}
+NODE
+}
+
 configure_ai_models() {
+  local api_key="${1:-}"
   log ""
   log "### 配置 AI 模型"
   local current_text="" current_image=""
@@ -733,6 +798,13 @@ configure_ai_models() {
     local change=""
     read -r -p "是否要修改？[y/N]: " change </dev/tty
     [[ ! "$change" =~ ^[Yy]$ ]] && return 0
+  fi
+
+  local want_list=""
+  read -r -p "是否从 Gemini API 获取可用模型列表？[y/N]: " want_list </dev/tty
+  if [[ "$want_list" =~ ^[Yy]$ ]]; then
+    list_gemini_models "$api_key" || true
+    log ""
   fi
   set_env_kv "GEMINI_API_BASE_URL" "https://generativelanguage.googleapis.com/v1beta/models"
   log ""
@@ -847,13 +919,10 @@ main() {
   # 3) 服务器端口
   configure_server_port
 
-  # 4) AI 模型配置
-  configure_ai_models
-
-  # 5) 邮件服务配置
+  # 4) 邮件服务配置
   configure_email_provider
 
-  # 6) Gemini API Key
+  # 5) Gemini API Key
   log ""
   log "### 配置 Gemini API Key"
   log "（将加密写入 users.json 的 apiKeyEncrypted）"
@@ -873,6 +942,9 @@ main() {
       log_yellow "⚠️ 看起来太短了，请重新输入"
     done
   fi
+
+  # 6) AI 模型配置（可根据 API Key 实时列出可用模型）
+  configure_ai_models "$gemini_key"
 
   # 7) 超级管理员信息
   log ""
