@@ -66,6 +66,28 @@ ensure_script_exec_permissions() {
 
 ensure_script_exec_permissions
 
+ensure_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+ensure_root_for_system_tasks() {
+  if [ "${EUID:-$(id -u)}" -ne 0 ]; then
+    fail "需要 root 权限以更新代码/安装依赖。请用 root 执行（例如 sudo ./start.sh）。"
+  fi
+}
+
+install_packages_apt() {
+  # 仅用于安装 git（Ubuntu/Debian）
+  ensure_root_for_system_tasks
+  if ! ensure_cmd apt-get; then
+    log_yellow "⚠️ 未检测到 apt-get，无法自动安装 git；将跳过自动更新"
+    return 1
+  fi
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -y
+  apt-get install -y --no-install-recommends ca-certificates curl git
+}
+
 git_update_if_needed() {
   # 仅在存在 git 仓库时执行
   if [ ! -d "${PROJECT_DIR}/.git" ]; then
