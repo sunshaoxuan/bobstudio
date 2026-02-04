@@ -105,19 +105,19 @@ backup_and_normalize_env_file() {
     function strip_cr(s) { sub(/\r$/, "", s); return s }
     function is_key_line(s) { return (s ~ /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=/) }
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-    BEGIN { pending_key = ""; pending_printed = 0; empty_count = 0 }
+    BEGIN { pending_key = ""; empty_count = 0 }
     {
       line = strip_cr($0)
     }
     # 空行处理：最多保留一个连续空行
     /^[ \t]*$/ {
       empty_count++
-      if (empty_count <= 1) {
+      if (empty_count == 1) {
         print line
       }
       next
     }
-    # 非空行重置空行计数
+    # 非空行：重置空行计数
     {
       empty_count = 0
     }
@@ -178,12 +178,18 @@ backup_and_normalize_env_file() {
     changed="1"
   fi
 
-  if [ "$changed" = "1" ]; then
+  # 如果内容有变化，或者强制清理模式，都写回文件
+  local force_clean="${1:-0}"
+  if [ "$changed" = "1" ] || [ "$force_clean" = "1" ]; then
     local ts
     ts="$(date +%Y%m%d-%H%M%S)"
-    cp "$file" "${file}.bak.${ts}"
+    if [ "$changed" = "1" ]; then
+      cp "$file" "${file}.bak.${ts}"
+      log_green "✅ 已规范化 ${file}（并备份为 ${file}.bak.${ts}）"
+    else
+      log "🧹 清理 ${file} 格式..."
+    fi
     mv "$tmp" "$file"
-    log_green "✅ 已规范化 ${file}（并备份为 ${file}.bak.${ts}）"
   else
     rm -f "$tmp"
   fi
@@ -957,6 +963,11 @@ main() {
   # 基础权限收紧
   chmod 600 "$ENV_FILE" 2>/dev/null || true
   chmod 600 "$USERS_FILE" 2>/dev/null || true
+
+  # 最后再次规范化 .env 文件，清理所有多余空行
+  log ""
+  log "🧹 清理 .env 文件格式..."
+  backup_and_normalize_env_file 1
 
   log_green "✅ 配置完成"
   log ""
