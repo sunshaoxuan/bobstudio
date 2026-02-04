@@ -801,13 +801,90 @@ list_gemini_models() {
     log_yellow "⚠️ 未提供 API Key，无法从接口获取模型列表"
     return 1
   fi
+
+  log "🔎 正在从 Gemini API 获取可用模型列表..."
+  local list_url="${base_url%/}"
+
+  # 优先使用 Node fetch（更稳定，支持分页）
+  if ensure_cmd node; then
+    GEMINI_API_KEY="$api_key" GEMINI_API_BASE_URL="$list_url" node <<'NODE'
+const apiKey = process.env.GEMINI_API_KEY || "";
+const baseUrl = process.env.GEMINI_API_BASE_URL || "";
+if (!apiKey || !baseUrl) {
+  console.log("⚠️ 未提供 API Key 或 Base URL，无法获取模型列表");
+  process.exit(1);
+}
+
+async function fetchPage(pageToken) {
+  const url = new URL(baseUrl);
+  url.searchParams.set("pageSize", "200");
+  if (pageToken) url.searchParams.set("pageToken", pageToken);
+  const res = await fetch(url, {
+    headers: {
+      "x-goog-api-key": apiKey,
+      "Accept": "application/json",
+    },
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    console.log("⚠️ 无法解析模型列表响应");
+    console.log("响应信息: HTTP " + res.status + ", Content-Type: " + (res.headers.get("content-type") || "unknown"));
+    console.log("响应摘要: " + text.replace(/\s+/g, " ").slice(0, 200));
+    process.exit(1);
+  }
+  if (!res.ok || data?.error) {
+    const msg = data?.error?.message || data?.error?.status || ("HTTP " + res.status);
+    console.log("⚠️ 获取模型列表失败: " + msg);
+    process.exit(1);
+  }
+  return data;
+}
+
+(async () => {
+  const models = [];
+  let pageToken = "";
+  for (let i = 0; i < 20; i++) {
+    const data = await fetchPage(pageToken);
+    if (Array.isArray(data?.models)) models.push(...data.models);
+    if (!data?.nextPageToken) break;
+    pageToken = data.nextPageToken;
+  }
+
+  const supported = models.filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"));
+  const names = supported.map(m => (m.name || "").replace(/^models\//, "")).filter(Boolean);
+  const image = names.filter(n => n.includes("image"));
+  const text = names.filter(n => !n.includes("image"));
+
+  console.log("可用于 generateContent 的模型列表：");
+  if (text.length) {
+    console.log("文本/通用模型:");
+    text.forEach(n => console.log("  - " + n));
+  }
+  if (image.length) {
+    console.log("图像模型:");
+    image.forEach(n => console.log("  - " + n));
+  }
+  if (!names.length) {
+    console.log("（未发现可用模型）");
+  }
+  process.exit(0);
+})().catch((e) => {
+  console.log("⚠️ 获取模型列表失败: " + (e?.message || e));
+  process.exit(1);
+});
+NODE
+    if [ "$?" -eq 0 ]; then
+      return 0
+    fi
+  fi
+
   if ! ensure_cmd curl; then
     log_yellow "⚠️ 未检测到 curl，无法获取模型列表"
     return 1
   fi
-
-  log "🔎 正在从 Gemini API 获取可用模型列表..."
-  local list_url="${base_url%/}"
 
   render_model_list() {
     node <<'NODE'
