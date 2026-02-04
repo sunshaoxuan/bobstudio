@@ -607,7 +607,32 @@ const decryptSensitiveValue = (payload = "") => {
       decipher.update(encrypted),
       decipher.final(),
     ]);
-    return decrypted.toString("utf8");
+    let result = decrypted.toString("utf8");
+    
+    // 清理可能的调试信息（修复 configure.sh 历史 bug）
+    // 如果包含调试信息，尝试提取有效的 API Key
+    if (result.includes("已输入") || result.includes("长度:") || result.includes("末尾:")) {
+      // 尝试提取类似 "AIza..." 的 API Key（Google API Key 通常以 AIza 开头）
+      const keyMatch = result.match(/AIza[0-9A-Za-z_-]{30,}/);
+      if (keyMatch) {
+        result = keyMatch[0];
+        console.warn("检测到 API Key 中包含调试信息，已自动提取有效部分");
+      } else {
+        // 如果找不到有效 Key，尝试移除调试信息后返回剩余部分
+        result = result.replace(/已输入[（(]长度:\s*\d+[，,]\s*末尾:\s*[^\s）)]+[）)]\s*/gi, "");
+        result = result.trim();
+        // 如果清理后仍然包含中文或太短，返回空
+        if (result.length < 20 || /[\u4e00-\u9fa5]/.test(result)) {
+          console.warn("API Key 中包含无效的调试信息，已清除");
+          result = "";
+        }
+      }
+    } else {
+      // 正常情况：直接返回清理后的结果
+      result = result.trim();
+    }
+    
+    return result;
   } catch (error) {
     console.error("解密敏感数据失败:", error);
     return "";
