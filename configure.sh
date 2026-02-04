@@ -850,38 +850,47 @@ NODE
   fetch_and_parse() {
     local url="$1"
     local header_mode="$2"
-    local resp=""
+    local body_file=""
+    body_file="$(mktemp 2>/dev/null || echo "/tmp/bobstudio_models_$$.json")"
+    local meta=""
     if [ "$header_mode" = "1" ]; then
-      resp="$(curl -sS \
+      meta="$(curl -sS \
         -H "x-goog-api-key: ${api_key}" \
         -H "Accept: application/json" \
-        -w '\n__HTTP_STATUS__:%{http_code}\n__CONTENT_TYPE__:%{content_type}\n' \
+        -o "$body_file" \
+        -w "%{http_code} %{content_type}" \
         "$url" 2>/dev/null || true)"
     else
-      resp="$(curl -sS \
+      meta="$(curl -sS \
         -H "Accept: application/json" \
-        -w '\n__HTTP_STATUS__:%{http_code}\n__CONTENT_TYPE__:%{content_type}\n' \
+        -o "$body_file" \
+        -w "%{http_code} %{content_type}" \
         "$url" 2>/dev/null || true)"
     fi
 
-    if [ -z "$resp" ]; then
+    if [ -z "$meta" ] && [ ! -s "$body_file" ]; then
       log_yellow "⚠️ 获取模型列表失败（空响应）"
+      rm -f "$body_file" 2>/dev/null || true
       return 1
     fi
 
-    local http_status=""
-    local content_type=""
-    http_status="$(printf "%s" "$resp" | sed -n 's/^__HTTP_STATUS__:\(.*\)$/\1/p' | tail -n 1)"
-    content_type="$(printf "%s" "$resp" | sed -n 's/^__CONTENT_TYPE__:\(.*\)$/\1/p' | tail -n 1 | sed -E 's/^[[:space:]]+//')"
-    local body=""
-    body="$(printf "%s" "$resp" | sed '/__HTTP_STATUS__:/,$d')"
-
+    local http_status="" content_type=""
+    http_status="${meta%% *}"
+    content_type="${meta#* }"
     if [ -n "$http_status" ] && [ "$http_status" != "200" ]; then
       log_yellow "⚠️ 获取模型列表失败（HTTP ${http_status}，Content-Type: ${content_type:-unknown}）"
     fi
 
-    printf "%s" "$body" | render_model_list
-    return $?
+    if [ -s "$body_file" ]; then
+      cat "$body_file" | render_model_list
+      local code="$?"
+      rm -f "$body_file" 2>/dev/null || true
+      return "$code"
+    fi
+
+    log_yellow "⚠️ 获取模型列表失败（响应体为空）"
+    rm -f "$body_file" 2>/dev/null || true
+    return 1
   }
 
   # 先尝试 Header 方式（部分环境可用）
