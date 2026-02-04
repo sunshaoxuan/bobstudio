@@ -37,6 +37,34 @@ LOG_DIR="/var/log/${SERVICE_NAME}"
 OUTPUT_LOG="${LOG_DIR}/output.log"
 ERROR_LOG="${LOG_DIR}/error.log"
 
+# 确保脚本具备执行权限（有些环境 clone 后不会保留 +x）
+# 注意：如果你现在是通过 `bash start.sh` 运行，本段会为下次 `./start.sh` 生效
+ensure_script_exec_permissions() {
+  local scripts=(
+    "${PROJECT_DIR}/start.sh"
+    "${PROJECT_DIR}/configure.sh"
+    "${PROJECT_DIR}/deploy.sh"
+    "${PROJECT_DIR}/check-build.sh"
+  )
+
+  local changed="0"
+  for f in "${scripts[@]}"; do
+    if [ -f "$f" ] && [ ! -x "$f" ]; then
+      chmod +x "$f" 2>/dev/null || true
+      if [ -x "$f" ]; then
+        changed="1"
+      fi
+    fi
+  done
+
+  if [ "$changed" = "1" ]; then
+    log_green "✅ 已自动补齐脚本执行权限（start.sh/configure.sh 等）"
+    log_green "   - 之后可直接使用 ./start.sh 和 ./configure.sh"
+  fi
+}
+
+ensure_script_exec_permissions
+
 # 让 node_modules/.bin 优先
 export PATH="${PROJECT_DIR}/node_modules/.bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
