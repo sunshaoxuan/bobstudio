@@ -660,6 +660,64 @@ get_email_preset() {
   esac
 }
 
+get_existing_api_key() {
+  # 从 users.json 中读取并解密现有 API Key（不输出到日志）
+  if [ ! -f "$USERS_FILE" ] || ! ensure_cmd node; then
+    return 1
+  fi
+  if [ -z "${API_KEY_ENCRYPTION_SECRET:-}" ]; then
+    return 1
+  fi
+  USERS_FILE_PATH="$USERS_FILE" API_KEY_ENCRYPTION_SECRET="$API_KEY_ENCRYPTION_SECRET" node <<'NODE'
+const fs = require("fs");
+const crypto = require("crypto");
+
+const usersFile = process.env.USERS_FILE_PATH;
+const secret = process.env.API_KEY_ENCRYPTION_SECRET || "";
+if (!usersFile || !secret) process.exit(1);
+
+let users = [];
+try {
+  users = JSON.parse(fs.readFileSync(usersFile, "utf8") || "[]");
+  if (!Array.isArray(users)) users = [];
+} catch {
+  users = [];
+}
+
+const admin = users.find(u => u && u.isSuperAdmin) || null;
+const enc = (admin?.apiKeyEncrypted || admin?.apiKey || "").toString().trim();
+if (!enc) process.exit(1);
+
+function decryptSensitiveValue(encryptedText = "") {
+  if (!encryptedText) return "";
+  const parts = encryptedText.split(":");
+  if (parts.length !== 3) return "";
+  const [ivB64, tagB64, dataB64] = parts;
+  const iv = Buffer.from(ivB64, "base64");
+  const authTag = Buffer.from(tagB64, "base64");
+  const encrypted = Buffer.from(dataB64, "base64");
+  const key = crypto.createHash("sha256").update(secret).digest();
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(authTag);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return decrypted.toString("utf8");
+}
+
+let key = "";
+if (enc.includes(":")) {
+  key = decryptSensitiveValue(enc);
+} else {
+  key = enc;
+}
+
+if (key && key.trim()) {
+  process.stdout.write(key.trim());
+  process.exit(0);
+}
+process.exit(1);
+NODE
+}
+
 configure_email_provider() {
   log ""
   log "### 配置邮件服务（用于密码重置等功能）"
@@ -941,6 +999,15 @@ main() {
       fi
       log_yellow "⚠️ 看起来太短了，请重新输入"
     done
+  fi
+
+  # 如果用户选择保留现有值，尝试从 users.json 中读取并解密现有 API Key（用于列出模型列表）
+  if [ -z "$gemini_key" ]; then
+    local existing_key=""
+    existing_key="$(get_existing_api_key 2>/dev/null || true)"
+    if [ -n "$existing_key" ]; then
+      gemini_key="$existing_key"
+    fi
   fi
 
   # 6) AI 模型配置（可根据 API Key 实时列出可用模型）
