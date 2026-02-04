@@ -10,7 +10,22 @@ set -euo pipefail
 MODE="${1:-}" # --as-service: 在 systemd 中运行（不安装/启动 service）
 
 log() { echo -e "$*"; }
-fail() { echo -e "❌ $*" >&2; exit 1; }
+
+# 颜色输出（无论 stdout 是否为 TTY 都输出；如需关闭可设置 NO_COLOR=1）
+if [ "${NO_COLOR:-0}" = "1" ]; then
+  RED=""; YELLOW=""; GREEN=""; NC=""
+else
+  RED="\033[31m"
+  YELLOW="\033[33m"
+  GREEN="\033[32m"
+  NC="\033[0m"
+fi
+
+log_red() { echo -e "${RED}$*${NC}"; }
+log_yellow() { echo -e "${YELLOW}$*${NC}"; }
+log_green() { echo -e "${GREEN}$*${NC}"; }
+
+fail() { log_red "❌ $*"; exit 1; }
 
 # 获取脚本所在目录（项目根目录）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -104,6 +119,7 @@ check_google_api_key_config() {
   local env_file="${PROJECT_DIR}/.env"
   local users_file="${PROJECT_DIR}/users.json"
   local has_issue="0"
+  local missing_key="0"
 
   log ""
   log "🔎 检查 Google Gemini API Key 配置..."
@@ -117,29 +133,31 @@ check_google_api_key_config() {
     enc_secret="${enc_secret%\"}"; enc_secret="${enc_secret#\"}"
     enc_secret="${enc_secret%\'}"; enc_secret="${enc_secret#\'}"
     if [ -z "$enc_secret" ]; then
-      log "⚠️ 未在 ${env_file} 中检测到 API_KEY_ENCRYPTION_SECRET"
-      log "   - 请维护: ${env_file} -> API_KEY_ENCRYPTION_SECRET（必须设置为随机强密钥）"
+      log_yellow "⚠️ 未在 ${env_file} 中检测到 API_KEY_ENCRYPTION_SECRET"
+      log_yellow "   - 请维护: ${env_file} -> API_KEY_ENCRYPTION_SECRET（必须设置为随机强密钥）"
       has_issue="1"
     elif [ "$enc_secret" = "change-me-to-random-secret" ] || [ "$enc_secret" = "change-me-bobstudio-secret" ]; then
-      log "⚠️ 检测到 API_KEY_ENCRYPTION_SECRET 仍为默认值（不安全，也可能导致迁移/解密问题）"
-      log "   - 请维护: ${env_file} -> API_KEY_ENCRYPTION_SECRET（改为随机强密钥，并妥善保存）"
+      log_yellow "⚠️ 检测到 API_KEY_ENCRYPTION_SECRET 仍为默认值（不安全，也可能导致迁移/解密问题）"
+      log_yellow "   - 请维护: ${env_file} -> API_KEY_ENCRYPTION_SECRET（改为随机强密钥，并妥善保存）"
       has_issue="1"
     else
-      log "✅ 已检测到 API_KEY_ENCRYPTION_SECRET（长度: ${#enc_secret}）"
+      log_green "✅ 已检测到 API_KEY_ENCRYPTION_SECRET（长度: ${#enc_secret}）"
     fi
   else
-    log "⚠️ 未找到 ${env_file}"
-    log "   - 请维护: 创建 ${env_file}，并配置 API_KEY_ENCRYPTION_SECRET（随机强密钥）"
+    log_yellow "⚠️ 未找到 ${env_file}"
+    log_yellow "   - 请维护: 创建 ${env_file}，并配置 API_KEY_ENCRYPTION_SECRET（随机强密钥）"
     has_issue="1"
   fi
 
   # 2) 检查 users.json 中是否存在 super admin 且配置了 apiKeyEncrypted/apiKey
   if [ ! -f "$users_file" ]; then
-    log "⚠️ 未找到 ${users_file}"
-    log "   - **说明**: 首次启动后端时会自动创建用户数据文件"
-    log "   - 需要配置 API Key: 请在管理后台为超级管理员设置 Google Gemini API Key（会写入 users.json 的 apiKeyEncrypted 字段）"
-    log "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted（建议在后台设置，不要手改密文）"
+    log_yellow "⚠️ 未找到 ${users_file}"
+    log_yellow "   - 说明: users.json 在后端首次启动时会自动创建"
+    log_yellow "   - 但当前策略为“没有 API Key 不允许启动”，因此需要你先准备好 Key"
+    log_yellow "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
+    log_yellow "   - 首次部署可临时写明文字段 apiKey（后端启动后会自动迁移加密为 apiKeyEncrypted）"
     has_issue="1"
+    missing_key="1"
   else
     # 用 node 解析 JSON（避免依赖 jq）
     if ensure_cmd node; then
@@ -153,36 +171,40 @@ check_google_api_key_config() {
         const ok = typeof v === "string" ? v.trim().length > 0 : Boolean(v);
         process.exit(ok ? 0 : 1);
       ' "$users_file"; then
-        log "✅ 已检测到 users.json 中存在已配置 API Key 的超级管理员"
+        log_green "✅ 已检测到 users.json 中存在已配置 API Key 的超级管理员"
       else
         local code="$?"
         if [ "$code" = "2" ]; then
-          log "⚠️ 无法解析 ${users_file}（JSON 格式可能损坏）"
-          log "   - 请维护: ${users_file}（确保为合法 JSON 数组）"
+          log_yellow "⚠️ 无法解析 ${users_file}（JSON 格式可能损坏）"
+          log_yellow "   - 请维护: ${users_file}（确保为合法 JSON 数组）"
         else
-          log "⚠️ 未检测到已配置 API Key 的超级管理员"
-          log "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
-          log "   - 推荐方式: 启动服务后，用管理后台给超级管理员设置 Google Gemini API Key（系统会自动加密写入 apiKeyEncrypted）"
+          log_yellow "⚠️ 未检测到已配置 API Key 的超级管理员"
+          log_yellow "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
+          log_yellow "   - 首次部署可临时写明文字段 apiKey（后端启动后会自动迁移加密为 apiKeyEncrypted）"
+          missing_key="1"
         fi
         has_issue="1"
       fi
     else
-      log "⚠️ 未检测到 node，无法解析 users.json 以检查 API Key（稍后安装 node 后可重试）"
-      log "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
+      log_yellow "⚠️ 未检测到 node，无法解析 users.json 以检查 API Key（稍后安装 node 后可重试）"
+      log_yellow "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
       has_issue="1"
+      missing_key="1"
     fi
   fi
 
   if [ "$has_issue" = "0" ]; then
-    log "✅ 结论：已检测到可用的 Gemini API Key 配置"
+    log_green "✅ 结论：已检测到可用的 Gemini API Key 配置"
   else
-    log "⚠️ 结论：未完整检测到可用的 Gemini API Key 配置（图像生成/编辑/合成功能可能不可用）"
-    log "   - 需要维护的关键项："
-    log "     1) ${env_file} -> API_KEY_ENCRYPTION_SECRET"
-    log "     2) ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
-    if [ "${BOBSTUDIO_REQUIRE_API_KEY:-0}" = "1" ]; then
-      fail "BOBSTUDIO_REQUIRE_API_KEY=1 且未检测到可用 API Key，已按要求退出"
+    # 按你的要求：未找到 API Key 直接中止启动
+    log_red "❌ 结论：未检测到可用的 Google/Gemini API Key，已中止启动服务"
+    log_red "   - 请维护以下配置后重试："
+    log_red "     1) ${env_file} -> API_KEY_ENCRYPTION_SECRET（必须设置为随机强密钥，且不要用默认值）"
+    log_red "     2) ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted（或首次部署临时用 apiKey 明文）"
+    if [ "$missing_key" = "1" ]; then
+      log_red "   - 重点：当前缺少 API Key（没有 Key 无法调用 Gemini API）"
     fi
+    exit 1
   fi
 }
 
