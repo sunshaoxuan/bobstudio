@@ -804,12 +804,18 @@ list_gemini_models() {
 
   log "🔎 正在从 Gemini API 获取可用模型列表..."
   local list_url="${base_url%/}"
+  MODEL_LIST_DIR="$(mktemp -d 2>/dev/null || echo "/tmp/bobstudio_models_$$")"
+  MODEL_LIST_TEXT_FILE="${MODEL_LIST_DIR}/models_text.txt"
+  MODEL_LIST_IMAGE_FILE="${MODEL_LIST_DIR}/models_image.txt"
 
   # 优先使用 Node fetch（更稳定，支持分页）
   if ensure_cmd node; then
-    GEMINI_API_KEY="$api_key" GEMINI_API_BASE_URL="$list_url" node <<'NODE'
+    GEMINI_API_KEY="$api_key" GEMINI_API_BASE_URL="$list_url" \
+    MODEL_LIST_TEXT_FILE="$MODEL_LIST_TEXT_FILE" MODEL_LIST_IMAGE_FILE="$MODEL_LIST_IMAGE_FILE" node <<'NODE'
 const apiKey = process.env.GEMINI_API_KEY || "";
 const baseUrl = process.env.GEMINI_API_BASE_URL || "";
+const textFile = process.env.MODEL_LIST_TEXT_FILE || "";
+const imageFile = process.env.MODEL_LIST_IMAGE_FILE || "";
 if (!apiKey || !baseUrl) {
   console.log("⚠️ 未提供 API Key 或 Base URL，无法获取模型列表");
   process.exit(1);
@@ -869,6 +875,12 @@ async function fetchPage(pageToken) {
   }
   if (!names.length) {
     console.log("（未发现可用模型）");
+  }
+  if (textFile) {
+    try { fs.writeFileSync(textFile, text.join("\n"), "utf8"); } catch {}
+  }
+  if (imageFile) {
+    try { fs.writeFileSync(imageFile, image.join("\n"), "utf8"); } catch {}
   }
   process.exit(0);
 })().catch((e) => {
@@ -1030,6 +1042,49 @@ NODE
   fetch_and_parse "$list_url_with_key" 0 || return 1
 }
 
+choose_model_from_list() {
+  local file="$1"
+  local current="$2"
+  local label="$3"
+  local models=()
+  mapfile -t models < "$file"
+  if [ "${#models[@]}" -eq 0 ]; then
+    return 1
+  fi
+  log ""
+  log "可用${label}模型（输入序号选择，c 自定义，回车保持当前）:"
+  local i=1
+  for m in "${models[@]}"; do
+    if [ "$m" = "$current" ] && [ -n "$current" ]; then
+      log "  ${i}) ${m}（当前）"
+    else
+      log "  ${i}) ${m}"
+    fi
+    i=$((i+1))
+  done
+  local choice=""
+  read -r -p "请选择 [1-${#models[@]}，c 自定义，回车保持当前]: " choice </dev/tty
+  if [ -z "$choice" ]; then
+    if [ -n "$current" ]; then
+      printf "%s" "$current"
+      return 0
+    fi
+  fi
+  if [[ "$choice" =~ ^[Cc]$ ]]; then
+    local cm=""
+    read -r -p "输入${label}模型名称: " cm </dev/tty
+    printf "%s" "$cm"
+    return 0
+  fi
+  if [[ "$choice" =~ ^[0-9]+$ ]]; then
+    if [ "$choice" -ge 1 ] && [ "$choice" -le "${#models[@]}" ]; then
+      printf "%s" "${models[$((choice-1))]}"
+      return 0
+    fi
+  fi
+  return 1
+}
+
 configure_ai_models() {
   local api_key="${1:-}"
   log ""
@@ -1047,36 +1102,58 @@ configure_ai_models() {
   fi
 
   local want_list=""
+  local list_ok="0"
   read -r -p "是否从 Gemini API 获取可用模型列表？[y/N]: " want_list </dev/tty
   if [[ "$want_list" =~ ^[Yy]$ ]]; then
-    list_gemini_models "$api_key" || true
+    if list_gemini_models "$api_key"; then
+      list_ok="1"
+    fi
     log ""
   fi
+
   set_env_kv "GEMINI_API_BASE_URL" "https://generativelanguage.googleapis.com/v1beta/models"
   log ""
-  log "选择文本模型（用于提示词优化）："
-  log "  1) gemini-2.5-flash（推荐，性价比最高）"
-  log "  2) gemini-2.5-pro（更强大，成本较高）"
-  log "  3) 自定义"
-  local tc=""
-  read -r -p "请选择 [1-3，默认 1]: " tc </dev/tty
-  tc="${tc:-1}"
-  case "$tc" in
-    1) set_env_kv "GEMINI_TEXT_MODEL" "gemini-2.5-flash" ;;
-    2) set_env_kv "GEMINI_TEXT_MODEL" "gemini-2.5-pro" ;;
-    3) local cm=""; read -r -p "输入文本模型名称: " cm </dev/tty; set_env_kv "GEMINI_TEXT_MODEL" "$cm" ;;
-  esac
+
+  if [ "$list_ok" = "1" ] && [ -s "${MODEL_LIST_TEXT_FILE:-}" ]; then
+    local selected_text=""
+    selected_text="$(choose_model_from_list "$MODEL_LIST_TEXT_FILE" "$current_text" "文本")"
+    if [ -n "$selected_text" ]; then
+      set_env_kv "GEMINI_TEXT_MODEL" "$selected_text"
+    fi
+  else
+    log "选择文本模型（用于提示词优化）："
+    log "  1) gemini-2.5-flash（推荐，性价比最高）"
+    log "  2) gemini-2.5-pro（更强大，成本较高）"
+    log "  3) 自定义"
+    local tc=""
+    read -r -p "请选择 [1-3，默认 1]: " tc </dev/tty
+    tc="${tc:-1}"
+    case "$tc" in
+      1) set_env_kv "GEMINI_TEXT_MODEL" "gemini-2.5-flash" ;;
+      2) set_env_kv "GEMINI_TEXT_MODEL" "gemini-2.5-pro" ;;
+      3) local cm=""; read -r -p "输入文本模型名称: " cm </dev/tty; set_env_kv "GEMINI_TEXT_MODEL" "$cm" ;;
+    esac
+  fi
+
   log ""
-  log "选择图像生成模型："
-  log "  1) gemini-2.5-flash-image（推荐）"
-  log "  2) 自定义"
-  local ic=""
-  read -r -p "请选择 [1-2，默认 1]: " ic </dev/tty
-  ic="${ic:-1}"
-  case "$ic" in
-    1) set_env_kv "GEMINI_IMAGE_MODEL" "gemini-2.5-flash-image" ;;
-    2) local im=""; read -r -p "输入图像模型名称: " im </dev/tty; set_env_kv "GEMINI_IMAGE_MODEL" "$im" ;;
-  esac
+  if [ "$list_ok" = "1" ] && [ -s "${MODEL_LIST_IMAGE_FILE:-}" ]; then
+    local selected_image=""
+    selected_image="$(choose_model_from_list "$MODEL_LIST_IMAGE_FILE" "$current_image" "图像")"
+    if [ -n "$selected_image" ]; then
+      set_env_kv "GEMINI_IMAGE_MODEL" "$selected_image"
+    fi
+  else
+    log "选择图像生成模型："
+    log "  1) gemini-2.5-flash-image（推荐）"
+    log "  2) 自定义"
+    local ic=""
+    read -r -p "请选择 [1-2，默认 1]: " ic </dev/tty
+    ic="${ic:-1}"
+    case "$ic" in
+      1) set_env_kv "GEMINI_IMAGE_MODEL" "gemini-2.5-flash-image" ;;
+      2) local im=""; read -r -p "输入图像模型名称: " im </dev/tty; set_env_kv "GEMINI_IMAGE_MODEL" "$im" ;;
+    esac
+  fi
   set_env_kv "GEMINI_TEXT_TEMPERATURE" "0.7"
   set_env_kv "GEMINI_TEXT_MAX_TOKENS" "500"
   log_green "✅ AI 模型配置完成"
