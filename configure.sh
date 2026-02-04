@@ -105,12 +105,23 @@ backup_and_normalize_env_file() {
     function strip_cr(s) { sub(/\r$/, "", s); return s }
     function is_key_line(s) { return (s ~ /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=/) }
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
-    BEGIN { pending_key = ""; pending_printed = 0 }
+    BEGIN { pending_key = ""; pending_printed = 0; empty_count = 0 }
     {
       line = strip_cr($0)
     }
-    # 空行/注释原样保留
-    /^[ \t]*$/ { print line; next }
+    # 空行处理：最多保留一个连续空行
+    /^[ \t]*$/ {
+      empty_count++
+      if (empty_count <= 1) {
+        print line
+      }
+      next
+    }
+    # 非空行重置空行计数
+    {
+      empty_count = 0
+    }
+    # 注释原样保留
     /^[ \t]*#/ { print line; next }
     {
       if (pending_key != "") {
@@ -148,6 +159,16 @@ backup_and_normalize_env_file() {
     { print "# ORPHAN_LINE: " line }
   ' "$file" > "$tmp"
 
+  # 清理文件末尾的多余空行：删除末尾所有空行
+  # 使用 awk 找到最后一个非空行，然后只输出到那里
+  awk '
+    {lines[NR]=$0; if (NF || /^[[:space:]]*#/) last_non_empty=NR}
+    END {
+      for (i=1; i<=last_non_empty; i++) print lines[i]
+      if (last_non_empty > 0) print ""
+    }
+  ' "$tmp" > "${tmp}.clean" && mv "${tmp}.clean" "$tmp"
+  
   # 判断是否真的发生变化（通过是否产生 ORPHAN_LINE 或 pending_key 合并）
   if grep -q "^# ORPHAN_LINE:" "$tmp" 2>/dev/null; then
     changed="1"
@@ -281,8 +302,17 @@ set_env_kv() {
     printf '%s\n' "$line" >> "$tmp_file"
   done < "$ENV_FILE"
   
-  # 追加新值
-  printf "\n%s=%s\n" "$key" "$value" >> "$tmp_file"
+  # 追加新值：检查文件末尾是否有空行，避免重复添加
+  local last_char=""
+  if [ -s "$tmp_file" ]; then
+    last_char="$(tail -c 1 "$tmp_file" 2>/dev/null || echo "")"
+  fi
+  # 如果文件不为空且最后不是换行，添加换行
+  if [ -s "$tmp_file" ] && [ "$last_char" != "" ] && [ "$last_char" != $'\n' ]; then
+    printf '\n' >> "$tmp_file"
+  fi
+  # 追加新键值对
+  printf "%s=%s\n" "$key" "$value" >> "$tmp_file"
   
   # 替换原文件
   mv "$tmp_file" "$ENV_FILE"
