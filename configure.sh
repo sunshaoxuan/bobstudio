@@ -827,6 +827,10 @@ try { data = JSON.parse(raw); } catch (e) {
   const hex = buf.slice(0, 32).toString("hex");
   if (hex) console.log("响应HEX: " + hex);
   if (summary) console.log("响应摘要: " + summary);
+  if (raw) {
+    console.log("响应原文(前2000字符):");
+    console.log(raw.slice(0, 2000));
+  }
   process.exit(1);
 }
 if (data && data.error) {
