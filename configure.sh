@@ -335,31 +335,32 @@ prompt_secret_with_confirm() {
     out="$(printf "%s" "$out" | tr -d '\000-\037\177')"
 
     if [ -z "$out" ] && [ "$allow_empty" = "1" ]; then
-      log_green "✅ 已选择保留现有值（未修改）"
+      log_green "✅ 已选择保留现有值（未修改）" >&2
       printf "%s" ""
       return 0
     fi
 
     if [ "$min_len" -gt 0 ] && [ "${#out}" -lt "$min_len" ]; then
-      log_yellow "⚠️ 输入长度看起来太短（${#out} < ${min_len}），请重新输入"
+      log_yellow "⚠️ 输入长度看起来太短（${#out} < ${min_len}），请重新输入" >&2
       continue
     fi
 
     # 默认不需要二次回车确认：输入后直接继续，但会输出摘要供核对
     # 如确需二次确认，可设置 BOBSTUDIO_CONFIRM_SECRET_INPUT=1
-    log "已输入（长度: ${#out}，末尾: $(mask_tail "$out" 6)）"
+    # 注意：日志输出到 stderr，避免被命令替换捕获
+    echo "已输入（长度: ${#out}，末尾: $(mask_tail "$out" 6)）" >&2
     if [ "$require_confirm" != "1" ]; then
       printf "%s" "$out"
       return 0
     fi
 
-    log "确认使用？直接回车确认，输入 r 重输"
+    echo "确认使用？直接回车确认，输入 r 重输" >&2
     read -r ans </dev/tty
     if [ -z "$ans" ] || [[ "$ans" =~ ^[Yy]$ ]]; then
       printf "%s" "$out"
       return 0
     fi
-    log_yellow "重新输入..."
+    log_yellow "重新输入..." >&2
   done
 }
 
