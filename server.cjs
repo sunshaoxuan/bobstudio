@@ -2841,9 +2841,8 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
 优化输出：将图片1和图片2中的人物合成到同一场景中，两人并肩站立。⚠️ 重要：图片1中人物的容貌、五官必须与原图一致，图片2中人物的容貌、五官也必须与原图一致。整体光影协调，构图自然。`;
     }
     
-    // 主模型与回退模型（防止预览版不稳定导致 503）
-    const primaryModel = modelConfig.optimize.primary;
-    const fallbackModel = modelConfig.optimize.fallback;
+    // 使用文本模型进行提示词优化
+    const textModel = modelConfig.text.model;
     
     const requestPayload = {
       contents: [{
@@ -2851,36 +2850,26 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
           text: `${systemPrompt}\n\n用户提示词：${userPrompt}\n\n请优化：`
         }]
       }],
-      generationConfig: modelConfig.optimize.generationConfig
+      generationConfig: modelConfig.text.generationConfig
     };
     
-    const callModel = async (modelId) => {
-      const resp = await fetch(
-        modelConfig.getOptimizeEndpoint(modelId),
-        {
-          method: "POST",
-          headers: {
-            "x-goog-api-key": effectiveApiKey,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestPayload),
-        }
-      );
-      let body;
-      try {
-        body = await resp.json();
-      } catch (e) {
-        body = { error: "无法解析 Gemini 响应", parseError: e?.message };
+    const resp = await fetch(
+      modelConfig.getTextEndpoint(),
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": effectiveApiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestPayload),
       }
-      return { resp, body };
-    };
+    );
     
-    let usedModel = primaryModel;
-    let { resp, body } = await callModel(primaryModel);
-    if (!resp.ok && fallbackModel && fallbackModel !== primaryModel) {
-      console.warn(`[${timestamp}] ⚠️ 提示词优化主模型失败，尝试回退 | 主模型: ${primaryModel} | 状态码: ${resp.status}`);
-      ({ resp, body } = await callModel(fallbackModel));
-      usedModel = fallbackModel;
+    let body;
+    try {
+      body = await resp.json();
+    } catch (e) {
+      body = { error: "无法解析 Gemini 响应", parseError: e?.message };
     }
     
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -2904,32 +2893,9 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
       }
     }
     
-    // 如果主模型返回 200 但未能提取文本，再尝试一次回退模型
-    if (!optimizedPrompt && usedModel === primaryModel && fallbackModel && fallbackModel !== primaryModel) {
-      console.warn(`[${timestamp}] ⚠️ 主模型无有效候选，尝试回退 | 主模型: ${primaryModel}`);
-      ({ resp, body } = await callModel(fallbackModel));
-      usedModel = fallbackModel;
-      if (!resp.ok) {
-        const detail = typeof body === 'object' ? JSON.stringify(body).slice(0, 400) : String(body);
-        console.error(`[${timestamp}] ❌ 回退模型也失败 | 模型: ${resp?.url || 'unknown'} | 状态码: ${resp.status} | 返回: ${detail}`);
-        return res.status(resp.status).json(body);
-      }
-      const fbData = body || {};
-      if (fbData.candidates && fbData.candidates.length > 0) {
-        const candidate = fbData.candidates[0];
-        if (candidate.content && candidate.content.parts) {
-          for (const part of candidate.content.parts) {
-            if (part.text) {
-              optimizedPrompt += part.text;
-            }
-          }
-        }
-      }
-    }
-    
     if (!optimizedPrompt) {
       const detail = typeof data === 'object' ? JSON.stringify(data).slice(0, 400) : String(data);
-      console.error(`[${timestamp}] ❌ 提示词优化空结果 | 模型: ${usedModel} | 返回: ${detail}`);
+      console.error(`[${timestamp}] ❌ 提示词优化空结果 | 模型: ${textModel} | 返回: ${detail}`);
       throw new Error('未能生成优化提示词');
     }
     

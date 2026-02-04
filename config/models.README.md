@@ -2,39 +2,40 @@
 
 ## 概述
 
-`models.cjs` 文件统一管理项目中所有 AI 模型的配置参数，包括：
-- 提示词优化模型（文本模型）
-- 图像生成模型
+`models.cjs` 文件统一管理项目中所有 AI 模型的配置参数。**所有配置均从 `.env` 环境变量读取**，不再硬编码默认值。
 
 ## 配置项说明
 
-### 1. 提示词优化模型（optimize）
+### 必需的环境变量
 
-用于优化用户输入的提示词，提升图像生成质量。
+| 变量名 | 说明 | 示例值 |
+|--------|------|--------|
+| `GEMINI_API_BASE_URL` | Gemini API 基础 URL | `https://generativelanguage.googleapis.com/v1beta/models` |
+| `GEMINI_TEXT_MODEL` | 文本模型（提示词优化） | `gemini-3-flash` |
+| `GEMINI_IMAGE_MODEL` | 图像生成模型 | `gemini-3-pro-image-preview` |
 
-- **primary**: 主模型，默认 `gemini-3-pro-preview`
-- **fallback**: 回退模型，当主模型失败时使用，默认 `gemini-2.0-flash-exp`
-- **generationConfig**: 生成配置
-  - `temperature`: 温度参数，控制输出的随机性（0.0-1.0），默认 0.7
-  - `maxOutputTokens`: 最大输出 token 数，默认 500
+### 可选的环境变量
 
-### 2. 图像生成模型（image）
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `GEMINI_TEXT_TEMPERATURE` | 文本生成温度参数（0.0-1.0） | `0.7` |
+| `GEMINI_TEXT_MAX_TOKENS` | 文本最大输出 token 数 | `500` |
 
-用于实际的图像生成、编辑和合成。
-
-- **model**: 图像生成模型，默认 `gemini-3-pro-image-preview`（最新的 Gemini 3.0 Pro 图像生成模型，2025年11月发布）
-
-## 环境变量配置
-
-可以通过环境变量覆盖默认配置，在 `.env` 文件中设置：
+## .env 配置示例
 
 ```env
-# 提示词优化模型
-GEMINI_OPTIMIZE_MODEL=gemini-3-pro-preview
-GEMINI_OPTIMIZE_FALLBACK_MODEL=gemini-2.0-flash-exp
+# ===== AI 模型配置（必填）=====
+GEMINI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/models
 
-# 图像生成模型
+# 文本模型 - gemini-3-flash 性价比最高
+GEMINI_TEXT_MODEL=gemini-3-flash
+
+# 图像生成模型 - gemini-3-pro-image-preview 目前最好
 GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview
+
+# 文本模型生成参数（可选）
+GEMINI_TEXT_TEMPERATURE=0.7
+GEMINI_TEXT_MAX_TOKENS=500
 ```
 
 ## 使用方法
@@ -44,24 +45,21 @@ GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview
 ```javascript
 const modelConfig = require("./config/models.cjs");
 
-// 使用提示词优化模型
-const primaryModel = modelConfig.optimize.primary;
-const fallbackModel = modelConfig.optimize.fallback;
-const generationConfig = modelConfig.optimize.generationConfig;
+// 文本模型
+const textModel = modelConfig.text.model;
+const generationConfig = modelConfig.text.generationConfig;
 
-// 使用图像生成模型
+// 图像生成模型
 const imageModel = modelConfig.image.model;
 
 // 获取 API 端点
-const optimizeEndpoint = modelConfig.getOptimizeEndpoint(modelId);
+const textEndpoint = modelConfig.getTextEndpoint();
 const imageEndpoint = modelConfig.getImageEndpoint();
 ```
 
-## 修改模型
+## 当前推荐模型
 
-如需更换模型，只需：
-
-1. 修改 `config/models.cjs` 中的默认值，或
-2. 在 `.env` 文件中设置对应的环境变量
-
-无需修改业务代码，所有模型引用会自动使用新配置。
+| 用途 | 推荐模型 | 说明 |
+|------|----------|------|
+| 文本/提示词优化 | `gemini-3-flash` | 性价比最高的语言模型 |
+| 图像生成 | `gemini-3-pro-image-preview` | 目前最好的生图模型 |
