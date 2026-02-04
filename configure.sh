@@ -800,29 +800,8 @@ list_gemini_models() {
   log "🔎 正在从 Gemini API 获取可用模型列表..."
   local list_url="${base_url%/}"
 
-  local resp=""
-  resp="$(curl -sS \
-    -H "x-goog-api-key: ${api_key}" \
-    -H "Accept: application/json" \
-    -w '\n__HTTP_STATUS__:%{http_code}\n__CONTENT_TYPE__:%{content_type}\n' \
-    "$list_url" 2>/dev/null || true)"
-  if [ -z "$resp" ]; then
-    log_yellow "⚠️ 获取模型列表失败（空响应）"
-    return 1
-  fi
-
-  local http_status=""
-  local content_type=""
-  http_status="$(printf "%s" "$resp" | awk -F: '/__HTTP_STATUS__:/ {print $2}' | tail -n 1)"
-  content_type="$(printf "%s" "$resp" | awk -F: '/__CONTENT_TYPE__:/ { $1=""; sub(/^:/,""); sub(/^[ ]+/,""); print $0 }' | tail -n 1)"
-  local body=""
-  body="$(printf "%s" "$resp" | sed '/__HTTP_STATUS__:/,$d')"
-
-  if [ -n "$http_status" ] && [ "$http_status" != "200" ]; then
-    log_yellow "⚠️ 获取模型列表失败（HTTP ${http_status}，Content-Type: ${content_type:-unknown}）"
-  fi
-
-  printf "%s" "$body" | node <<'NODE'
+  render_model_list() {
+    node <<'NODE'
 const fs = require("fs");
 let raw = "";
 try { raw = fs.readFileSync(0, "utf8"); } catch {}
@@ -836,7 +815,7 @@ try { data = JSON.parse(raw); } catch (e) {
 if (data && data.error) {
   const msg = data.error.message || data.error.status || "未知错误";
   console.log("⚠️ 获取模型列表失败: " + msg);
-  process.exit(1);
+  process.exit(2);
 }
 const models = Array.isArray(data?.models) ? data.models : [];
 const supported = models.filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"));
@@ -855,7 +834,60 @@ if (image.length) {
 if (!names.length) {
   console.log("（未发现可用模型）");
 }
+process.exit(0);
 NODE
+  }
+
+  fetch_and_parse() {
+    local url="$1"
+    local header_mode="$2"
+    local resp=""
+    if [ "$header_mode" = "1" ]; then
+      resp="$(curl -sS \
+        -H "x-goog-api-key: ${api_key}" \
+        -H "Accept: application/json" \
+        -w '\n__HTTP_STATUS__:%{http_code}\n__CONTENT_TYPE__:%{content_type}\n' \
+        "$url" 2>/dev/null || true)"
+    else
+      resp="$(curl -sS \
+        -H "Accept: application/json" \
+        -w '\n__HTTP_STATUS__:%{http_code}\n__CONTENT_TYPE__:%{content_type}\n' \
+        "$url" 2>/dev/null || true)"
+    fi
+
+    if [ -z "$resp" ]; then
+      log_yellow "⚠️ 获取模型列表失败（空响应）"
+      return 1
+    fi
+
+    local http_status=""
+    local content_type=""
+    http_status="$(printf "%s" "$resp" | awk -F: '/__HTTP_STATUS__:/ {print $2}' | tail -n 1)"
+    content_type="$(printf "%s" "$resp" | awk -F: '/__CONTENT_TYPE__:/ { $1=\"\"; sub(/^:/,\"\"); sub(/^[ ]+/,\"\"); print $0 }' | tail -n 1)"
+    local body=""
+    body="$(printf "%s" "$resp" | sed '/__HTTP_STATUS__:/,$d')"
+
+    if [ -n "$http_status" ] && [ "$http_status" != "200" ]; then
+      log_yellow "⚠️ 获取模型列表失败（HTTP ${http_status}，Content-Type: ${content_type:-unknown}）"
+    fi
+
+    printf "%s" "$body" | render_model_list
+    return $?
+  }
+
+  # 先尝试 Header 方式（部分环境可用）
+  if fetch_and_parse "$list_url" 1; then
+    return 0
+  fi
+
+  # Header 方式失败时，回退为 ?key= 方式（官方兼容写法）
+  local list_url_with_key="$list_url"
+  if [[ "$list_url_with_key" == *"?"* ]]; then
+    list_url_with_key="${list_url_with_key}&key=${api_key}"
+  else
+    list_url_with_key="${list_url_with_key}?key=${api_key}"
+  fi
+  fetch_and_parse "$list_url_with_key" 0 || return 1
 }
 
 configure_ai_models() {
