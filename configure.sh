@@ -481,6 +481,79 @@ fs.writeFileSync(usersFile, JSON.stringify(users, null, 2), "utf8");
 NODE
 }
 
+assert_admin_written() {
+  # 写入后强校验（不输出敏感明文）
+  # 参数：
+  #   $1 require_password: 0/1
+  #   $2 require_key: 0/1
+  local require_password="${1:-0}"
+  local require_key="${2:-0}"
+
+  if ! ensure_cmd node; then
+    log_red "❌ 校验失败：未检测到 node，无法验证 users.json 写入结果"
+    exit 1
+  fi
+  if [ ! -f "$USERS_FILE" ]; then
+    log_red "❌ 校验失败：未找到 ${USERS_FILE}"
+    exit 1
+  fi
+
+  # 输出一行 JSON 摘要，便于肉眼检查
+  local summary_json=""
+  summary_json="$(node -e '
+    const fs=require("fs");
+    const usersFile=process.argv[1];
+    let users=[];
+    try{ users=JSON.parse(fs.readFileSync(usersFile,"utf8")||"[]"); if(!Array.isArray(users)) users=[]; }catch{ users=[]; }
+    const a=users.find(u=>u && u.isSuperAdmin) || null;
+    const password=(a?.password||"").toString();
+    const apiEnc=(a?.apiKeyEncrypted||a?.apiKey||"").toString();
+    const out={
+      hasSuperAdmin: Boolean(a),
+      username: a?.username || "",
+      email: a?.email || "",
+      passwordHashPrefix: password ? password.slice(0,8) : "",
+      apiKeyEncryptedLen: apiEnc ? apiEnc.length : 0,
+      lockedUntil: a?.lockedUntil || null,
+      loginAttempts: a?.loginAttempts ?? null,
+    };
+    console.log(JSON.stringify(out));
+  ' "$USERS_FILE" 2>/dev/null || true)"
+
+  log "校验摘要: ${summary_json}"
+
+  # 机器判断
+  node -e '
+    const fs=require("fs");
+    const usersFile=process.argv[1];
+    const requirePassword=process.argv[2]==="1";
+    const requireKey=process.argv[3]==="1";
+    let users=[];
+    try{ users=JSON.parse(fs.readFileSync(usersFile,"utf8")||"[]"); if(!Array.isArray(users)) users=[]; }catch{ users=[]; }
+    const a=users.find(u=>u && u.isSuperAdmin) || null;
+    if(!a) process.exit(10);
+    const password=(a.password||"").toString().trim();
+    const apiEnc=(a.apiKeyEncrypted||a.apiKey||"").toString().trim();
+    if(requirePassword && !password) process.exit(11);
+    if(requireKey && !apiEnc) process.exit(12);
+    process.exit(0);
+  ' "$USERS_FILE" "$require_password" "$require_key"
+
+  local code="$?"
+  if [ "$code" -eq 0 ]; then
+    log_green "✅ 校验通过：users.json 已正确写入"
+    return 0
+  fi
+  case "$code" in
+    10) log_red "❌ 校验失败：users.json 中未找到超级管理员（isSuperAdmin=true）" ;;
+    11) log_red "❌ 校验失败：管理员密码未写入（password 为空）" ;;
+    12) log_red "❌ 校验失败：Gemini API Key 未写入（apiKeyEncrypted/apiKey 为空）" ;;
+    *)  log_red "❌ 校验失败：未知错误码 ${code}" ;;
+  esac
+  log_red "请把上面的“校验摘要”那一行发我，我可以进一步定位。"
+  exit 1
+}
+
 main() {
   ensure_root
   install_node_20_if_needed
@@ -589,6 +662,17 @@ main() {
   done < <(get_admin_state_summary)
 
   write_admin_user_and_key "$admin_username" "$admin_email" "$admin_password" "$gemini_key" "$current_enc"
+
+  # 强校验：如果这次确实输入了新密码/新 Key，就必须写入成功
+  local require_password="0"
+  local require_key="0"
+  if [ -n "$(echo -n "$admin_password" | sed -E 's/[[:space:]]//g')" ]; then
+    require_password="1"
+  fi
+  if [ -n "$(echo -n "$gemini_key" | sed -E 's/[[:space:]]//g')" ]; then
+    require_key="1"
+  fi
+  assert_admin_written "$require_password" "$require_key"
 
   # 写入后摘要
   local after_pw_prefix="" after_has_key="" after_key_len="" after_locked=""
