@@ -566,6 +566,9 @@ main() {
   local existing_admin_has_key="0"
   local existing_admin_has_password="0"
   while IFS='=' read -r k v; do
+    # 兼容可能的 CRLF（去掉 \r）
+    k="${k%$'\r'}"
+    v="${v%$'\r'}"
     case "$k" in
       ADMIN_USERNAME) existing_admin_username="$v" ;;
       ADMIN_EMAIL) existing_admin_email="$v" ;;
@@ -653,6 +656,8 @@ main() {
   # 写入前摘要（用于确认是否真的发生变化）
   local before_pw_prefix="" before_has_key="" before_key_len="" before_locked=""
   while IFS='=' read -r k v; do
+    k="${k%$'\r'}"
+    v="${v%$'\r'}"
     case "$k" in
       ADMIN_PASSWORD_HASH_PREFIX) before_pw_prefix="$v" ;;
       ADMIN_HAS_KEY) before_has_key="$v" ;;
@@ -674,9 +679,11 @@ main() {
   fi
   assert_admin_written "$require_password" "$require_key"
 
-  # 写入后摘要
+  # 写入后摘要（以 users.json 实际内容为准，避免出现“校验通过但摘要为空”的矛盾）
   local after_pw_prefix="" after_has_key="" after_key_len="" after_locked=""
   while IFS='=' read -r k v; do
+    k="${k%$'\r'}"
+    v="${v%$'\r'}"
     case "$k" in
       ADMIN_PASSWORD_HASH_PREFIX) after_pw_prefix="$v" ;;
       ADMIN_HAS_KEY) after_has_key="$v" ;;
@@ -689,18 +696,24 @@ main() {
   log "### 配置结果摘要（不包含敏感明文）"
   log "   - 密码 hash 前缀（前->后）: ${before_pw_prefix:-<empty>} -> ${after_pw_prefix:-<empty>}"
   log "   - API Key 密文字段长度（前->后）: ${before_key_len:-0} -> ${after_key_len:-0}"
-  if [ "$before_pw_prefix" != "$after_pw_prefix" ] && [ -n "$after_pw_prefix" ]; then
-    log_green "✅ 管理员密码：已更新（hash 前缀 ${after_pw_prefix}）"
+  if [ -n "$after_pw_prefix" ]; then
+    if [ "$before_pw_prefix" != "$after_pw_prefix" ]; then
+      log_green "✅ 管理员密码：已更新（hash 前缀 ${after_pw_prefix}）"
+    else
+      log_yellow "⚠️ 管理员密码：未更新（保持原密码）"
+    fi
   else
-    log_yellow "⚠️ 管理员密码：未更新（如需重置，请在“管理员密码”提示时输入新密码）"
+    log_red "❌ 管理员密码：未写入（password 为空）"
   fi
-  if [ "$after_has_key" = "1" ]; then
-    log_green "✅ Gemini API Key：已配置（已加密存储）"
+
+  if [ "$after_has_key" = "1" ] && [ "${after_key_len:-0}" -gt 0 ]; then
+    log_green "✅ Gemini API Key：已配置（已加密存储，长度 ${after_key_len}）"
   else
-    log_red "❌ Gemini API Key：未配置"
+    log_red "❌ Gemini API Key：未配置（apiKeyEncrypted 为空）"
   fi
+
   if [ "$after_locked" = "1" ]; then
-    log_red "❌ 账户状态：仍处于锁定（请等待锁定到期或检查 lockedUntil）"
+    log_red "❌ 账户状态：仍处于锁定（请等待 lockedUntil 到期）"
   else
     log_green "✅ 账户状态：未锁定（loginAttempts 已清零）"
   fi
