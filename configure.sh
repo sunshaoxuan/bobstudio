@@ -182,7 +182,7 @@ get_existing_admin_info() {
     return 0
   fi
 
-  node - <<'NODE' "$USERS_FILE"
+  node - "$USERS_FILE" <<'NODE'
 const fs = require("fs");
 const usersFile = process.argv[1];
 let users = [];
@@ -214,7 +214,7 @@ get_admin_state_summary() {
     echo "ADMIN_LOCKED=0"
     return 0
   fi
-  node - <<'NODE' "$USERS_FILE"
+  node - "$USERS_FILE" <<'NODE'
 const fs = require("fs");
 const usersFile = process.argv[1];
 let users = [];
