@@ -805,6 +805,7 @@ list_gemini_models() {
   log "🔎 正在从 Gemini API 获取可用模型列表..."
   local list_url="${base_url%/}"
   MODEL_LIST_DIR="$(mktemp -d 2>/dev/null || echo "/tmp/bobstudio_models_$$")"
+  mkdir -p "$MODEL_LIST_DIR" 2>/dev/null || true
   MODEL_LIST_TEXT_FILE="${MODEL_LIST_DIR}/models_text.txt"
   MODEL_LIST_IMAGE_FILE="${MODEL_LIST_DIR}/models_image.txt"
 
@@ -812,6 +813,7 @@ list_gemini_models() {
   if ensure_cmd node; then
     GEMINI_API_KEY="$api_key" GEMINI_API_BASE_URL="$list_url" \
     MODEL_LIST_TEXT_FILE="$MODEL_LIST_TEXT_FILE" MODEL_LIST_IMAGE_FILE="$MODEL_LIST_IMAGE_FILE" node <<'NODE'
+const fs = require("fs");
 const apiKey = process.env.GEMINI_API_KEY || "";
 const baseUrl = process.env.GEMINI_API_BASE_URL || "";
 const textFile = process.env.MODEL_LIST_TEXT_FILE || "";
