@@ -174,6 +174,82 @@ prompt_value() {
   printf "%s" "$out"
 }
 
+mask_tail() {
+  # 输出末尾 n 位（默认 6），过短则输出全部
+  local s="$1"
+  local n="${2:-6}"
+  local len="${#s}"
+  if [ "$len" -le "$n" ]; then
+    printf "%s" "$s"
+  else
+    printf "%s" "${s:len-n:n}"
+  fi
+}
+
+prompt_secret_with_confirm() {
+  # 隐式输入，但回车后给出“长度 + 末尾几位”用于确认，避免输错
+  # 参数：
+  #   $1: prompt
+  #   $2: allow_empty (0/1)
+  #   $3: min_len (0 表示不限制)
+  local prompt="$1"
+  local allow_empty="${2:-0}"
+  local min_len="${3:-0}"
+  local out="" ans=""
+
+  while true; do
+    read -r -s -p "${prompt}: " out
+    echo ""
+
+    # 去掉首尾空白（避免误输入空格）
+    out="$(echo -n "$out" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+
+    if [ -z "$out" ] && [ "$allow_empty" = "1" ]; then
+      printf "%s" ""
+      return 0
+    fi
+
+    if [ "$min_len" -gt 0 ] && [ "${#out}" -lt "$min_len" ]; then
+      log_yellow "⚠️ 输入长度看起来太短（${#out} < ${min_len}），请重新输入"
+      continue
+    fi
+
+    log "已输入（长度: ${#out}，末尾: $(mask_tail "$out" 6)）。确认使用？[y/N]"
+    read -r ans
+    if [[ "$ans" =~ ^[Yy]$ ]]; then
+      printf "%s" "$out"
+      return 0
+    fi
+    log_yellow "重新输入..."
+  done
+}
+
+prompt_password_twice() {
+  # 密码输入两次确认（不回显，不展示摘要）
+  # 参数：
+  #   $1: prompt
+  #   $2: allow_empty (0/1) 允许留空表示“不修改/保留”
+  local prompt="$1"
+  local allow_empty="${2:-0}"
+  local p1="" p2=""
+  while true; do
+    read -r -s -p "${prompt}: " p1
+    echo ""
+    if [ -z "$p1" ] && [ "$allow_empty" = "1" ]; then
+      printf "%s" ""
+      return 0
+    fi
+    read -r -s -p "请再次输入以确认: " p2
+    echo ""
+    if [ "$p1" != "$p2" ]; then
+      log_yellow "⚠️ 两次输入不一致，请重试"
+      continue
+    fi
+    printf "%s" "$p1"
+    return 0
+  done
+}
+
 write_admin_user_and_key() {
   local admin_username="$1"
   local admin_email="$2"
@@ -294,7 +370,8 @@ main() {
   if [ -z "$current_enc" ] || [ "$current_enc" = "change-me-to-random-secret" ] || [ "$current_enc" = "change-me-bobstudio-secret" ]; then
     log_yellow "⚠️ 当前 ${ENV_FILE} 中 API_KEY_ENCRYPTION_SECRET 未设置或为默认值"
     local new_enc
-    new_enc="$(prompt_value "请输入 API_KEY_ENCRYPTION_SECRET（留空则自动生成）" "" 1)"
+    # 允许留空（将自动生成），输入后会给出摘要确认避免输错
+    new_enc="$(prompt_secret_with_confirm "请输入 API_KEY_ENCRYPTION_SECRET（留空则自动生成）" 1 0)"
     if [ -z "$new_enc" ]; then
       new_enc="$(gen_secret)"
       log_green "✅ 已自动生成 API_KEY_ENCRYPTION_SECRET"
@@ -328,12 +405,12 @@ main() {
   local gemini_key=""
   if [ "$existing_admin_has_key" = "1" ]; then
     log_green "✅ 检测到超级管理员已配置 API Key（可直接回车跳过）"
-    read -r -s -p "Gemini API Key（回车保留现有）: " gemini_key
-    echo ""
+    gemini_key="$(prompt_secret_with_confirm "Gemini API Key（回车保留现有）" 1 0)"
     gemini_key="$(echo -n "$gemini_key" | tr -d '[:space:]')"
   else
     while true; do
-      gemini_key="$(prompt_value "Gemini API Key" "" 1)"
+      # 最小长度 20 只是防呆提示，不代表真实 Key 格式校验
+      gemini_key="$(prompt_secret_with_confirm "Gemini API Key" 0 20)"
       gemini_key="$(echo -n "$gemini_key" | tr -d '[:space:]')"
       if [ "${#gemini_key}" -ge 20 ]; then
         break
@@ -350,10 +427,10 @@ main() {
   admin_email="$(prompt_value "管理员邮箱" "$existing_admin_email" 0)"
 
   if [ "$existing_admin_has_password" = "1" ]; then
-    read -r -s -p "管理员密码（留空保持不变）: " admin_password
-    echo ""
+    admin_password="$(prompt_password_twice "管理员密码（留空保持不变）" 1)"
   else
-    admin_password="$(prompt_value "管理员密码（会写入 users.json，为 sha256 哈希）" "twgdh169" 1)"
+    log_yellow "⚠️ 首次配置建议你设置一个新管理员密码（将写入 users.json，为 sha256 哈希）"
+    admin_password="$(prompt_password_twice "管理员密码" 0)"
   fi
 
   log ""
