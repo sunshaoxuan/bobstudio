@@ -138,6 +138,11 @@ git_update_if_needed() {
       git merge --ff-only "origin/${branch}"
     fi
     export BOBSTUDIO_CODE_UPDATED="1"
+    # 代码更新后，删除旧的构建目录，强制重新构建
+    if [ -d "${PROJECT_DIR}/build" ]; then
+      log "🗑️ 删除旧的构建文件，确保使用最新代码重新构建..."
+      rm -rf "${PROJECT_DIR}/build"
+    fi
   else
     log "✅ 代码已是最新（${local_sha:0:7}）"
     export BOBSTUDIO_CODE_UPDATED="0"
