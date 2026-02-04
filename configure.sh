@@ -747,8 +747,17 @@ configure_email_provider() {
     *) provider="skip" ;;
   esac
   if [ "$provider" = "skip" ]; then
-    set_env_kv "REACT_APP_EMAIL_ENABLED" "false"
-    log_yellow "⚠️ 已跳过邮件配置（密码重置功能将不可用）"
+    local existing_enabled existing_user existing_provider existing_host
+    existing_enabled="$(get_env_value "REACT_APP_EMAIL_ENABLED")"
+    existing_user="$(get_env_value "REACT_APP_EMAIL_USER")"
+    existing_provider="$(get_env_value "REACT_APP_EMAIL_PROVIDER")"
+    existing_host="$(get_env_value "REACT_APP_SMTP_HOST")"
+    if [ -n "$existing_enabled" ] || [ -n "$existing_user" ] || [ -n "$existing_provider" ] || [ -n "$existing_host" ]; then
+      log_yellow "⚠️ 已跳过邮件配置（保留现有配置不变）"
+    else
+      set_env_kv "REACT_APP_EMAIL_ENABLED" "false"
+      log_yellow "⚠️ 已跳过邮件配置（未检测到现有配置，已设置为禁用）"
+    fi
     return 0
   fi
   set_env_kv "REACT_APP_EMAIL_PROVIDER" "$provider"
