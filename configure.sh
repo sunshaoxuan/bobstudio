@@ -302,6 +302,12 @@ main() {
     set_env_kv "API_KEY_ENCRYPTION_SECRET" "$new_enc"
     current_enc="$new_enc"
     log_green "✅ 已写入 ${ENV_FILE} -> API_KEY_ENCRYPTION_SECRET"
+    # 写入后校验，避免出现“换行分裂/空值”导致 start.sh 读不到
+    if [ -z "$(get_env_value "API_KEY_ENCRYPTION_SECRET")" ]; then
+      log_red "❌ 写入失败：${ENV_FILE} 中 API_KEY_ENCRYPTION_SECRET 仍为空"
+      log_red "   - 请检查 ${ENV_FILE} 中是否出现了换行分裂（如 KEY= 在一行、值在下一行）"
+      exit 1
+    fi
   else
     log_green "✅ 已检测到 API_KEY_ENCRYPTION_SECRET（长度: ${#current_enc}）"
   fi

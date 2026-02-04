@@ -68,6 +68,85 @@ ensure_script_exec_permissions
 # 让 node_modules/.bin 优先
 export PATH="${PROJECT_DIR}/node_modules/.bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
+is_valid_env_key() {
+  [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
+}
+
+load_env_file_exports() {
+  # 从 .env 导出变量到当前进程环境（不依赖 systemd 的 EnvironmentFile）
+  # 只导出合法 KEY=VALUE 行；忽略空行/注释/非法 KEY
+  local env_file="${PROJECT_DIR}/.env"
+  if [ ! -f "$env_file" ]; then
+    return 0
+  fi
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    # 去掉 CRLF 的 \r
+    line="${line%$'\r'}"
+    # 跳过空行/注释
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    # 必须包含等号
+    [[ "$line" != *"="* ]] && continue
+
+    local key="${line%%=*}"
+    local val="${line#*=}"
+
+    # trim key 两侧空白
+    key="$(echo -n "$key" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    # trim val 左侧空白
+    val="$(echo -n "$val" | sed -E 's/^[[:space:]]+//')"
+
+    if ! is_valid_env_key "$key"; then
+      continue
+    fi
+
+    # 不做解引号：保持原样交给 Node/应用自己处理
+    export "$key=$val"
+  done < "$env_file"
+}
+
+get_env_value_from_file() {
+  # 读取 .env 中某个 KEY 的值：
+  # - 支持 KEY=VALUE 常规写法
+  # - 兼容 KEY= 后下一行是纯值（你现在遇到的“换行分裂”）
+  local key="$1"
+  local file="$2"
+  awk -v key="$key" '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    function strip_cr(s) { sub(/\r$/, "", s); return s }
+    BEGIN { want_next = 0 }
+    {
+      $0 = strip_cr($0)
+    }
+    /^[ \t]*#/ { next }
+    /^[ \t]*$/ { next }
+    {
+      if (want_next == 1) {
+        # 下一行若不是 KEY=... 且不以 # 开头，则视为 value
+        if ($0 !~ /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=/) {
+          print $0
+        }
+        exit
+      }
+    }
+    {
+      # 匹配 KEY=
+      re = "^[ \t]*" key "[ \t]*="
+      if ($0 ~ re) {
+        line = $0
+        sub(re, "", line)
+        line = trim(line)
+        # 去掉可能的首尾引号
+        if (line ~ /^"/) { sub(/^"/, "", line); sub(/"$/, "", line) }
+        else if (line ~ /^\047/) { sub(/^\047/, "", line); sub(/\047$/, "", line) }
+        if (length(line) > 0) { print line; exit }
+        want_next = 1
+      }
+    }
+  ' "$file"
+}
+
 ensure_root_for_system_tasks() {
   if [ "${EUID:-$(id -u)}" -ne 0 ]; then
     fail "需要 root 权限以安装依赖/创建 systemd 服务。请用 root 执行（例如 sudo ./start.sh）。"
@@ -155,12 +234,7 @@ check_google_api_key_config() {
   # 1) 提示检查 .env 里的加密密钥（用于存储/解密 API Key）
   if [ -f "$env_file" ]; then
     local enc_secret=""
-    # 注意：set -euo pipefail 下，grep 找不到匹配会返回非 0；这里必须吞掉错误避免脚本中断
-    # ⚠️ 不能用 \\s：grep -E 不支持该转义。这里用 POSIX 字符类 [[:space:]]
-    enc_secret="$({ grep -E '^[[:space:]]*API_KEY_ENCRYPTION_SECRET[[:space:]]*=' "$env_file" 2>/dev/null || true; } | tail -n 1 | sed -E 's/^[[:space:]]*API_KEY_ENCRYPTION_SECRET[[:space:]]*=[[:space:]]*//')"
-    # 去掉可能的引号
-    enc_secret="${enc_secret%\"}"; enc_secret="${enc_secret#\"}"
-    enc_secret="${enc_secret%\'}"; enc_secret="${enc_secret#\'}"
+    enc_secret="$(get_env_value_from_file "API_KEY_ENCRYPTION_SECRET" "$env_file" || true)"
     if [ -z "$enc_secret" ]; then
       log_yellow "⚠️ 未在 ${env_file} 中检测到 API_KEY_ENCRYPTION_SECRET"
       log_yellow "   - 请维护: ${env_file} -> API_KEY_ENCRYPTION_SECRET（必须设置为随机强密钥）"
@@ -171,6 +245,8 @@ check_google_api_key_config() {
       has_issue="1"
     else
       log_green "✅ 已检测到 API_KEY_ENCRYPTION_SECRET（长度: ${#enc_secret}）"
+      # 确保当前进程环境也带上（即便 .env 文件格式有瑕疵）
+      export API_KEY_ENCRYPTION_SECRET="$enc_secret"
     fi
   else
     log_yellow "⚠️ 未找到 ${env_file}"
@@ -424,6 +500,7 @@ start_service_or_run_foreground() {
 main() {
   ensure_env_file
   ensure_log_dir
+  load_env_file_exports
 
   # service 模式下，不做 service 安装/启动（避免递归）
   if [ "$MODE" != "--as-service" ]; then
