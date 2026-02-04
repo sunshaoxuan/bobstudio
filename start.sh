@@ -258,6 +258,11 @@ git_update_if_needed() {
   fi
 
   log "🔄 检查并同步最新代码（${branch}）..."
+
+  # 默认策略：只做 fast-forward 更新，避免覆盖本地修改
+  # 如确实需要“强制覆盖到远端最新”，可设置 BOBSTUDIO_GIT_FORCE_RESET=1
+  local force_reset="${BOBSTUDIO_GIT_FORCE_RESET:-0}"
+
   git fetch origin "${branch}" --prune
   local local_sha remote_sha
   local_sha="$(git rev-parse HEAD)"
@@ -265,8 +270,21 @@ git_update_if_needed() {
 
   if [ "$local_sha" != "$remote_sha" ]; then
     log "⬆️ 发现更新：${local_sha:0:7} -> ${remote_sha:0:7}，开始同步..."
-    git reset --hard "origin/${branch}"
-    git clean -fd
+    if [ "$force_reset" = "1" ]; then
+      log_yellow "⚠️ 已启用强制更新（BOBSTUDIO_GIT_FORCE_RESET=1）：将覆盖本地跟踪文件改动"
+      git reset --hard "origin/${branch}"
+      # 注意：不执行 git clean，避免误删本地文件/目录（尤其是部署产生的文件）
+    else
+      # 若工作区有改动，直接中止，避免覆盖
+      if [ -n "$(git status --porcelain)" ]; then
+        log_red "❌ 检测到本地存在未提交改动，为避免覆盖，已中止自动更新"
+        log_red "   - 如确需强制覆盖远端最新，请执行："
+        log_red "     BOBSTUDIO_GIT_FORCE_RESET=1 ./start.sh"
+        exit 1
+      fi
+      # 只允许快进
+      git merge --ff-only "origin/${branch}"
+    fi
     export BOBSTUDIO_CODE_UPDATED="1"
   else
     log "✅ 代码已是最新（${local_sha:0:7}）"

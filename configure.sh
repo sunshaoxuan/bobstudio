@@ -301,6 +301,7 @@ main() {
     fi
     set_env_kv "API_KEY_ENCRYPTION_SECRET" "$new_enc"
     current_enc="$new_enc"
+    log_green "✅ 已写入 ${ENV_FILE} -> API_KEY_ENCRYPTION_SECRET"
   else
     log_green "✅ 已检测到 API_KEY_ENCRYPTION_SECRET（长度: ${#current_enc}）"
   fi
