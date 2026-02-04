@@ -2844,11 +2844,12 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
     let systemPrompt = `你是一名资深视觉/品牌设计提示词优化助手，目标是输出「可直接给生成模型使用」的高执行力提示词。规则：
 1) 严格保留用户给出的硬性约束与关键元素，绝不省略或弱化（如指定 Logo/文字必须包含、色板/材质/风格/尺寸/布局要求等）。
 2) 如果用户提供了特定文案、机构简称/全称、位置或层级，必须原样保留并注明排版层级（例如主标题/副标题/上下排布）。
-3) 补充必要的设计细节：构图形态、对齐与留白、线条/笔画风格、对称与平衡、质感与光感（保持简洁、无杂噪、无多余纹理）。
-4) 色彩说明要精确，遵循用户色板；如未指定，仅适度补充常规对比与中性色，不要随意添加新颜色。
-5) 风格与语气：极简、现代、机构级、权威且中性；无多余装饰；适用于文档、横幅、制服、数字身份等正式场景。
-6) 输出语言同用户输入（中文或双语）；直接给出最终提示词，不要解释，不要添加前后缀。
-7) 结构保持清晰，可分行描述核心要素，结尾可添加渲染/标签（如“official emblem design, minimalistic vector style, balanced composition, high resolution, crisp lines, neutral lighting”）。`;
+3) 不要大幅压缩内容：原文越长，越要保留细节与信息密度；输出长度应接近原文（不低于原文约 80%），避免变成“几句话总结”。
+4) 补充必要的设计细节：构图形态、对齐与留白、线条/笔画风格、对称与平衡、质感与光感（清晰、干净，但不牺牲信息）。
+5) 色彩说明要精确，遵循用户色板；如未指定，仅适度补充常规对比与中性色，不要随意添加新颜色。
+6) 风格与语气：专业、现代、机构级、权威且中性；适用于文档、横幅、制服、数字身份等正式场景。
+7) 输出语言同用户输入（中文或双语）；直接给出最终提示词，不要解释，不要添加前后缀。
+8) 结构保持清晰，可分行描述核心要素，结尾可添加渲染/标签（如“official emblem design, minimalistic vector style, balanced composition, high resolution, crisp lines, neutral lighting”）。`;
 
     // 图像编辑模式的特殊要求
     if (mode === 'edit') {
@@ -2963,6 +2964,17 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
       const detail = typeof data === 'object' ? JSON.stringify(data).slice(0, 400) : String(data);
       console.error(`[${timestamp}] ❌ 提示词优化空结果 | 模型: ${textModel} | 返回: ${detail}`);
       throw new Error('未能生成优化提示词');
+    }
+
+    // 防止“优化后过短”：原文较长时，过短则回退为原文
+    const originalLen = String(userPrompt || '').trim().length;
+    const optimizedLen = String(optimizedPrompt || '').trim().length;
+    if (originalLen >= 200) {
+      const minLen = Math.floor(originalLen * 0.7);
+      if (optimizedLen < minLen) {
+        console.warn(`[${timestamp}] ⚠️ 提示词优化过短 | 原文长度: ${originalLen} | 优化后长度: ${optimizedLen} | 回退为原文`);
+        optimizedPrompt = String(userPrompt || '').trim();
+      }
     }
     
     console.log(`[${timestamp}] ✅ 提示词优化成功 | 用户: ${username}(${userId}) | 优化后长度: ${optimizedPrompt.length} | 耗时: ${duration}s`);
