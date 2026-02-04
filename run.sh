@@ -314,16 +314,45 @@ build_frontend_if_needed() {
 
   if [ ! -d "${PROJECT_DIR}/build" ]; then
     need_build="1"
+    log "🔨 build 目录不存在，需要构建"
   fi
-  if [ "${BOBSTUDIO_CODE_UPDATED:-0}" = "1" ] || [ "${BOBSTUDIO_DEPS_UPDATED:-0}" = "1" ]; then
+  
+  # 如果代码已更新，必须重新构建
+  if [ "${BOBSTUDIO_CODE_UPDATED:-0}" = "1" ]; then
     need_build="1"
+    log "🔨 检测到代码已更新，需要重新构建"
   fi
+  
+  if [ "${BOBSTUDIO_DEPS_UPDATED:-0}" = "1" ]; then
+    need_build="1"
+    log "🔨 检测到依赖已更新，需要重新构建"
+  fi
+  
   if [ "${BOBSTUDIO_FORCE_BUILD:-0}" = "1" ]; then
     need_build="1"
+    log "🔨 强制构建模式已启用"
+  fi
+
+  # 检查源代码文件是否比构建文件新（时间戳比较）
+  if [ "$need_build" = "0" ] && [ -d "${PROJECT_DIR}/build" ]; then
+    local src_newer="0"
+    # 检查主要源代码文件
+    for src_file in "${PROJECT_DIR}/src/components/Studio.js" "${PROJECT_DIR}/src/components/Admin/AdminDashboard.js" "${PROJECT_DIR}/package.json"; do
+      if [ -f "$src_file" ]; then
+        if [ "$src_file" -nt "${PROJECT_DIR}/build/index.html" ] 2>/dev/null; then
+          src_newer="1"
+          log "🔨 检测到源代码文件比构建文件新: $(basename "$src_file")"
+          break
+        fi
+      fi
+    done
+    if [ "$src_newer" = "1" ]; then
+      need_build="1"
+    fi
   fi
 
   if [ "$need_build" = "1" ]; then
-    log "🔨 构建前端..."
+    log "🔨 开始构建前端..."
     if command -v stdbuf >/dev/null 2>&1; then
       npm run build 2>&1 | stdbuf -oL -eL tee /tmp/build.log
       BUILD_EXIT_CODE=${PIPESTATUS[0]}
