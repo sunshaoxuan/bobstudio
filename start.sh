@@ -103,6 +103,7 @@ check_google_api_key_config() {
 
   local env_file="${PROJECT_DIR}/.env"
   local users_file="${PROJECT_DIR}/users.json"
+  local has_issue="0"
 
   log ""
   log "🔎 检查 Google Gemini API Key 配置..."
@@ -110,60 +111,78 @@ check_google_api_key_config() {
   # 1) 提示检查 .env 里的加密密钥（用于存储/解密 API Key）
   if [ -f "$env_file" ]; then
     local enc_secret=""
-    enc_secret="$(grep -E '^\s*API_KEY_ENCRYPTION_SECRET\s*=' "$env_file" 2>/dev/null | tail -n 1 | sed -E 's/^\s*API_KEY_ENCRYPTION_SECRET\s*=\s*//')"
+    # 注意：set -euo pipefail 下，grep 找不到匹配会返回非 0；这里必须吞掉错误避免脚本中断
+    enc_secret="$({ grep -E '^\s*API_KEY_ENCRYPTION_SECRET\s*=' "$env_file" 2>/dev/null || true; } | tail -n 1 | sed -E 's/^\s*API_KEY_ENCRYPTION_SECRET\s*=\s*//')"
     # 去掉可能的引号
     enc_secret="${enc_secret%\"}"; enc_secret="${enc_secret#\"}"
     enc_secret="${enc_secret%\'}"; enc_secret="${enc_secret#\'}"
     if [ -z "$enc_secret" ]; then
       log "⚠️ 未在 ${env_file} 中检测到 API_KEY_ENCRYPTION_SECRET"
-      log "   - **请维护**: `${env_file}` 的 `API_KEY_ENCRYPTION_SECRET`（必须设置为随机强密钥）"
+      log "   - 请维护: ${env_file} -> API_KEY_ENCRYPTION_SECRET（必须设置为随机强密钥）"
+      has_issue="1"
     elif [ "$enc_secret" = "change-me-to-random-secret" ] || [ "$enc_secret" = "change-me-bobstudio-secret" ]; then
       log "⚠️ 检测到 API_KEY_ENCRYPTION_SECRET 仍为默认值（不安全，也可能导致迁移/解密问题）"
-      log "   - **请维护**: `${env_file}` 的 `API_KEY_ENCRYPTION_SECRET`（改为随机强密钥，并妥善保存）"
+      log "   - 请维护: ${env_file} -> API_KEY_ENCRYPTION_SECRET（改为随机强密钥，并妥善保存）"
+      has_issue="1"
     else
       log "✅ 已检测到 API_KEY_ENCRYPTION_SECRET（长度: ${#enc_secret}）"
     fi
   else
     log "⚠️ 未找到 ${env_file}"
-    log "   - **请维护**: 先创建 `${env_file}`，并配置 `API_KEY_ENCRYPTION_SECRET`"
+    log "   - 请维护: 创建 ${env_file}，并配置 API_KEY_ENCRYPTION_SECRET（随机强密钥）"
+    has_issue="1"
   fi
 
   # 2) 检查 users.json 中是否存在 super admin 且配置了 apiKeyEncrypted/apiKey
   if [ ! -f "$users_file" ]; then
     log "⚠️ 未找到 ${users_file}"
     log "   - **说明**: 首次启动后端时会自动创建用户数据文件"
-    log "   - **需要配置 API Key**: 请在管理后台为超级管理员设置 Google Gemini API Key（会写入 users.json 的 `apiKeyEncrypted` 字段）"
-    log "   - **对应文件/字段**: `${users_file}` -> 超级管理员用户对象 -> `apiKeyEncrypted`（推荐不要手动编辑密文，尽量在后台设置）"
-    return 0
+    log "   - 需要配置 API Key: 请在管理后台为超级管理员设置 Google Gemini API Key（会写入 users.json 的 apiKeyEncrypted 字段）"
+    log "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted（建议在后台设置，不要手改密文）"
+    has_issue="1"
+  else
+    # 用 node 解析 JSON（避免依赖 jq）
+    if ensure_cmd node; then
+      if node -e '
+        const fs = require("fs");
+        const p = process.argv[1];
+        let users;
+        try { users = JSON.parse(fs.readFileSync(p, "utf8")); } catch { process.exit(2); }
+        const admin = Array.isArray(users) ? users.find(u => u && u.isSuperAdmin) : null;
+        const v = admin ? (admin.apiKeyEncrypted || admin.apiKey || "") : "";
+        const ok = typeof v === "string" ? v.trim().length > 0 : Boolean(v);
+        process.exit(ok ? 0 : 1);
+      ' "$users_file"; then
+        log "✅ 已检测到 users.json 中存在已配置 API Key 的超级管理员"
+      else
+        local code="$?"
+        if [ "$code" = "2" ]; then
+          log "⚠️ 无法解析 ${users_file}（JSON 格式可能损坏）"
+          log "   - 请维护: ${users_file}（确保为合法 JSON 数组）"
+        else
+          log "⚠️ 未检测到已配置 API Key 的超级管理员"
+          log "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
+          log "   - 推荐方式: 启动服务后，用管理后台给超级管理员设置 Google Gemini API Key（系统会自动加密写入 apiKeyEncrypted）"
+        fi
+        has_issue="1"
+      fi
+    else
+      log "⚠️ 未检测到 node，无法解析 users.json 以检查 API Key（稍后安装 node 后可重试）"
+      log "   - 请维护: ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
+      has_issue="1"
+    fi
   fi
 
-  # 用 node 解析 JSON（避免依赖 jq）
-  if ensure_cmd node; then
-    if node -e '
-      const fs = require("fs");
-      const p = process.argv[1];
-      let users;
-      try { users = JSON.parse(fs.readFileSync(p, "utf8")); } catch { process.exit(2); }
-      const admin = Array.isArray(users) ? users.find(u => u && u.isSuperAdmin) : null;
-      const v = admin ? (admin.apiKeyEncrypted || admin.apiKey || "") : "";
-      const ok = typeof v === "string" ? v.trim().length > 0 : Boolean(v);
-      process.exit(ok ? 0 : 1);
-    ' "$users_file"; then
-      log "✅ 已检测到 users.json 中存在已配置 API Key 的超级管理员"
-    else
-      local code="$?"
-      if [ "$code" = "2" ]; then
-        log "⚠️ 无法解析 `${users_file}`（JSON 格式可能损坏）"
-        log "   - **请维护**: `${users_file}`（确保为合法 JSON 数组）"
-      else
-        log "⚠️ 未检测到已配置 API Key 的超级管理员"
-        log "   - **请维护**: `${users_file}` -> 超级管理员用户对象 -> `apiKeyEncrypted`"
-        log "   - **推荐方式**: 启动服务后，用管理后台给超级管理员设置 Google Gemini API Key（系统会自动加密写入 `apiKeyEncrypted`）"
-      fi
-    fi
+  if [ "$has_issue" = "0" ]; then
+    log "✅ 结论：已检测到可用的 Gemini API Key 配置"
   else
-    log "⚠️ 未检测到 node，无法解析 users.json 以检查 API Key（稍后安装 node 后可重试）"
-    log "   - **请维护**: `${users_file}` -> 超级管理员用户对象 -> `apiKeyEncrypted`"
+    log "⚠️ 结论：未完整检测到可用的 Gemini API Key 配置（图像生成/编辑/合成功能可能不可用）"
+    log "   - 需要维护的关键项："
+    log "     1) ${env_file} -> API_KEY_ENCRYPTION_SECRET"
+    log "     2) ${users_file} -> 超级管理员用户对象 -> apiKeyEncrypted"
+    if [ "${BOBSTUDIO_REQUIRE_API_KEY:-0}" = "1" ]; then
+      fail "BOBSTUDIO_REQUIRE_API_KEY=1 且未检测到可用 API Key，已按要求退出"
+    fi
   fi
 }
 
