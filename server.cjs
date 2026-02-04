@@ -230,14 +230,26 @@ setInterval(() => {
 // ===== 在线用户跟踪结束 =====
 
 // ===== 邮件配置 =====
+// 邮件配置：支持 REACT_APP_* 前缀（前端配置）和不带前缀（后端配置）
+const SMTP_HOST = process.env.REACT_APP_SMTP_HOST || process.env.SMTP_HOST;
+const SMTP_PORT = process.env.REACT_APP_SMTP_PORT || process.env.SMTP_PORT;
+const SMTP_SECURE = process.env.REACT_APP_SMTP_SECURE || process.env.SMTP_SECURE;
+const SMTP_USER = process.env.REACT_APP_EMAIL_USER || process.env.SMTP_USER;
+const SMTP_PASS = process.env.REACT_APP_EMAIL_PASS || process.env.SMTP_PASS;
+const EMAIL_FROM_NAME = process.env.REACT_APP_EMAIL_FROM_NAME || 'BOB Studio';
+const EMAIL_FROM_ADDR = process.env.REACT_APP_EMAIL_FROM || process.env.EMAIL_FROM;
+
+// 检查邮件是否启用
+const EMAIL_ENABLED = process.env.REACT_APP_EMAIL_ENABLED !== 'false';
+
 const EMAIL_CONFIG = {
-  host: process.env.SMTP_HOST || 'mail.briconbric.com',
-  port: process.env.SMTP_PORT || 465,
-  secure: true, // true for 465 (SSL), false for 587 (TLS)
-  auth: {
-    user: process.env.SMTP_USER || 'postmaster@briconbric.com',
-    pass: process.env.SMTP_PASS || 'BtZhY1^3'
-  },
+  host: SMTP_HOST || 'mail.briconbric.com',
+  port: parseInt(SMTP_PORT || '465', 10),
+  secure: SMTP_SECURE === 'true' || (SMTP_PORT === '465' && SMTP_SECURE !== 'false'), // true for 465 (SSL), false for 587 (TLS)
+  auth: SMTP_USER && SMTP_PASS ? {
+    user: SMTP_USER,
+    pass: SMTP_PASS
+  } : undefined,
   tls: {
     rejectUnauthorized: false // 允许自签名证书
   },
@@ -247,21 +259,38 @@ const EMAIL_CONFIG = {
 };
 
 const SITE_URL = process.env.SITE_URL || 'https://studio.briconbric.com';
-const EMAIL_FROM = process.env.EMAIL_FROM || 'BOB Studio <postmaster@briconbric.com>';
+const EMAIL_FROM = EMAIL_FROM_ADDR 
+  ? `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDR}>`
+  : `${EMAIL_FROM_NAME} <${SMTP_USER || 'postmaster@briconbric.com'}>`;
 
 // 创建邮件传输器
 let emailTransporter = null;
-try {
-  emailTransporter = nodemailer.createTransport(EMAIL_CONFIG);
-  console.log('✅ 邮件服务已配置:', EMAIL_CONFIG.host);
-} catch (error) {
-  console.error('❌ 邮件服务配置失败:', error.message);
+if (EMAIL_ENABLED && SMTP_HOST && SMTP_USER && SMTP_PASS) {
+  try {
+    emailTransporter = nodemailer.createTransport(EMAIL_CONFIG);
+    console.log('✅ 邮件服务已配置:', EMAIL_CONFIG.host);
+    console.log(`   - 发件人: ${EMAIL_FROM}`);
+  } catch (error) {
+    console.error('❌ 邮件服务配置失败:', error.message);
+  }
+} else {
+  if (!EMAIL_ENABLED) {
+    console.log('⚠️ 邮件服务已禁用（REACT_APP_EMAIL_ENABLED=false）');
+  } else {
+    console.warn('⚠️ 邮件服务未完整配置（缺少 SMTP_HOST/SMTP_USER/SMTP_PASS）');
+  }
 }
 
 // 发送激活邮件
 async function sendActivationEmail(email, username, activationToken) {
+  if (!EMAIL_ENABLED) {
+    throw new Error('邮件服务已禁用');
+  }
   if (!emailTransporter) {
-    throw new Error('邮件服务未配置');
+    throw new Error('邮件服务未配置（请检查 SMTP 配置）');
+  }
+  if (!SMTP_USER || !SMTP_PASS) {
+    throw new Error('邮件账户未配置（缺少 SMTP_USER 或 SMTP_PASS）');
   }
 
   const activationLink = `${SITE_URL}/activate/${activationToken}`;
@@ -328,8 +357,14 @@ async function sendActivationEmail(email, username, activationToken) {
 
 // 发送密码重置邮件
 async function sendPasswordResetEmail(email, username, resetToken) {
+  if (!EMAIL_ENABLED) {
+    throw new Error('邮件服务已禁用');
+  }
   if (!emailTransporter) {
-    throw new Error('邮件服务未配置');
+    throw new Error('邮件服务未配置（请检查 SMTP 配置）');
+  }
+  if (!SMTP_USER || !SMTP_PASS) {
+    throw new Error('邮件账户未配置（缺少 SMTP_USER 或 SMTP_PASS）');
   }
 
   const resetLink = `${SITE_URL}/reset-password/${resetToken}`;
