@@ -218,7 +218,13 @@ get_admin_state_summary() {
 const fs = require("fs");
 const usersFile = process.argv[1];
 let users = [];
-try { users = JSON.parse(fs.readFileSync(usersFile, "utf8") || "[]"); if (!Array.isArray(users)) users = []; } catch { users = []; }
+try {
+  users = JSON.parse(fs.readFileSync(usersFile, "utf8") || "[]");
+  if (!Array.isArray(users)) users = [];
+} catch (e) {
+  console.error("ERROR reading users.json:", e.message);
+  users = [];
+}
 const admin = users.find((u) => u && u.isSuperAdmin) || null;
 const pw = (admin?.password || "").toString();
 const pwPrefix = pw ? pw.slice(0, 8) : "";
@@ -226,7 +232,11 @@ const enc = (admin?.apiKeyEncrypted || admin?.apiKey || "").toString();
 const hasKey = Boolean(enc.trim());
 const encLen = enc ? enc.length : 0;
 const locked = Boolean(admin?.lockedUntil && new Date(admin.lockedUntil) > new Date());
-process.stdout.write(`ADMIN_PASSWORD_HASH_PREFIX=${pwPrefix}\nADMIN_HAS_KEY=${hasKey ? 1 : 0}\nADMIN_APIKEY_ENCRYPTED_LEN=${encLen}\nADMIN_LOCKED=${locked ? 1 : 0}\n`);
+// 使用 console.log 逐行输出，更可靠
+console.log("ADMIN_PASSWORD_HASH_PREFIX=" + pwPrefix);
+console.log("ADMIN_HAS_KEY=" + (hasKey ? 1 : 0));
+console.log("ADMIN_APIKEY_ENCRYPTED_LEN=" + encLen);
+console.log("ADMIN_LOCKED=" + (locked ? 1 : 0));
 NODE
 }
 
@@ -565,17 +575,18 @@ main() {
   local existing_admin_email="sunsx@briconbric.com"
   local existing_admin_has_key="0"
   local existing_admin_has_password="0"
+  local admin_info_output=""
+  admin_info_output="$(get_existing_admin_info)"
   while IFS='=' read -r k v; do
-    # 兼容可能的 CRLF（去掉 \r）
-    k="${k%$'\r'}"
-    v="${v%$'\r'}"
+    k="$(printf '%s' "$k" | tr -d '\r')"
+    v="$(printf '%s' "$v" | tr -d '\r')"
     case "$k" in
       ADMIN_USERNAME) existing_admin_username="$v" ;;
       ADMIN_EMAIL) existing_admin_email="$v" ;;
       ADMIN_HAS_KEY) existing_admin_has_key="$v" ;;
       ADMIN_HAS_PASSWORD) existing_admin_has_password="$v" ;;
     esac
-  done < <(get_existing_admin_info)
+  done <<< "$admin_info_output"
 
   log ""
   log "### 配置 BOB Studio（将写入 .env 和 users.json）"
@@ -655,16 +666,18 @@ main() {
 
   # 写入前摘要（用于确认是否真的发生变化）
   local before_pw_prefix="" before_has_key="" before_key_len="" before_locked=""
+  local state_output=""
+  state_output="$(get_admin_state_summary)"
   while IFS='=' read -r k v; do
-    k="${k%$'\r'}"
-    v="${v%$'\r'}"
+    k="$(printf '%s' "$k" | tr -d '\r\n')"
+    v="$(printf '%s' "$v" | tr -d '\r\n')"
     case "$k" in
       ADMIN_PASSWORD_HASH_PREFIX) before_pw_prefix="$v" ;;
       ADMIN_HAS_KEY) before_has_key="$v" ;;
       ADMIN_APIKEY_ENCRYPTED_LEN) before_key_len="$v" ;;
       ADMIN_LOCKED) before_locked="$v" ;;
     esac
-  done < <(get_admin_state_summary)
+  done <<< "$state_output"
 
   write_admin_user_and_key "$admin_username" "$admin_email" "$admin_password" "$gemini_key" "$current_enc"
 
@@ -681,16 +694,22 @@ main() {
 
   # 写入后摘要（以 users.json 实际内容为准，避免出现“校验通过但摘要为空”的矛盾）
   local after_pw_prefix="" after_has_key="" after_key_len="" after_locked=""
+  state_output="$(get_admin_state_summary)"
+  # 始终显示原始输出以便诊断
+  log "[诊断] get_admin_state_summary 原始输出："
+  printf '%s\n' "$state_output"
+  log "[诊断] --- 输出结束 ---"
   while IFS='=' read -r k v; do
-    k="${k%$'\r'}"
-    v="${v%$'\r'}"
+    k="$(printf '%s' "$k" | tr -d '\r\n')"
+    v="$(printf '%s' "$v" | tr -d '\r\n')"
     case "$k" in
       ADMIN_PASSWORD_HASH_PREFIX) after_pw_prefix="$v" ;;
       ADMIN_HAS_KEY) after_has_key="$v" ;;
       ADMIN_APIKEY_ENCRYPTED_LEN) after_key_len="$v" ;;
       ADMIN_LOCKED) after_locked="$v" ;;
     esac
-  done < <(get_admin_state_summary)
+  done <<< "$state_output"
+  log "[诊断] 解析结果: pw_prefix='$after_pw_prefix', has_key='$after_has_key', key_len='$after_key_len', locked='$after_locked'"
 
   log ""
   log "### 配置结果摘要（不包含敏感明文）"
