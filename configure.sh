@@ -307,6 +307,7 @@ prompt_secret_with_confirm() {
   local allow_empty="${2:-0}"
   local min_len="${3:-0}"
   local out="" ans=""
+  local require_confirm="${BOBSTUDIO_CONFIRM_SECRET_INPUT:-0}"
 
   while true; do
     # 从 tty 读取，避免 stdin 缓冲/重定向导致的异常
@@ -335,15 +336,19 @@ prompt_secret_with_confirm() {
       continue
     fi
 
-    log "已输入（长度: ${#out}，末尾: $(mask_tail "$out" 6)）。按回车确认，输入 r 重输"
+    # 默认不需要二次回车确认：输入后直接继续，但会输出摘要供核对
+    # 如确需二次确认，可设置 BOBSTUDIO_CONFIRM_SECRET_INPUT=1
+    log "已输入（长度: ${#out}，末尾: $(mask_tail "$out" 6)）"
+    if [ "$require_confirm" != "1" ]; then
+      printf "%s" "$out"
+      return 0
+    fi
+
+    log "确认使用？直接回车确认，输入 r 重输"
     read -r ans </dev/tty
     if [ -z "$ans" ] || [[ "$ans" =~ ^[Yy]$ ]]; then
       printf "%s" "$out"
       return 0
-    fi
-    if [[ "$ans" =~ ^[Rr]$ ]]; then
-      log_yellow "重新输入..."
-      continue
     fi
     log_yellow "重新输入..."
   done
