@@ -563,6 +563,144 @@ assert_admin_written() {
   exit 1
 }
 
+# 邮箱提供商预设
+get_email_preset() {
+  local provider="$1"
+  local field="$2"
+  case "${provider}_${field}" in
+    gmail_host) echo "smtp.gmail.com" ;;
+    gmail_port) echo "587" ;;
+    gmail_secure) echo "false" ;;
+    outlook_host) echo "smtp.office365.com" ;;
+    outlook_port) echo "587" ;;
+    outlook_secure) echo "false" ;;
+    qq_host) echo "smtp.qq.com" ;;
+    qq_port) echo "587" ;;
+    qq_secure) echo "false" ;;
+    netease163_host) echo "smtp.163.com" ;;
+    netease163_port) echo "465" ;;
+    netease163_secure) echo "true" ;;
+    *) echo "" ;;
+  esac
+}
+
+configure_email_provider() {
+  log ""
+  log "### 配置邮件服务（用于密码重置等功能）"
+  log ""
+  log "选择邮件服务提供商："
+  log "  1) Gmail（需要应用专用密码）"
+  log "  2) Outlook / Office 365"
+  log "  3) QQ 邮箱（需要授权码）"
+  log "  4) 网易 163 邮箱（需要授权码）"
+  log "  5) 自定义 SMTP"
+  log "  6) 跳过（不配置邮件服务）"
+  log ""
+  local choice=""
+  read -r -p "请选择 [1-6，默认 6]: " choice </dev/tty
+  choice="${choice:-6}"
+  local provider=""
+  case "$choice" in
+    1) provider="gmail" ;;
+    2) provider="outlook" ;;
+    3) provider="qq" ;;
+    4) provider="netease163" ;;
+    5) provider="custom" ;;
+    *) provider="skip" ;;
+  esac
+  if [ "$provider" = "skip" ]; then
+    set_env_kv "REACT_APP_EMAIL_ENABLED" "false"
+    log_yellow "⚠️ 已跳过邮件配置（密码重置功能将不可用）"
+    return 0
+  fi
+  set_env_kv "REACT_APP_EMAIL_PROVIDER" "$provider"
+  if [ "$provider" != "custom" ]; then
+    set_env_kv "REACT_APP_SMTP_HOST" "$(get_email_preset "$provider" host)"
+    set_env_kv "REACT_APP_SMTP_PORT" "$(get_email_preset "$provider" port)"
+    set_env_kv "REACT_APP_SMTP_SECURE" "$(get_email_preset "$provider" secure)"
+    log_green "✅ 已选择 $provider"
+  else
+    local smtp_host="" smtp_port="" smtp_secure=""
+    read -r -p "SMTP 服务器地址: " smtp_host </dev/tty
+    read -r -p "SMTP 端口 [587]: " smtp_port </dev/tty
+    smtp_port="${smtp_port:-587}"
+    read -r -p "使用 SSL/TLS [y/N]: " smtp_secure </dev/tty
+    [[ "$smtp_secure" =~ ^[Yy]$ ]] && smtp_secure="true" || smtp_secure="false"
+    set_env_kv "REACT_APP_SMTP_HOST" "$smtp_host"
+    set_env_kv "REACT_APP_SMTP_PORT" "$smtp_port"
+    set_env_kv "REACT_APP_SMTP_SECURE" "$smtp_secure"
+    log_green "✅ 已配置自定义 SMTP"
+  fi
+  set_env_kv "REACT_APP_EMAIL_ENABLED" "true"
+  local email_user="" email_pass="" email_from_name=""
+  read -r -p "邮箱账户（发件地址）: " email_user </dev/tty
+  set_env_kv "REACT_APP_EMAIL_USER" "$email_user"
+  set_env_kv "REACT_APP_EMAIL_FROM" "$email_user"
+  email_pass="$(prompt_secret_with_confirm "邮箱密码/授权码" 0 1)"
+  set_env_kv "REACT_APP_EMAIL_PASS" "$email_pass"
+  read -r -p "发件人显示名称 [BOB Studio]: " email_from_name </dev/tty
+  email_from_name="${email_from_name:-BOB Studio}"
+  set_env_kv "REACT_APP_EMAIL_FROM_NAME" "$email_from_name"
+  log_green "✅ 邮件服务配置完成"
+}
+
+configure_ai_models() {
+  log ""
+  log "### 配置 AI 模型"
+  local current_text="" current_image=""
+  current_text="$(get_env_value "GEMINI_TEXT_MODEL")"
+  current_image="$(get_env_value "GEMINI_IMAGE_MODEL")"
+  if [ -n "$current_text" ] && [ -n "$current_image" ]; then
+    log_green "✅ 已检测到 AI 模型配置"
+    log "   - 文本模型: $current_text"
+    log "   - 图像模型: $current_image"
+    local change=""
+    read -r -p "是否要修改？[y/N]: " change </dev/tty
+    [[ ! "$change" =~ ^[Yy]$ ]] && return 0
+  fi
+  set_env_kv "GEMINI_API_BASE_URL" "https://generativelanguage.googleapis.com/v1beta/models"
+  log ""
+  log "选择文本模型（用于提示词优化）："
+  log "  1) gemini-3-flash（推荐，性价比最高）"
+  log "  2) gemini-3-pro（更强大，成本较高）"
+  log "  3) 自定义"
+  local tc=""
+  read -r -p "请选择 [1-3，默认 1]: " tc </dev/tty
+  tc="${tc:-1}"
+  case "$tc" in
+    1) set_env_kv "GEMINI_TEXT_MODEL" "gemini-3-flash" ;;
+    2) set_env_kv "GEMINI_TEXT_MODEL" "gemini-3-pro" ;;
+    3) local cm=""; read -r -p "输入文本模型名称: " cm </dev/tty; set_env_kv "GEMINI_TEXT_MODEL" "$cm" ;;
+  esac
+  log ""
+  log "选择图像生成模型："
+  log "  1) gemini-3-pro-image-preview（推荐，目前最好）"
+  log "  2) 自定义"
+  local ic=""
+  read -r -p "请选择 [1-2，默认 1]: " ic </dev/tty
+  ic="${ic:-1}"
+  case "$ic" in
+    1) set_env_kv "GEMINI_IMAGE_MODEL" "gemini-3-pro-image-preview" ;;
+    2) local im=""; read -r -p "输入图像模型名称: " im </dev/tty; set_env_kv "GEMINI_IMAGE_MODEL" "$im" ;;
+  esac
+  set_env_kv "GEMINI_TEXT_TEMPERATURE" "0.7"
+  set_env_kv "GEMINI_TEXT_MAX_TOKENS" "500"
+  log_green "✅ AI 模型配置完成"
+}
+
+configure_server_port() {
+  log ""
+  log "### 配置服务器端口"
+  local current=""
+  current="$(get_env_value "PORT")"
+  current="${current:-8080}"
+  local new=""
+  read -r -p "服务器端口 [${current}]: " new </dev/tty
+  new="${new:-$current}"
+  set_env_kv "PORT" "$new"
+  log_green "✅ 服务器端口: $new"
+}
+
 main() {
   ensure_root
   install_node_20_if_needed
@@ -588,10 +726,14 @@ main() {
   done <<< "$admin_info_output"
 
   log ""
-  log "### 配置 BOB Studio（将写入 .env 和 users.json）"
+  log "=========================================="
+  log "     BOB Studio 配置向导"
+  log "=========================================="
+  log "配置将写入: .env 和 users.json"
   log ""
 
   # 1) API_KEY_ENCRYPTION_SECRET
+  log "### 配置安全密钥"
   local current_enc
   current_enc="$(get_env_value "API_KEY_ENCRYPTION_SECRET")"
   if [ -z "$current_enc" ] || [ "$current_enc" = "change-me-to-random-secret" ] || [ "$current_enc" = "change-me-bobstudio-secret" ]; then
@@ -626,9 +768,19 @@ main() {
     log_green "✅ 已设置 SESSION_SECRET（自动生成）"
   fi
 
-  # 3) Gemini API Key
+  # 3) 服务器端口
+  configure_server_port
+
+  # 4) AI 模型配置
+  configure_ai_models
+
+  # 5) 邮件服务配置
+  configure_email_provider
+
+  # 6) Gemini API Key
   log ""
-  log "请输入 Google Gemini API Key（将加密写入 users.json 的 apiKeyEncrypted）"
+  log "### 配置 Gemini API Key"
+  log "（将加密写入 users.json 的 apiKeyEncrypted）"
   local gemini_key=""
   if [ "$existing_admin_has_key" = "1" ]; then
     log_green "✅ 检测到超级管理员已配置 API Key（可直接回车跳过）"
@@ -646,9 +798,10 @@ main() {
     done
   fi
 
-  # 4) 超级管理员信息（可选）
+  # 7) 超级管理员信息
   log ""
-  log "配置超级管理员账号（默认读取现有配置，可直接回车保留）"
+  log "### 配置超级管理员账号"
+  log "（默认读取现有配置，可直接回车保留）"
   local admin_username admin_email admin_password
   admin_username="$(prompt_value "管理员用户名" "$existing_admin_username" 0)"
   admin_email="$(prompt_value "管理员邮箱" "$existing_admin_email" 0)"
