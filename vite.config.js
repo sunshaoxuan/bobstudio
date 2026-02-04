@@ -22,22 +22,6 @@ export default defineConfig({
     exclude: ['config/models.js', 'server.cjs']
   },
   
-  server: {
-    port: 3000,
-    open: false,
-    proxy: {
-      // 开发环境代理到后端服务器
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
-      '/images': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      }
-    }
-  },
-  
   build: {
     outDir: 'build',
     sourcemap: false,

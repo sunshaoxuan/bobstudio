@@ -1911,21 +1911,14 @@ const Studio = () => {
         return;
       }
       setSaveApiLoading(true);
-      const response = await fetch(
-        `${
-          import.meta.env.DEV
-            ? (import.meta.env.VITE_API_URL || "http://localhost:8080")
-            : ""
-        }/api/me/api-key`,
-        {
+        const response = await fetch(`${API_BASE_URL}/api/me/api-key`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           credentials: "include",
           body: JSON.stringify({ apiKey }),
-        },
-      );
+        });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));

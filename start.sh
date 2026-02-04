@@ -195,15 +195,6 @@ main() {
     exec "${PROJECT_DIR}/run.sh" --as-service
   fi
 
-  # 默认强制拉取/安装依赖/构建（用户直接执行 start.sh 即可完成完整流程）
-  # 如需关闭，可在环境中设置 BOBSTUDIO_FORCE_NPM_INSTALL=0 或 BOBSTUDIO_FORCE_BUILD=0
-  if [ -z "${BOBSTUDIO_FORCE_NPM_INSTALL:-}" ]; then
-    export BOBSTUDIO_FORCE_NPM_INSTALL="1"
-  fi
-  if [ -z "${BOBSTUDIO_FORCE_BUILD:-}" ]; then
-    export BOBSTUDIO_FORCE_BUILD="1"
-  fi
-
   # 更新代码（如需要）
   git_update_if_needed
 
