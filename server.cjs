@@ -3152,7 +3152,16 @@ async function startServer() {
   }
 
   // 尝试多个端口
-  const portsToTry = [8080, 8081, 8082, 9000, 9001, 3001];
+  // 说明：优先使用环境变量 PORT（例如 .env 中的 PORT=3005）
+  const configuredPort = Number.parseInt(process.env.PORT, 10);
+  const primaryPort =
+    Number.isFinite(configuredPort) && configuredPort > 0 && configuredPort < 65536
+      ? configuredPort
+      : 8080;
+
+  const portsToTry = Array.from(
+    new Set([primaryPort, 8080, 8081, 8082, 9000, 9001, 3001]),
+  );
 
   for (const port of portsToTry) {
     const success = await tryStartServer(port);
