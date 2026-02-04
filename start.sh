@@ -354,10 +354,12 @@ git_update_if_needed() {
       # 若“被 Git 跟踪的文件”有改动，直接中止，避免覆盖
       # 说明：运行时产生的未跟踪文件（如 .bobstudio/）不应阻止更新
       if ! git diff --quiet || ! git diff --cached --quiet; then
-        log_red "❌ 检测到本地（已跟踪文件）存在未提交改动，为避免覆盖，已中止自动更新"
-        log_red "   - 如确需强制覆盖远端最新，请执行："
-        log_red "     BOBSTUDIO_GIT_FORCE_RESET=1 ./start.sh"
-        exit 1
+        log_yellow "⚠️ 检测到本地（已跟踪文件）存在未提交改动，为避免覆盖，已跳过自动更新"
+        log_yellow "   - 将继续使用当前版本启动（本次不更新代码）"
+        log_yellow "   - 如确需强制覆盖远端最新，请执行："
+        log_yellow "     BOBSTUDIO_GIT_FORCE_RESET=1 ./start.sh"
+        export BOBSTUDIO_CODE_UPDATED="0"
+        return 0
       fi
       # 只允许快进
       git merge --ff-only "origin/${branch}"
