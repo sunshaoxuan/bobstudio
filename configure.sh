@@ -895,13 +895,15 @@ NODE
 
     if [ -s "$body_file" ]; then
       MODEL_LIST_HTTP_STATUS="$http_status" MODEL_LIST_CONTENT_TYPE="$content_type" \
-        cat "$body_file" | render_model_list
+        render_model_list < "$body_file"
       local code="$?"
       rm -f "$body_file" 2>/dev/null || true
       return "$code"
     fi
 
-    log_yellow "⚠️ 获取模型列表失败（响应体为空）"
+    local size="0"
+    size="$(wc -c < "$body_file" 2>/dev/null || echo 0)"
+    log_yellow "⚠️ 获取模型列表失败（响应体为空，HTTP ${http_status:-?}，Content-Type: ${content_type:-unknown}，Bytes: ${size}）"
     rm -f "$body_file" 2>/dev/null || true
     return 1
   }
