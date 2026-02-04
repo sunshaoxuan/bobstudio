@@ -87,6 +87,87 @@ ensure_env_file() {
   fi
 }
 
+backup_and_normalize_env_file() {
+  # 规范化 .env：
+  # - 修复 KEY= 在一行、值跑到下一行的情况（合并为 KEY=value）
+  # - 对无法识别的“孤立行”（没有等号）进行注释，避免影响读取
+  # - 保留注释与空行
+  #
+  # 说明：只要检测到存在“孤立行”或“KEY= 空值 + 下一行值”的情况，才会写回并生成备份
+  local file="$ENV_FILE"
+  [ -f "$file" ] || return 0
+
+  local tmp
+  tmp="$(mktemp)"
+  local changed="0"
+
+  awk '
+    function strip_cr(s) { sub(/\r$/, "", s); return s }
+    function is_key_line(s) { return (s ~ /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]*=/) }
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    BEGIN { pending_key = ""; pending_printed = 0 }
+    {
+      line = strip_cr($0)
+    }
+    # 空行/注释原样保留
+    /^[ \t]*$/ { print line; next }
+    /^[ \t]*#/ { print line; next }
+    {
+      if (pending_key != "") {
+        # pending_key 表示上一行是 KEY= 且值为空，尝试把当前行作为值合并
+        if (!is_key_line(line)) {
+          print pending_key "=" line
+          pending_key = ""
+          next
+        } else {
+          # 下一行已经是另一个 KEY=，则把 pending_key 原样写回空值
+          print pending_key "="
+          pending_key = ""
+          # 继续处理当前行
+        }
+      }
+    }
+    {
+      if (is_key_line(line)) {
+        # 规范化成 KEY=value（去掉 key 周围空白）
+        key = line
+        sub(/=.*/, "", key)
+        key = trim(key)
+        val = line
+        sub(/^[^=]*=/, "", val)
+        val = trim(val)
+        if (val == "") {
+          pending_key = key
+          next
+        }
+        print key "=" val
+        next
+      }
+    }
+    # 其它无等号的孤立行：注释掉
+    { print "# ORPHAN_LINE: " line }
+  ' "$file" > "$tmp"
+
+  # 判断是否真的发生变化（通过是否产生 ORPHAN_LINE 或 pending_key 合并）
+  if grep -q "^# ORPHAN_LINE:" "$tmp" 2>/dev/null; then
+    changed="1"
+  fi
+  # 若原文件存在 KEY= 空值且下一行是值，这次会被合并，文件内容会变化；用 diff 判断
+  if ! diff -q "$file" "$tmp" >/dev/null 2>&1; then
+    changed="1"
+  fi
+
+  if [ "$changed" = "1" ]; then
+    local ts
+    ts="$(date +%Y%m%d-%H%M%S)"
+    cp "$file" "${file}.bak.${ts}"
+    mv "$tmp" "$file"
+    log_green "✅ 已规范化 ${file}（并备份为 ${file}.bak.${ts}）"
+  else
+    rm -f "$tmp"
+  fi
+}
+
 get_existing_admin_info() {
   # 输出三行：
   # ADMIN_USERNAME=...
@@ -345,6 +426,7 @@ main() {
   ensure_root
   install_node_20_if_needed
   ensure_env_file
+  backup_and_normalize_env_file
 
   # 读取现有管理员信息（如存在）
   local existing_admin_username="admin"
