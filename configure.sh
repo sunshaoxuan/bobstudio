@@ -694,10 +694,6 @@ main() {
   # 写入后摘要（以 users.json 实际内容为准，避免出现“校验通过但摘要为空”的矛盾）
   local after_pw_prefix="" after_has_key="" after_key_len="" after_locked=""
   state_output="$(get_admin_state_summary)"
-  # 始终显示原始输出以便诊断
-  log "[诊断] get_admin_state_summary 原始输出："
-  printf '%s\n' "$state_output"
-  log "[诊断] --- 输出结束 ---"
   while IFS='=' read -r k v; do
     k="$(printf '%s' "$k" | tr -d '\r\n')"
     v="$(printf '%s' "$v" | tr -d '\r\n')"
@@ -708,7 +704,6 @@ main() {
       ADMIN_LOCKED) after_locked="$v" ;;
     esac
   done <<< "$state_output"
-  log "[诊断] 解析结果: pw_prefix='$after_pw_prefix', has_key='$after_has_key', key_len='$after_key_len', locked='$after_locked'"
 
   log ""
   log "### 配置结果摘要（不包含敏感明文）"
