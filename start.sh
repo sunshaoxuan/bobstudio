@@ -88,6 +88,40 @@ install_packages_apt() {
   apt-get install -y --no-install-recommends ca-certificates curl git
 }
 
+# 检查源代码文件是否比构建文件新，如果是则删除 build 目录
+check_and_remove_stale_build() {
+  if [ ! -d "${PROJECT_DIR}/build" ]; then
+    return 0
+  fi
+
+  local build_index="${PROJECT_DIR}/build/index.html"
+  if [ ! -f "$build_index" ]; then
+    return 0
+  fi
+
+  # 检查主要源代码文件和配置文件是否比构建文件新
+  local src_newer="0"
+  for src_file in \
+    "${PROJECT_DIR}/src/components/Studio.js" \
+    "${PROJECT_DIR}/src/components/Admin/AdminDashboard.js" \
+    "${PROJECT_DIR}/package.json" \
+    "${PROJECT_DIR}/vite.config.js" \
+    "${PROJECT_DIR}/src/index.jsx" \
+    "${PROJECT_DIR}/src/components/Profile.js"; do
+    if [ -f "$src_file" ] && [ "$src_file" -nt "$build_index" ] 2>/dev/null; then
+      src_newer="1"
+      log "🔨 检测到源代码文件比构建文件新: $(basename "$src_file")"
+      break
+    fi
+  done
+
+  if [ "$src_newer" = "1" ]; then
+    log "🗑️ 删除旧的构建文件，确保使用最新源代码重新构建..."
+    rm -rf "${PROJECT_DIR}/build"
+    export BOBSTUDIO_CODE_UPDATED="1"
+  fi
+}
+
 git_update_if_needed() {
   # 仅在存在 git 仓库时执行
   if [ ! -d "${PROJECT_DIR}/.git" ]; then
@@ -132,6 +166,9 @@ git_update_if_needed() {
         log_yellow "   - 如确需强制覆盖远端最新，请执行："
         log_yellow "     BOBSTUDIO_GIT_FORCE_RESET=1 ./start.sh"
         export BOBSTUDIO_CODE_UPDATED="0"
+        # 即使代码更新被跳过，也检查源代码文件时间戳
+        # 如果源代码文件比构建文件新，删除 build 目录以触发重新构建
+        check_and_remove_stale_build
         return 0
       fi
       # 只允许快进
@@ -146,6 +183,9 @@ git_update_if_needed() {
   else
     log "✅ 代码已是最新（${local_sha:0:7}）"
     export BOBSTUDIO_CODE_UPDATED="0"
+    # 即使代码已是最新，也检查源代码文件时间戳
+    # 如果源代码文件比构建文件新，删除 build 目录以触发重新构建
+    check_and_remove_stale_build
   fi
 }
 
@@ -153,6 +193,15 @@ main() {
   # service 模式：不更新代码，直接执行 run.sh
   if [ "$MODE" = "--as-service" ]; then
     exec "${PROJECT_DIR}/run.sh" --as-service
+  fi
+
+  # 默认强制拉取/安装依赖/构建（用户直接执行 start.sh 即可完成完整流程）
+  # 如需关闭，可在环境中设置 BOBSTUDIO_FORCE_NPM_INSTALL=0 或 BOBSTUDIO_FORCE_BUILD=0
+  if [ -z "${BOBSTUDIO_FORCE_NPM_INSTALL:-}" ]; then
+    export BOBSTUDIO_FORCE_NPM_INSTALL="1"
+  fi
+  if [ -z "${BOBSTUDIO_FORCE_BUILD:-}" ]; then
+    export BOBSTUDIO_FORCE_BUILD="1"
   fi
 
   # 更新代码（如需要）
@@ -163,4 +212,3 @@ main() {
 }
 
 main "$@"
-

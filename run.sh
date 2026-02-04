@@ -294,12 +294,19 @@ ensure_dependencies() {
   fi
 
   if [ "$need_install" = "1" ]; then
-    log "📦 安装依赖..."
+    log "📦 安装依赖（包括 devDependencies，构建前端需要 vite）..."
+    # 临时取消 NODE_ENV，确保安装 devDependencies
+    local old_node_env="${NODE_ENV:-}"
+    unset NODE_ENV
     if [ -f "$lock_file" ]; then
       npm ci
       sha256sum "$lock_file" | awk '{print $1}' > "$last_sha_file"
     else
       npm install
+    fi
+    # 恢复 NODE_ENV（如果之前设置了）
+    if [ -n "$old_node_env" ]; then
+      export NODE_ENV="$old_node_env"
     fi
     export BOBSTUDIO_DEPS_UPDATED="1"
   else
@@ -359,6 +366,54 @@ build_frontend_if_needed() {
   fi
 
   if [ "$need_build" = "1" ]; then
+    # 构建前确认 vite 可执行文件存在（vite 在 devDependencies 中）
+    # 即使 ensure_dependencies 显示已是最新，也可能缺少 devDependencies
+    local vite_bin="${PROJECT_DIR}/node_modules/.bin/vite"
+    # 使用更可靠的检查方式：检查文件是否存在（包括符号链接）且可执行
+    local vite_exists="0"
+    if [ -e "$vite_bin" ] && [ -x "$vite_bin" ]; then
+      vite_exists="1"
+    elif command -v vite >/dev/null 2>&1; then
+      # 如果 vite 在 PATH 中也可以
+      vite_exists="1"
+    fi
+    
+    if [ "$vite_exists" = "0" ]; then
+      log_yellow "⚠️ 未找到 vite 可执行文件（可能在 NODE_ENV=production 下安装过）"
+      log_yellow "   强制重新安装依赖（包括 devDependencies）..."
+      # 临时取消 NODE_ENV，确保安装 devDependencies
+      local old_node_env="${NODE_ENV:-}"
+      unset NODE_ENV
+      # 使用 npm install 而不是 npm ci，因为 npm install 只会补充缺失的包，更快
+      # npm install 默认会安装所有依赖（包括 devDependencies），只要 NODE_ENV 不是 production
+      if [ -f "${PROJECT_DIR}/package-lock.json" ]; then
+        # npm ci 会删除整个 node_modules 并重新安装，但能确保一致性
+        log "   执行: npm ci（这将重新安装所有依赖）..."
+        npm ci
+      else
+        log "   执行: npm install（这将补充缺失的依赖）..."
+        npm install
+      fi
+      # 恢复 NODE_ENV（如果之前设置了）
+      if [ -n "$old_node_env" ]; then
+        export NODE_ENV="$old_node_env"
+      fi
+      # 安装后再次检查
+      vite_exists="0"
+      if [ -e "$vite_bin" ] && [ -x "$vite_bin" ]; then
+        vite_exists="1"
+      elif command -v vite >/dev/null 2>&1; then
+        vite_exists="1"
+      fi
+      if [ "$vite_exists" = "0" ]; then
+        log_red "❌ 安装依赖后仍未找到 vite，构建无法继续"
+        log_red "   请检查: ls -la ${PROJECT_DIR}/node_modules/.bin/vite"
+        log_red "   或手动执行: cd ${PROJECT_DIR} && unset NODE_ENV && npm install"
+        exit 1
+      fi
+      log_green "✅ vite 已安装"
+    fi
+    
     log "🔨 开始构建前端..."
     if command -v stdbuf >/dev/null 2>&1; then
       npm run build 2>&1 | stdbuf -oL -eL tee /tmp/build.log
