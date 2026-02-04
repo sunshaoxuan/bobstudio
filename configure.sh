@@ -268,7 +268,8 @@ mask_tail() {
 }
 
 prompt_secret_with_confirm() {
-  # 隐式输入，但回车后给出“长度 + 末尾几位”用于确认，避免输错
+  # 明文输入（便于粘贴/校对），回车后清屏并给出“长度 + 末尾几位”用于确认
+  # 说明：用户希望可见输入、回车后再清除，避免输错又无法确认
   # 参数：
   #   $1: prompt
   #   $2: allow_empty (0/1)
@@ -279,13 +280,23 @@ prompt_secret_with_confirm() {
   local out="" ans=""
 
   while true; do
-    read -r -s -p "${prompt}: " out
-    echo ""
+    # 从 tty 读取，避免 stdin 缓冲/重定向导致的异常
+    read -r -p "${prompt}: " out </dev/tty
+    echo "" >/dev/tty
+
+    # 尝试清除刚才那一行输入（尽量不把敏感信息留在屏幕上）
+    if [ -t 1 ] && [ "${NO_COLOR:-0}" != "1" ]; then
+      # 上移一行并清除该行
+      printf "\033[1A\r\033[2K" >/dev/tty
+    fi
 
     # 去掉首尾空白（避免误输入空格）
     out="$(echo -n "$out" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    # 去掉不可见控制字符（兼容某些终端的粘贴控制码）
+    out="$(printf "%s" "$out" | tr -d '\000-\037\177')"
 
     if [ -z "$out" ] && [ "$allow_empty" = "1" ]; then
+      log_green "✅ 已选择保留现有值（未修改）"
       printf "%s" ""
       return 0
     fi
@@ -295,11 +306,15 @@ prompt_secret_with_confirm() {
       continue
     fi
 
-    log "已输入（长度: ${#out}，末尾: $(mask_tail "$out" 6)）。确认使用？[y/N]"
-    read -r ans
-    if [[ "$ans" =~ ^[Yy]$ ]]; then
+    log "已输入（长度: ${#out}，末尾: $(mask_tail "$out" 6)）。按回车确认，输入 r 重输"
+    read -r ans </dev/tty
+    if [ -z "$ans" ] || [[ "$ans" =~ ^[Yy]$ ]]; then
       printf "%s" "$out"
       return 0
+    fi
+    if [[ "$ans" =~ ^[Rr]$ ]]; then
+      log_yellow "重新输入..."
+      continue
     fi
     log_yellow "重新输入..."
   done
