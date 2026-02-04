@@ -334,20 +334,27 @@ build_frontend_if_needed() {
   fi
 
   # 检查源代码文件是否比构建文件新（时间戳比较）
+  # 即使代码没有通过 git 更新，如果源代码文件比构建文件新，也应该重新构建
   if [ "$need_build" = "0" ] && [ -d "${PROJECT_DIR}/build" ]; then
-    local src_newer="0"
-    # 检查主要源代码文件
-    for src_file in "${PROJECT_DIR}/src/components/Studio.js" "${PROJECT_DIR}/src/components/Admin/AdminDashboard.js" "${PROJECT_DIR}/package.json"; do
-      if [ -f "$src_file" ]; then
-        if [ "$src_file" -nt "${PROJECT_DIR}/build/index.html" ] 2>/dev/null; then
+    local build_index="${PROJECT_DIR}/build/index.html"
+    if [ -f "$build_index" ]; then
+      local src_newer="0"
+      # 检查主要源代码文件和配置文件
+      for src_file in \
+        "${PROJECT_DIR}/src/components/Studio.js" \
+        "${PROJECT_DIR}/src/components/Admin/AdminDashboard.js" \
+        "${PROJECT_DIR}/package.json" \
+        "${PROJECT_DIR}/vite.config.js" \
+        "${PROJECT_DIR}/src/index.jsx"; do
+        if [ -f "$src_file" ] && [ "$src_file" -nt "$build_index" ] 2>/dev/null; then
           src_newer="1"
           log "🔨 检测到源代码文件比构建文件新: $(basename "$src_file")"
           break
         fi
+      done
+      if [ "$src_newer" = "1" ]; then
+        need_build="1"
       fi
-    done
-    if [ "$src_newer" = "1" ]; then
-      need_build="1"
     fi
   fi
 
