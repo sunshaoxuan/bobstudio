@@ -11,8 +11,8 @@
 | 变量名 | 说明 | 示例值 |
 |--------|------|--------|
 | `GEMINI_API_BASE_URL` | Gemini API 基础 URL | `https://generativelanguage.googleapis.com/v1beta/models` |
-| `GEMINI_TEXT_MODEL` | 文本模型（提示词优化） | `gemini-3-flash` |
-| `GEMINI_IMAGE_MODEL` | 图像生成模型 | `gemini-3-pro-image-preview` |
+| `GEMINI_TEXT_MODEL` | 文本模型（提示词优化） | `gemini-2.5-flash` |
+| `GEMINI_IMAGE_MODEL` | 图像生成模型 | `gemini-2.5-flash-image` |
 
 ### 可选的环境变量
 
@@ -27,11 +27,11 @@
 # ===== AI 模型配置（必填）=====
 GEMINI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/models
 
-# 文本模型 - gemini-3-flash 性价比最高
-GEMINI_TEXT_MODEL=gemini-3-flash
+# 文本模型 - gemini-2.5-flash 性价比最高
+GEMINI_TEXT_MODEL=gemini-2.5-flash
 
-# 图像生成模型 - gemini-3-pro-image-preview 目前最好
-GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview
+# 图像生成模型 - gemini-2.5-flash-image 推荐
+GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
 
 # 文本模型生成参数（可选）
 GEMINI_TEXT_TEMPERATURE=0.7
@@ -61,5 +61,5 @@ const imageEndpoint = modelConfig.getImageEndpoint();
 
 | 用途 | 推荐模型 | 说明 |
 |------|----------|------|
-| 文本/提示词优化 | `gemini-3-flash` | 性价比最高的语言模型 |
-| 图像生成 | `gemini-3-pro-image-preview` | 目前最好的生图模型 |
+| 文本/提示词优化 | `gemini-2.5-flash` | 性价比最高的语言模型 |
+| 图像生成 | `gemini-2.5-flash-image` | 推荐的生图模型 |

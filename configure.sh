@@ -737,26 +737,26 @@ configure_ai_models() {
   set_env_kv "GEMINI_API_BASE_URL" "https://generativelanguage.googleapis.com/v1beta/models"
   log ""
   log "选择文本模型（用于提示词优化）："
-  log "  1) gemini-3-flash（推荐，性价比最高）"
-  log "  2) gemini-3-pro（更强大，成本较高）"
+  log "  1) gemini-2.5-flash（推荐，性价比最高）"
+  log "  2) gemini-2.5-pro（更强大，成本较高）"
   log "  3) 自定义"
   local tc=""
   read -r -p "请选择 [1-3，默认 1]: " tc </dev/tty
   tc="${tc:-1}"
   case "$tc" in
-    1) set_env_kv "GEMINI_TEXT_MODEL" "gemini-3-flash" ;;
-    2) set_env_kv "GEMINI_TEXT_MODEL" "gemini-3-pro" ;;
+    1) set_env_kv "GEMINI_TEXT_MODEL" "gemini-2.5-flash" ;;
+    2) set_env_kv "GEMINI_TEXT_MODEL" "gemini-2.5-pro" ;;
     3) local cm=""; read -r -p "输入文本模型名称: " cm </dev/tty; set_env_kv "GEMINI_TEXT_MODEL" "$cm" ;;
   esac
   log ""
   log "选择图像生成模型："
-  log "  1) gemini-3-pro-image-preview（推荐，目前最好）"
+  log "  1) gemini-2.5-flash-image（推荐）"
   log "  2) 自定义"
   local ic=""
   read -r -p "请选择 [1-2，默认 1]: " ic </dev/tty
   ic="${ic:-1}"
   case "$ic" in
-    1) set_env_kv "GEMINI_IMAGE_MODEL" "gemini-3-pro-image-preview" ;;
+    1) set_env_kv "GEMINI_IMAGE_MODEL" "gemini-2.5-flash-image" ;;
     2) local im=""; read -r -p "输入图像模型名称: " im </dev/tty; set_env_kv "GEMINI_IMAGE_MODEL" "$im" ;;
   esac
   set_env_kv "GEMINI_TEXT_TEMPERATURE" "0.7"
