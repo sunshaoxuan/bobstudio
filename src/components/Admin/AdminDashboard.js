@@ -686,22 +686,6 @@ const AdminDashboard = () => {
                       onChange={(e) =>
                         setForm((v) => ({ ...v, apiKey: e.target.value }))
                       }
-                      onCopy={(e) => {
-                        e.preventDefault();
-                        alert('🔒 为保护API密钥安全，禁止复制操作');
-                      }}
-                      onCut={(e) => {
-                        e.preventDefault();
-                        alert('🔒 为保护API密钥安全，禁止剪切操作');
-                      }}
-                      onKeyDown={(e) => {
-                        // 禁止 Ctrl+C 和 Ctrl+X (Windows/Linux)
-                        // 禁止 Cmd+C 和 Cmd+X (Mac)
-                        if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x')) {
-                          e.preventDefault();
-                          alert('🔒 为保护API密钥安全，禁止复制/剪切操作');
-                        }
-                      }}
                       disabled={loadingApiKey || submitting}
                       autoComplete="off"
                       spellCheck="false"

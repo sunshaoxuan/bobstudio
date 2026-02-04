@@ -64,7 +64,7 @@ const Studio = () => {
   const isMobile = useMediaQuery("(max-width: 768px)");
   
   // API Key 安全处理：
-  // - 用户自配的Key（showApiConfig=true）：从后端加密传回，用密码框显示，禁止复制
+  // - 用户自配的Key（showApiConfig=true）：从后端加密传回，用密码框显示
   // - 管理员配置的Key：不传回前端，完全在后端使用
   const [apiKey, setApiKey] = useState(currentUser?.apiKey || "");
   
@@ -2955,8 +2955,6 @@ const Studio = () => {
                               placeholder="输入 Gemini API Key"
                               value={apiKey}
                               onChange={(e) => setApiKey(e.target.value)}
-                              onCopy={(e) => e.preventDefault()}
-                              onCut={(e) => e.preventDefault()}
                               className="w-full p-3 pr-10 border border-gray-300 rounded-lg"
                               autoComplete="off"
                               spellCheck="false"
@@ -3329,22 +3327,6 @@ const Studio = () => {
                       placeholder="请输入Gemini API密钥"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      onCopy={(e) => {
-                        e.preventDefault();
-                        alert('🔒 为保护您的API密钥安全，禁止复制操作');
-                      }}
-                      onCut={(e) => {
-                        e.preventDefault();
-                        alert('🔒 为保护您的API密钥安全，禁止剪切操作');
-                      }}
-                      onKeyDown={(e) => {
-                        // 禁止 Ctrl+C 和 Ctrl+X (Windows/Linux)
-                        // 禁止 Cmd+C 和 Cmd+X (Mac)
-                        if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'x')) {
-                          e.preventDefault();
-                          alert('🔒 为保护您的API密钥安全，禁止复制/剪切操作');
-                        }
-                      }}
                       className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       autoComplete="off"
                       spellCheck="false"
