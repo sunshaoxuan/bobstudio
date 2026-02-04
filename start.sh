@@ -156,7 +156,8 @@ check_google_api_key_config() {
   if [ -f "$env_file" ]; then
     local enc_secret=""
     # 注意：set -euo pipefail 下，grep 找不到匹配会返回非 0；这里必须吞掉错误避免脚本中断
-    enc_secret="$({ grep -E '^\s*API_KEY_ENCRYPTION_SECRET\s*=' "$env_file" 2>/dev/null || true; } | tail -n 1 | sed -E 's/^\s*API_KEY_ENCRYPTION_SECRET\s*=\s*//')"
+    # ⚠️ 不能用 \\s：grep -E 不支持该转义。这里用 POSIX 字符类 [[:space:]]
+    enc_secret="$({ grep -E '^[[:space:]]*API_KEY_ENCRYPTION_SECRET[[:space:]]*=' "$env_file" 2>/dev/null || true; } | tail -n 1 | sed -E 's/^[[:space:]]*API_KEY_ENCRYPTION_SECRET[[:space:]]*=[[:space:]]*//')"
     # 去掉可能的引号
     enc_secret="${enc_secret%\"}"; enc_secret="${enc_secret#\"}"
     enc_secret="${enc_secret%\'}"; enc_secret="${enc_secret#\'}"
