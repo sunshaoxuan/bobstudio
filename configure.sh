@@ -798,27 +798,39 @@ list_gemini_models() {
   fi
 
   log "🔎 正在从 Gemini API 获取可用模型列表..."
-  local list_url="$base_url"
-  if [[ "$list_url" == *"?"* ]]; then
-    list_url="${list_url}&key=${api_key}"
-  else
-    list_url="${list_url}?key=${api_key}"
-  fi
+  local list_url="${base_url%/}"
 
   local resp=""
-  resp="$(curl -sS "$list_url" 2>/dev/null || true)"
+  resp="$(curl -sS \
+    -H "x-goog-api-key: ${api_key}" \
+    -H "Accept: application/json" \
+    -w '\n__HTTP_STATUS__:%{http_code}\n__CONTENT_TYPE__:%{content_type}\n' \
+    "$list_url" 2>/dev/null || true)"
   if [ -z "$resp" ]; then
     log_yellow "⚠️ 获取模型列表失败（空响应）"
     return 1
   fi
 
-  echo "$resp" | node <<'NODE'
+  local http_status=""
+  local content_type=""
+  http_status="$(printf "%s" "$resp" | awk -F: '/__HTTP_STATUS__:/ {print $2}' | tail -n 1)"
+  content_type="$(printf "%s" "$resp" | awk -F: '/__CONTENT_TYPE__:/ { $1=""; sub(/^:/,""); sub(/^[ ]+/,""); print $0 }' | tail -n 1)"
+  local body=""
+  body="$(printf "%s" "$resp" | sed '/__HTTP_STATUS__:/,$d')"
+
+  if [ -n "$http_status" ] && [ "$http_status" != "200" ]; then
+    log_yellow "⚠️ 获取模型列表失败（HTTP ${http_status}，Content-Type: ${content_type:-unknown}）"
+  fi
+
+  printf "%s" "$body" | node <<'NODE'
 const fs = require("fs");
 let raw = "";
 try { raw = fs.readFileSync(0, "utf8"); } catch {}
 let data;
 try { data = JSON.parse(raw); } catch (e) {
+  const summary = raw.replace(/\s+/g, " ").slice(0, 200);
   console.log("⚠️ 无法解析模型列表响应");
+  if (summary) console.log("响应摘要: " + summary);
   process.exit(1);
 }
 if (data && data.error) {
