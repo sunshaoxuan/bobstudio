@@ -817,7 +817,23 @@ try { buf = fs.readFileSync(0); } catch { buf = Buffer.from(""); }
 let raw = buf.toString("utf8");
 raw = raw.replace(/^\uFEFF/, "");
 let data;
-try { data = JSON.parse(raw); } catch (e) {
+try {
+  data = JSON.parse(raw);
+} catch (e) {
+  // 尝试清理前后非 JSON 字符与不可见字符
+  const cleaned = raw.replace(/\u0000/g, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      data = JSON.parse(cleaned.slice(start, end + 1));
+    } catch (e2) {
+      e = e2;
+    }
+  }
+  if (data) {
+    // 解析已成功
+  } else {
   const summary = raw.replace(/\s+/g, " ").slice(0, 200);
   console.log("⚠️ 无法解析模型列表响应");
   const httpStatus = process.env.MODEL_LIST_HTTP_STATUS || "";
@@ -832,7 +848,11 @@ try { data = JSON.parse(raw); } catch (e) {
     console.log("响应原文(前2000字符):");
     console.log(raw.slice(0, 2000));
   }
+  if (e && e.message) {
+    console.log("解析错误: " + e.message);
+  }
   process.exit(1);
+  }
 }
 if (data && data.error) {
   const msg = data.error.message || data.error.status || "未知错误";
