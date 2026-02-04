@@ -243,10 +243,49 @@ set_env_kv() {
   local key="$1"
   local value="$2"
 
-  # 幂等写入：先删除所有同名配置行，再追加一行，避免多次运行产生重复配置
-  # 注意：只处理形如 KEY=... 的行，不修改被注释掉的行
-  sed -i -E "/^[[:space:]]*${key}[[:space:]]*=/d" "$ENV_FILE"
-  printf "\n%s=%s\n" "$key" "$value" >> "$ENV_FILE"
+  # 幂等写入：先删除所有同名配置行和相关的孤立行注释，再追加一行
+  # 使用临时文件处理，可以更精确地删除紧跟在 KEY= 行后面的孤立行
+  local tmp_file
+  tmp_file="$(mktemp)"
+  local skip_orphans=0
+  
+  while IFS= read -r line || [ -n "$line" ]; do
+    # 检查是否是匹配的 KEY= 行
+    if [[ "$line" =~ ^[[:space:]]*${key}[[:space:]]*= ]]; then
+      skip_orphans=1
+      continue
+    fi
+    
+    # 如果正在跳过孤立行，检查当前行
+    if [ "$skip_orphans" = "1" ]; then
+      # 如果是 ORPHAN_LINE 注释，跳过
+      if [[ "$line" =~ ^[[:space:]]*#.*ORPHAN_LINE ]]; then
+        continue
+      fi
+      # 如果是空行，停止跳过
+      if [[ -z "$line" || "$line" =~ ^[[:space:]]*$ ]]; then
+        skip_orphans=0
+        printf '\n' >> "$tmp_file"
+        continue
+      fi
+      # 如果是另一个 KEY= 行，停止跳过
+      if [[ "$line" =~ ^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*= ]]; then
+        skip_orphans=0
+      else
+        # 其他情况继续跳过（可能是孤立的值行）
+        continue
+      fi
+    fi
+    
+    # 输出这一行
+    printf '%s\n' "$line" >> "$tmp_file"
+  done < "$ENV_FILE"
+  
+  # 追加新值
+  printf "\n%s=%s\n" "$key" "$value" >> "$tmp_file"
+  
+  # 替换原文件
+  mv "$tmp_file" "$ENV_FILE"
 }
 
 get_env_value() {
