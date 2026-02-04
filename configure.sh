@@ -862,8 +862,8 @@ NODE
 
     local http_status=""
     local content_type=""
-    http_status="$(printf "%s" "$resp" | awk -F: '/__HTTP_STATUS__:/ {print $2}' | tail -n 1)"
-    content_type="$(printf "%s" "$resp" | awk -F: '/__CONTENT_TYPE__:/ { $1=\"\"; sub(/^:/,\"\"); sub(/^[ ]+/,\"\"); print $0 }' | tail -n 1)"
+    http_status="$(printf "%s" "$resp" | sed -n 's/^__HTTP_STATUS__:\(.*\)$/\1/p' | tail -n 1)"
+    content_type="$(printf "%s" "$resp" | sed -n 's/^__CONTENT_TYPE__:\(.*\)$/\1/p' | tail -n 1 | sed -E 's/^[[:space:]]+//')"
     local body=""
     body="$(printf "%s" "$resp" | sed '/__HTTP_STATUS__:/,$d')"
 
