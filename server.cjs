@@ -2845,12 +2845,13 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
 1) 严格保留用户给出的硬性约束与关键元素，绝不省略或弱化（如指定 Logo/文字必须包含、色板/材质/风格/尺寸/布局要求等）。
 2) 如果用户提供了特定文案、机构简称/全称、位置或层级，必须原样保留并注明排版层级（例如主标题/副标题/上下排布）。
 3) 不要大幅压缩内容：原文越长，越要保留细节与信息密度；输出长度应接近原文（不低于原文约 80%），避免变成“几句话总结”。
-4) 必须在保留全部信息的前提下进行改写与结构化整理，避免原文照抄；但不得引入与原文冲突的新细节。
-5) 补充必要的设计细节：构图形态、对齐与留白、线条/笔画风格、对称与平衡、质感与光感（清晰、干净，但不牺牲信息）。
-6) 色彩说明要精确，遵循用户色板；如未指定，仅适度补充常规对比与中性色，不要随意添加新颜色。
-7) 风格与语气：专业、现代、机构级、权威且中性；适用于文档、横幅、制服、数字身份等正式场景。
-8) 输出语言同用户输入（中文或双语）；直接给出最终提示词，不要解释，不要添加前后缀。
-9) 结构保持清晰，可分行描述核心要素，结尾可添加渲染/标签（如“official emblem design, minimalistic vector style, balanced composition, high resolution, crisp lines, neutral lighting”）。`;
+4) 若原文包含不合规/敏感内容，需在不引入新风险的前提下改写为合规表达（删除或替换敏感细节），并保持主要意图与结构。
+5) 必须在保留全部信息的前提下进行改写与结构化整理，避免原文照抄；但不得引入与原文冲突的新细节。
+6) 补充必要的设计细节：构图形态、对齐与留白、线条/笔画风格、对称与平衡、质感与光感（清晰、干净，但不牺牲信息）。
+7) 色彩说明要精确，遵循用户色板；如未指定，仅适度补充常规对比与中性色，不要随意添加新颜色。
+8) 风格与语气：专业、现代、机构级、权威且中性；适用于文档、横幅、制服、数字身份等正式场景。
+9) 输出语言同用户输入（中文或双语）；直接给出最终提示词，不要解释，不要添加前后缀。
+10) 结构保持清晰，可分行描述核心要素，结尾可添加渲染/标签（如“official emblem design, minimalistic vector style, balanced composition, high resolution, crisp lines, neutral lighting”）。`;
 
     // 图像编辑模式的特殊要求
     if (mode === 'edit') {
@@ -2906,14 +2907,14 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
     // 使用文本模型进行提示词优化
     const textModel = modelConfig.text.model;
     
-    const requestPayload = {
-      contents: [{
-        parts: [{
-          text: `${systemPrompt}\n\n用户提示词：${userPrompt}\n\n请优化：`
-        }]
-      }],
-      generationConfig: modelConfig.text.generationConfig
-    };
+      const requestPayload = {
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\n用户提示词：${userPrompt}\n\n请优化：`
+          }]
+        }],
+        generationConfig: modelConfig.text.generationConfig
+      };
     
     const resp = await fetch(
       modelConfig.getTextEndpoint(),
@@ -2927,12 +2928,12 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
       }
     );
     
-    let body;
-    try {
-      body = await resp.json();
-    } catch (e) {
-      body = { error: "无法解析 Gemini 响应", parseError: e?.message };
-    }
+      let body;
+      try {
+        body = await resp.json();
+      } catch (e) {
+        body = { error: "无法解析 Gemini 响应", parseError: e?.message };
+      }
     
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       if (!resp.ok) {
@@ -2947,8 +2948,56 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
         return res.status(resp.status).json({ error: errorMessage });
       }
     
-    // 提取优化后的提示词
-    const data = body || {};
+      // 提取优化后的提示词
+      let data = body || {};
+      const blockedBySafety =
+        Boolean(data?.promptFeedback?.blockReason) ||
+        (Array.isArray(data?.candidates) && data.candidates.some(c => c?.finishReason === "PROHIBITED_CONTENT"));
+
+      if (blockedBySafety) {
+        const compliancePrompt = `你是一名内容合规改写助手。任务：将用户提示词改写为合规、安全、可用于生成模型的版本。
+要求：
+1) 删除或替换不合规/敏感/危险细节（如暴力、血腥、成人、仇恨、非法等），不得试图规避安全策略。
+2) 保留用户主要意图、结构与风格，但不要原文照抄。
+3) 输出长度尽量接近原文，避免过度压缩或仅保留“几句话总结”。
+4) 只输出改写后的提示词本身，不要解释。`;
+
+        const compliancePayload = {
+          contents: [{
+            parts: [{
+              text: `${compliancePrompt}\n\n用户提示词：${userPrompt}\n\n请改写为合规版本：`
+            }]
+          }],
+          generationConfig: modelConfig.text.generationConfig
+        };
+
+        const safeResp = await fetch(
+          modelConfig.getTextEndpoint(),
+          {
+            method: "POST",
+            headers: {
+              "x-goog-api-key": effectiveApiKey,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(compliancePayload),
+          }
+        );
+
+        let safeBody;
+        try {
+          safeBody = await safeResp.json();
+        } catch (e) {
+          safeBody = { error: "无法解析 Gemini 响应", parseError: e?.message };
+        }
+
+        if (!safeResp.ok) {
+          const detail = typeof safeBody === 'object' ? JSON.stringify(safeBody).slice(0, 400) : String(safeBody);
+          console.error(`[${timestamp}] ❌ 合规改写失败 | 模型: ${safeResp?.url || 'unknown'} | 状态码: ${safeResp.status} | 返回: ${detail}`);
+          return res.status(safeResp.status).json({ error: "提示词包含不合规内容，自动改写失败，请修改后重试" });
+        }
+
+        data = safeBody || {};
+      }
     let optimizedPrompt = '';
     if (data.candidates && data.candidates.length > 0) {
       const candidate = data.candidates[0];
@@ -2968,20 +3017,20 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
     }
 
     // 防止“优化后过短”：原文较长时，过短则回退为原文
-    const originalLen = String(userPrompt || '').trim().length;
-    const optimizedLen = String(optimizedPrompt || '').trim().length;
-    if (originalLen >= 200) {
-      const minLen = Math.floor(originalLen * 0.7);
-      if (optimizedLen < minLen) {
-        console.warn(`[${timestamp}] ⚠️ 提示词优化过短 | 原文长度: ${originalLen} | 优化后长度: ${optimizedLen} | 追加原文细节`);
-        const originalText = String(userPrompt || '').trim();
-        if (originalText && optimizedPrompt && optimizedPrompt.trim() !== originalText) {
-          optimizedPrompt = `${optimizedPrompt}\n\n${originalText}`;
-        } else {
-          optimizedPrompt = originalText;
+      const originalLen = String(userPrompt || '').trim().length;
+      const optimizedLen = String(optimizedPrompt || '').trim().length;
+      if (originalLen >= 200 && !blockedBySafety) {
+        const minLen = Math.floor(originalLen * 0.7);
+        if (optimizedLen < minLen) {
+          console.warn(`[${timestamp}] ⚠️ 提示词优化过短 | 原文长度: ${originalLen} | 优化后长度: ${optimizedLen} | 追加原文细节`);
+          const originalText = String(userPrompt || '').trim();
+          if (originalText && optimizedPrompt && optimizedPrompt.trim() !== originalText) {
+            optimizedPrompt = `${optimizedPrompt}\n\n${originalText}`;
+          } else {
+            optimizedPrompt = originalText;
+          }
         }
       }
-    }
     
     console.log(`[${timestamp}] ✅ 提示词优化成功 | 用户: ${username}(${userId}) | 优化后长度: ${optimizedPrompt.length} | 耗时: ${duration}s`);
     
