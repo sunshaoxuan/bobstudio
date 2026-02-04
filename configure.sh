@@ -182,9 +182,9 @@ get_existing_admin_info() {
     return 0
   fi
 
-  node - "$USERS_FILE" <<'NODE'
+  USERS_FILE_PATH="$USERS_FILE" node <<'NODE'
 const fs = require("fs");
-const usersFile = process.argv[1];
+const usersFile = process.env.USERS_FILE_PATH;
 let users = [];
 try {
   users = JSON.parse(fs.readFileSync(usersFile, "utf8") || "[]");
@@ -214,9 +214,9 @@ get_admin_state_summary() {
     echo "ADMIN_LOCKED=0"
     return 0
   fi
-  node - "$USERS_FILE" <<'NODE'
+  USERS_FILE_PATH="$USERS_FILE" node <<'NODE'
 const fs = require("fs");
-const usersFile = process.argv[1];
+const usersFile = process.env.USERS_FILE_PATH;
 let users = [];
 try {
   users = JSON.parse(fs.readFileSync(usersFile, "utf8") || "[]");
@@ -232,7 +232,6 @@ const enc = (admin?.apiKeyEncrypted || admin?.apiKey || "").toString();
 const hasKey = Boolean(enc.trim());
 const encLen = enc ? enc.length : 0;
 const locked = Boolean(admin?.lockedUntil && new Date(admin.lockedUntil) > new Date());
-// 使用 console.log 逐行输出，更可靠
 console.log("ADMIN_PASSWORD_HASH_PREFIX=" + pwPrefix);
 console.log("ADMIN_HAS_KEY=" + (hasKey ? 1 : 0));
 console.log("ADMIN_APIKEY_ENCRYPTED_LEN=" + encLen);
