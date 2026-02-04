@@ -2933,11 +2933,17 @@ app.post("/api/gemini/optimize-prompt", requireAuth, async (req, res) => {
     }
     
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    if (!resp.ok) {
-      const detail = typeof body === 'object' ? JSON.stringify(body).slice(0, 400) : String(body);
-      console.error(`[${timestamp}] ❌ 提示词优化失败 | 模型: ${resp?.url || 'unknown'} | 状态码: ${resp.status} | 耗时: ${duration}s | 返回: ${detail}`);
-      return res.status(resp.status).json(body);
-    }
+      if (!resp.ok) {
+        const detail = typeof body === 'object' ? JSON.stringify(body).slice(0, 400) : String(body);
+        console.error(`[${timestamp}] ❌ 提示词优化失败 | 模型: ${resp?.url || 'unknown'} | 状态码: ${resp.status} | 耗时: ${duration}s | 返回: ${detail}`);
+        const errorMessage =
+          (typeof body === 'string' && body) ||
+          (typeof body?.error === 'string' && body.error) ||
+          (typeof body?.error?.message === 'string' && body.error.message) ||
+          (typeof body?.message === 'string' && body.message) ||
+          '提示词优化失败';
+        return res.status(resp.status).json({ error: errorMessage });
+      }
     
     // 提取优化后的提示词
     const data = body || {};

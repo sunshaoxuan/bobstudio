@@ -551,17 +551,30 @@ const Studio = () => {
         }),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '优化失败');
-      }
+        if (!response.ok) {
+          let errorData = null;
+          try {
+            errorData = await response.json();
+          } catch {}
+          const errorMessage =
+            (typeof errorData === 'string' && errorData) ||
+            (typeof errorData?.error === 'string' && errorData.error) ||
+            (typeof errorData?.error?.message === 'string' && errorData.error.message) ||
+            (typeof errorData?.message === 'string' && errorData.message) ||
+            `优化失败（HTTP ${response.status}）`;
+          throw new Error(errorMessage);
+        }
       
       const result = await response.json();
       setSuggestedPrompt(result.optimizedPrompt);
-    } catch (error) {
-      console.error('提示词优化失败:', error);
-      showError('优化失败', error.message || '提示词优化失败，请稍后重试');
-    } finally {
+      } catch (error) {
+        console.error('提示词优化失败:', error);
+        const message =
+          (typeof error === 'string' && error) ||
+          error?.message ||
+          '提示词优化失败，请稍后重试';
+        showError('优化失败', message);
+      } finally {
       setLoadingSuggestion(false);
     }
   }, [prompt, apiKey, currentUser, mode, uploadedImages, checkApiKeyAvailable, showError]);
