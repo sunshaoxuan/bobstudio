@@ -190,6 +190,50 @@ ensure_env_file() {
   fi
 }
 
+# 启动时自动升级 GEMINI_TEXT_MAX_TOKENS：若 <= 500 或未设置，升级到 32K
+upgrade_env_text_max_tokens_if_needed() {
+  local env_file="${PROJECT_DIR}/.env"
+  [ ! -f "$env_file" ] && return 0
+
+  local current
+  current="$(get_env_value_from_file "GEMINI_TEXT_MAX_TOKENS" "$env_file" 2>/dev/null || true)"
+  current="${current:-0}"
+  # 若未设置或 <= 500，升级到 32K
+  if ! [[ "$current" =~ ^[0-9]+$ ]] || [ "$current" -le 500 ]; then
+    log "📝 升级 GEMINI_TEXT_MAX_TOKENS: ${current:-未设置} -> 32768（支持长提示词优化）"
+    local tmp_file
+    tmp_file="$(mktemp)"
+    local skip_orphans="0"
+    local upgraded="0"
+    while IFS= read -r line || [ -n "$line" ]; do
+      line="${line%$'\r'}"
+      if [[ "$line" =~ ^[[:space:]]*GEMINI_TEXT_MAX_TOKENS[[:space:]]*= ]]; then
+        printf '%s\n' "GEMINI_TEXT_MAX_TOKENS=32768" >> "$tmp_file"
+        upgraded="1"
+        skip_orphans="1"
+        continue
+      fi
+      if [ "$skip_orphans" = "1" ]; then
+        if [[ -z "$line" || "$line" =~ ^[[:space:]]*$ ]]; then
+          skip_orphans="0"
+          printf '%s\n' "$line" >> "$tmp_file"
+        elif [[ "$line" =~ ^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*= ]]; then
+          skip_orphans="0"
+          printf '%s\n' "$line" >> "$tmp_file"
+        fi
+        continue
+      fi
+      printf '%s\n' "$line" >> "$tmp_file"
+    done < "$env_file"
+    if [ "$upgraded" = "1" ]; then
+      mv "$tmp_file" "$env_file"
+    else
+      rm -f "$tmp_file"
+      printf '\nGEMINI_TEXT_MAX_TOKENS=32768\n' >> "$env_file"
+    fi
+  fi
+}
+
 check_google_api_key_config() {
   local env_file="${PROJECT_DIR}/.env"
   local users_file="${PROJECT_DIR}/users.json"
@@ -501,6 +545,7 @@ start_service_or_run_foreground() {
 
 main() {
   ensure_env_file
+  upgrade_env_text_max_tokens_if_needed
   ensure_log_dir
   load_env_file_exports
 

@@ -1165,7 +1165,7 @@ configure_ai_models() {
     esac
   fi
   set_env_kv "GEMINI_TEXT_TEMPERATURE" "0.7"
-  set_env_kv "GEMINI_TEXT_MAX_TOKENS" "500"
+  set_env_kv "GEMINI_TEXT_MAX_TOKENS" "32768"
   log_green "✅ AI 模型配置完成"
 }
 

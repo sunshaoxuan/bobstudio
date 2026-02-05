@@ -19,7 +19,7 @@
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
 | `GEMINI_TEXT_TEMPERATURE` | 文本生成温度参数（0.0-1.0） | `0.7` |
-| `GEMINI_TEXT_MAX_TOKENS` | 文本最大输出 token 数 | `500` |
+| `GEMINI_TEXT_MAX_TOKENS` | 文本最大输出 token 数 | `32768` |
 
 ## .env 配置示例
 
@@ -35,7 +35,7 @@ GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
 
 # 文本模型生成参数（可选）
 GEMINI_TEXT_TEMPERATURE=0.7
-GEMINI_TEXT_MAX_TOKENS=500
+GEMINI_TEXT_MAX_TOKENS=32768
 ```
 
 ## 使用方法

@@ -25,7 +25,7 @@ module.exports = {
     model: process.env.GEMINI_TEXT_MODEL,
     generationConfig: {
       temperature: parseFloat(process.env.GEMINI_TEXT_TEMPERATURE) || 0.7,
-      maxOutputTokens: parseInt(process.env.GEMINI_TEXT_MAX_TOKENS, 10) || 500,
+      maxOutputTokens: parseInt(process.env.GEMINI_TEXT_MAX_TOKENS, 10) || 32768,
     }
   },
 
