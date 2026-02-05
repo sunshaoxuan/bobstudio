@@ -1,24 +1,8 @@
 /**
  * AI 模型配置
- * 所有配置项均从环境变量读取，请在 .env 文件中配置
- * 默认值来自 env.example，代码中不硬编码
+ * 所有配置项均从环境变量读取（由 .env 加载）
+ * 若 .env 中缺失，run.sh 启动时会自动修正
  */
-
-const path = require('path');
-const fs = require('fs');
-
-function getDefaultFromExample(key) {
-  try {
-    const examplePath = path.join(__dirname, '..', 'env.example');
-    const content = fs.readFileSync(examplePath, 'utf8');
-    const match = content.match(new RegExp(`^\\s*${key}\\s*=\\s*(.+)$`, 'm'));
-    if (match) {
-      const val = match[1].trim().split(/\s+#/)[0].trim();
-      return val;
-    }
-  } catch (_) {}
-  return undefined;
-}
 
 // 必需的环境变量检查
 const requiredEnvVars = [
@@ -41,9 +25,9 @@ module.exports = {
   text: {
     model: process.env.GEMINI_TEXT_MODEL,
     generationConfig: (() => {
-      const temp = parseFloat(process.env.GEMINI_TEXT_TEMPERATURE || getDefaultFromExample('GEMINI_TEXT_TEMPERATURE'));
-      const tokens = parseInt(process.env.GEMINI_TEXT_MAX_TOKENS || getDefaultFromExample('GEMINI_TEXT_MAX_TOKENS'), 10);
       const cfg = {};
+      const temp = parseFloat(process.env.GEMINI_TEXT_TEMPERATURE);
+      const tokens = parseInt(process.env.GEMINI_TEXT_MAX_TOKENS, 10);
       if (Number.isFinite(temp)) cfg.temperature = temp;
       if (Number.isFinite(tokens) && tokens > 0) cfg.maxOutputTokens = tokens;
       return cfg;
