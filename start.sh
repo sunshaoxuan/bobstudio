@@ -174,11 +174,23 @@ git_update_if_needed() {
       # 只允许快进
       git merge --ff-only "origin/${branch}"
     fi
-    export BOBSTUDIO_CODE_UPDATED="1"
-    # 代码更新后，删除旧的构建目录，强制重新构建
-    if [ -d "${PROJECT_DIR}/build" ]; then
-      log "🗑️ 删除旧的构建文件，确保使用最新代码重新构建..."
-      rm -rf "${PROJECT_DIR}/build"
+    # 仅当本次更新涉及前端相关文件时，才删除 build 并触发重新构建
+    # 仅改 run.sh/start.sh/configure.sh/.env/config 等不触发前端构建
+    local changed_files
+    changed_files="$(git diff --name-only "$local_sha" HEAD 2>/dev/null || true)"
+    local need_frontend_rebuild="0"
+    if echo "$changed_files" | grep -qE '^src/|^package\.json$|^vite\.config\.(js|ts)$|^index\.html$'; then
+      need_frontend_rebuild="1"
+    fi
+    if [ "$need_frontend_rebuild" = "1" ]; then
+      export BOBSTUDIO_CODE_UPDATED="1"
+      if [ -d "${PROJECT_DIR}/build" ]; then
+        log "🗑️ 本次更新涉及前端，删除旧构建文件..."
+        rm -rf "${PROJECT_DIR}/build"
+      fi
+    else
+      export BOBSTUDIO_CODE_UPDATED="0"
+      log "ℹ️ 本次更新仅涉及脚本/配置，跳过前端构建"
     fi
   else
     log "✅ 代码已是最新（${local_sha:0:7}）"
