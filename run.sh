@@ -415,12 +415,25 @@ build_frontend_if_needed() {
     fi
     
     log "🔨 开始构建前端..."
-    if command -v stdbuf >/dev/null 2>&1; then
-      npm run build 2>&1 | stdbuf -oL -eL tee /tmp/build.log
-      BUILD_EXIT_CODE=${PIPESTATUS[0]}
+    # 使用 node 直接调用 vite.js，避免 npm run 在子 shell 中找不到 vite 命令的问题
+    local vite_js="${PROJECT_DIR}/node_modules/vite/bin/vite.js"
+    if [ -f "$vite_js" ]; then
+      if command -v stdbuf >/dev/null 2>&1; then
+        node "$vite_js" build 2>&1 | stdbuf -oL -eL tee /tmp/build.log
+        BUILD_EXIT_CODE=${PIPESTATUS[0]}
+      else
+        node "$vite_js" build
+        BUILD_EXIT_CODE=$?
+      fi
     else
-      npm run build
-      BUILD_EXIT_CODE=$?
+      # 回退到 npm run build
+      if command -v stdbuf >/dev/null 2>&1; then
+        npm run build 2>&1 | stdbuf -oL -eL tee /tmp/build.log
+        BUILD_EXIT_CODE=${PIPESTATUS[0]}
+      else
+        npm run build
+        BUILD_EXIT_CODE=$?
+      fi
     fi
 
     if [ "${BUILD_EXIT_CODE}" -eq 0 ]; then
