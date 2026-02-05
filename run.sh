@@ -190,7 +190,7 @@ ensure_env_file() {
   fi
 }
 
-# 启动时自动升级 GEMINI_TEXT_MAX_TOKENS：若 <= 500 或未设置，升级到 32K
+# 启动时自动升级 GEMINI_TEXT_MAX_TOKENS：若未设置或 < 32K，升级到 32K
 upgrade_env_text_max_tokens_if_needed() {
   local env_file="${PROJECT_DIR}/.env"
   [ ! -f "$env_file" ] && return 0
@@ -198,8 +198,8 @@ upgrade_env_text_max_tokens_if_needed() {
   local current
   current="$(get_env_value_from_file "GEMINI_TEXT_MAX_TOKENS" "$env_file" 2>/dev/null || true)"
   current="${current:-0}"
-  # 若未设置或 <= 500，升级到 32K
-  if ! [[ "$current" =~ ^[0-9]+$ ]] || [ "$current" -le 500 ]; then
+  # 若未设置、非数字、或 < 32768，升级到 32K
+  if ! [[ "$current" =~ ^[0-9]+$ ]] || [ "$current" -lt 32768 ]; then
     log "📝 升级 GEMINI_TEXT_MAX_TOKENS: ${current:-未设置} -> 32768（支持长提示词优化）"
     local tmp_file
     tmp_file="$(mktemp)"
